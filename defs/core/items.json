@@ -1,0 +1,86 @@
+{
+    "ArmorDef": [
+        {
+            "id": "cloth_tunic",
+            "name": "Cloth Tunic",
+            "armor_rating": 0.15,
+            "move_penalty": 0.0,
+            "cost": {
+                "wood": 0,
+                "stone": 0
+            }
+        },
+        {
+            "id": "leather_vest",
+            "name": "Leather Vest",
+            "armor_rating": 0.30,
+            "move_penalty": 0.02,
+            "cost": {
+                "wood": 2,
+                "stone": 0
+            }
+        },
+        {
+            "id": "chain_mail",
+            "name": "Chain Mail",
+            "armor_rating": 0.55,
+            "move_penalty": 0.08,
+            "cost": {
+                "wood": 0,
+                "stone": 5
+            }
+        },
+        {
+            "id": "plate_armor",
+            "name": "Plate Armor",
+            "armor_rating": 0.75,
+            "move_penalty": 0.15,
+            "cost": {
+                "wood": 0,
+                "stone": 10
+            }
+        }
+    ],
+    "WeaponDef": [
+        {
+            "id": "fists",
+            "name": "Fists",
+            "damage": 5,
+            "penetration": 0.0,
+            "speed": 1.0,
+            "range": 1
+        },
+        {
+            "id": "club",
+            "name": "Club",
+            "damage": 10,
+            "penetration": 0.05,
+            "speed": 0.8,
+            "range": 1
+        },
+        {
+            "id": "spear",
+            "name": "Spear",
+            "damage": 12,
+            "penetration": 0.20,
+            "speed": 0.9,
+            "range": 2
+        },
+        {
+            "id": "sword",
+            "name": "Sword",
+            "damage": 15,
+            "penetration": 0.35,
+            "speed": 1.0,
+            "range": 1
+        },
+        {
+            "id": "short_bow",
+            "name": "Short Bow",
+            "damage": 8,
+            "penetration": 0.15,
+            "speed": 1.2,
+            "range": 8
+        }
+    ]
+}

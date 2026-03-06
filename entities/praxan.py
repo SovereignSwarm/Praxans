@@ -2014,6 +2014,7 @@ class Praxan:
         decay_scale = 1.0 / max(0.75, self.resilience)
         
         if self.age >= PRAXAN_MAX_AGE:
+            self.alive = False
             return False  # Should die
             
         damage_taken = 0.0
@@ -2041,6 +2042,9 @@ class Praxan:
             
         if self.morale > 70 and not self.diseased:
             self.heal_damage(0.015 * delta_time * self.resilience)
+            
+        if self.health <= 0:
+            self.alive = False
             
         return self.alive
         
@@ -2734,5 +2738,88 @@ Best next action:"""
         if VERBOSE_LOGGING:
             print(f"[Medical] Praxan {doctor.id} tended {target['type']} on Praxan {self.id} ({target['part']}). Quality: {tend_quality:.2f}")
         return True
+
+    def tick_normal(self, delta_time, game_state):
+        """Called every frame. Handles movement, UI smooth transitions, and high-frequency systems."""
+        weather_effects = game_state.get('weather_effects', {})
+        if 'energy' in weather_effects:
+            self.needs['energy'] = max(0, min(100, self.needs['energy'] + weather_effects['energy'] * delta_time))
+        if 'thirst' in weather_effects:
+            self.needs['thirst'] = max(0, min(100, self.needs['thirst'] + weather_effects['thirst'] * delta_time))
+        if 'happiness' in weather_effects:
+            self.morale = clamp(self.morale + weather_effects['happiness'] * 0.12 * delta_time, 0.0, 100.0)
+            
+        settlement_state = game_state.get('settlement_state')
+        if settlement_state:
+            self.apply_settlement_effects(settlement_state, delta_time, game_state.get('world_map'), weather_effects, game_state.get('buildings'))
+
+        # Spatial resource discovery
+        resources = game_state.get('resources', [])
+        narrative_panel = game_state.get('narrative_panel')
+        if resources:
+            for resource in resources:
+                if not getattr(resource, 'collected', False):
+                    distance = math.sqrt((resource.x - self.x)**2 + (resource.y - self.y)**2)
+                    if distance < 30 and (resource.x, resource.y) not in self.known_resources:
+                        self.known_resources.append((resource.x, resource.y))
+                        
+                        # Explorer luck mechanic
+                        explorer_luck_chance = 0.05  # Using hardcoded default because constants are in main
+                        if self.role == 'explorer' and random.random() < explorer_luck_chance * self.get_exploration_bonus():
+                            bonus_type = random.choice(['food', 'wood', 'stone'])
+                            # Since we don't import Resource here easily without circular dependencies,
+                            # we can cheat by copying a Resource. But creating one dynamically:
+                            try:
+                                ResourceClass = type(resource)
+                                new_res = ResourceClass(self.x + random.randint(-30, 30), self.y + random.randint(-30, 30), bonus_type)
+                                resources.append(new_res)
+                                if narrative_panel:
+                                    narrative_panel.add_message(f"Explorer discovered bonus {bonus_type}!", 'Achievement')
+                            except Exception:
+                                pass
+
+    def tick_rare(self, delta_time, game_state):
+        """Called every RARE_TICK (~4s). Handles needs decay, environmental damage, and hediffs."""
+        if 'temperature_grid' in game_state:
+            self.update_temperature(delta_time, game_state['temperature_grid'])
+        self.update_hediffs(delta_time)
+        return self.update_age_and_health(delta_time, game_state.get('advisor').game_modifiers if game_state.get('advisor') else None)
+
+    def tick_long(self, delta_time, game_state):
+        """Called every LONG_TICK (~30s). Handles bonds, opinions, happiness, and lineage."""
+        praxans = game_state.get('praxans', [])
+        advisor = game_state.get('advisor')
+        modifiers = advisor.game_modifiers if advisor else None
+        
+        self.update_bonds(praxans, delta_time, modifiers)
+        self.update_opinions(praxans, delta_time)
+        self.update_happiness(
+            game_state.get('buildings', []), 
+            praxans, 
+            modifiers, 
+            game_state.get('world_map'), 
+            rooms=game_state.get('rooms')
+        )
+        
+        # Pillar 9: Wealth-based Expectations
+        # Higher colony wealth raises pawn expectations, creating mood debuffs
+        # if conditions don't match (prevents trivial snowballing)
+        storyteller = game_state.get('storyteller')
+        if storyteller:
+            wealth = getattr(storyteller, 'colony_wealth', 0.0)
+            if wealth < 5000:
+                expectations = 0   # Low expectations — no penalty
+            elif wealth < 15000:
+                expectations = 1   # Moderate — small penalty if unhappy
+            elif wealth < 40000:
+                expectations = 2   # High — notable penalty
+            else:
+                expectations = 3   # Very high — large mood penalty
+            
+            # Apply expectations moodlet
+            if expectations > 0 and self.happiness < 40 + (expectations * 10):
+                penalty = expectations * -3
+                import time as _time
+                self.add_moodlet("Unmet expectations", penalty, 120, _time.time())
 
 

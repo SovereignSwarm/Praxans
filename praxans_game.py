@@ -2028,7 +2028,7 @@ class BehaviorTree:
             for work in prioritized_work:
                 if work == 'Medical':
                     # Find someone needing medical attention
-                    praxans = ctx.get('all_praxans', [])
+                    praxans = ctx.get('other_praxans', [])
                     for patient in praxans:
                         # Cannot tend dead people or healthy people
                         if getattr(patient, 'health', 0) <= 0 or not hasattr(patient, 'hediffs'):
@@ -3371,8 +3371,11 @@ class Building:
         self.aura_strength = 0.0
         self.bills = []  # List of string bill IDs (e.g. 'CraftWeapon')
     
-    def update(self, delta_time, modifiers=None, weather_effects=None):
-        """Update building state (production, etc.)"""
+    def tick_rare(self, delta_time, game_state):
+        """Update building state (production, etc.) periodically"""
+        modifiers = game_state.get('advisor').game_modifiers if game_state.get('advisor') else None
+        weather_effects = game_state.get('weather_effects')
+
         # Farms produce food over time
         if self.building_type == 'farm':
             current_time = time.time()
@@ -3387,11 +3390,17 @@ class Building:
             
             production_time = 10.0 / mod
             if current_time - self.last_production_time >= production_time:
-                self.stored_resources['food'] += 1
-                # Optional: Consume wood for production (0.1 wood per production cycle)
-                if self.stored_resources['wood'] > 0 and self.stored_resources['wood'] >= 0.1:
-                    self.stored_resources['wood'] -= 0.1
-                self.last_production_time = current_time
+                # Calculate how many cycles passed
+                cycles = int((current_time - self.last_production_time) / production_time)
+                if cycles > 0:
+                    self.stored_resources['food'] += cycles
+                    # Consume wood for production
+                    wood_needed = 0.1 * cycles
+                    if self.stored_resources['wood'] >= wood_needed:
+                        self.stored_resources['wood'] -= wood_needed
+                    else:
+                        self.stored_resources['wood'] = 0.0
+                    self.last_production_time = current_time
     
     def can_enter(self, praxan, modifiers=None):
         """Check if praxan can use this building"""
@@ -4494,6 +4503,41 @@ def main(runtime_config=RUNTIME_CONFIG):
     from systems.def_database import DefDatabase
     DefDatabase.initialize("defs")
 
+    # Initialize Mod Support (Pillar 7)
+    from systems.mod_loader import ModLoader
+    mod_loader = ModLoader("mods")
+    mod_loader.discover()
+    mod_loader.load_all(DefDatabase)
+    
+    # Initialize Staggered Ticking Engine
+    from systems.ticker import TickManager
+    tick_manager = TickManager()
+
+    # Initialize Policy Manager (Pillar 2)
+    from systems.policies import PolicyManager
+    policy_manager = PolicyManager()
+
+    # Initialize Dev Mode (Pillar 10)
+    from systems.dev_mode import DevMode
+    dev_mode = DevMode()
+
+    # Initialize History Tracker (Pillar 4)
+    from ui.history_graph import HistoryTracker, HistoryGraphRenderer
+    history_tracker = HistoryTracker()
+    history_renderer = HistoryGraphRenderer()
+
+    # Initialize Quest System (Pillar 8)
+    from systems.quests import QuestManager
+    quest_manager = QuestManager()
+    quest_manager.build_default_quests()
+    quest_manager.start_quest("first_settlement")
+    quest_manager.start_quest("feed_colony")
+    quest_manager.start_quest("growing_community")
+
+    # Initialize Search Overlay (Pillar 12)
+    from ui.search_overlay import SearchOverlay
+    search_overlay = SearchOverlay()
+
     # #region agent log
     log_path = os.path.join(runtime_config.log_dir, "probe_debug.log")
     def debug_log(location, message, data=None, hypothesis_id=None):
@@ -4799,7 +4843,8 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Center camera on spawn point and zoom in
     camera.x = max(0, min(spawn_center_x - WINDOW_WIDTH / 2, world_width - WINDOW_WIDTH))
     camera.y = max(0, min(spawn_center_y - WINDOW_HEIGHT / 2, world_height - WINDOW_HEIGHT))
-    camera.set_zoom(1.5)
+    camera.zoom = 1.5
+    camera.target_zoom = 1.5
     
     # Validate camera position and zoom
     if not (0 <= camera.x <= world_width) or not (0 <= camera.y <= world_height):
@@ -4809,10 +4854,12 @@ def main(runtime_config=RUNTIME_CONFIG):
     
     if camera.zoom <= 0 or camera.zoom > camera.max_zoom:
         print(f"[WARNING] Invalid zoom {camera.zoom}, resetting to 1.5")
-        camera.set_zoom(1.5)
+        camera.zoom = 1.5
+        camera.target_zoom = 1.5
 
     # Ensure zoom is within bounds
-    camera.set_zoom(camera.zoom)
+    # (Previously set_zoom(camera.zoom))
+    camera.target_zoom = camera.zoom
     camera.follow_mode = True
     
     print(f"Camera positioned at ({camera.x:.0f}, {camera.y:.0f}) with zoom {camera.zoom}")
@@ -5294,6 +5341,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Main game loop - wrapped in try-finally for crash safety
     try:
         frame_count = 0
+        time_speed_index = 0
         # #region agent log
         debug_log("main:loop_start", "Main loop started", {"frame_count": frame_count, "running": running}, "H1")
         # #endregion
@@ -5353,6 +5401,14 @@ def main(runtime_config=RUNTIME_CONFIG):
                         _handle_ui_action("toggle_modal_archive")
                     elif event.key == pygame.K_SPACE:
                         _handle_ui_action("focus_latest_event")
+                    elif event.key == pygame.K_F12:
+                        dev_mode.toggle()
+                    elif event.key == pygame.K_h:
+                        history_renderer.toggle()
+                    elif event.key == pygame.K_SLASH:
+                        search_overlay.toggle()
+                    elif search_overlay.active:
+                        search_overlay.handle_key(event, game_state if 'game_state' in dir() else {}, camera)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     run_layout = compute_run_layout(WINDOW_WIDTH, WINDOW_HEIGHT)
                     ui_hit = ui_registry.hit_test(event.pos)
@@ -5658,6 +5714,13 @@ def main(runtime_config=RUNTIME_CONFIG):
                 selected_model = advisor.last_model_used
             record_population_evolution_sample(advisor, praxans, current_time, game_start_time, force=False)
             
+            # Record history samples for the History Graph (Pillar 4)
+            storyteller_ref = getattr(advisor, 'storyteller', None)
+            history_tracker.update(current_time, praxans, buildings, storyteller_ref)
+            
+            # Update Quest System (Pillar 8)
+            quest_manager.update(game_state)
+            
             # Award research points (time-based and milestones)
             days_survived = int((current_time - game_start_time) / DAY_LENGTH)
             if days_survived > advisor.civilization_age:
@@ -5794,9 +5857,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             # Get weather effects for building and praxan updates
             weather_effects = weather_system.get_effects()
             
-            # Update buildings (production, etc.) - now with weather effects
-            for building in buildings:
-                building.update(delta_time, advisor.game_modifiers, weather_effects)
+            # Update buildings (production, etc.) will be handled by TickManager now
+            # Only weather effects logic remains here if needed (it's pulled in by TickManager though)
 
             settlement_state = compute_settlement_snapshot(praxans, buildings, world_map, season, weather_system)
             update_settlement_celebration(
@@ -5826,15 +5888,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 force=False,
             )
             
-            # Apply weather effects to praxans (per second)
-            for praxan in praxans:
-                if 'energy' in weather_effects:
-                    praxan.needs['energy'] = max(0, min(100, praxan.needs['energy'] + weather_effects['energy'] * delta_time))
-                if 'thirst' in weather_effects:
-                    praxan.needs['thirst'] = max(0, min(100, praxan.needs['thirst'] + weather_effects['thirst'] * delta_time))
-                if 'happiness' in weather_effects:
-                    praxan.morale = clamp(praxan.morale + weather_effects['happiness'] * 0.12 * delta_time, 0.0, 100.0)
-                praxan.apply_settlement_effects(settlement_state, delta_time, world_map, weather_effects, buildings)
+            # Weather effects are now handled inside Praxan.tick_normal via TickManager
             
             # Maintain resource counts by respawning resources if needed
             num_food_active = sum(1 for r in resources if r.resource_type == 'food' and not r.collected)
@@ -5876,23 +5930,37 @@ def main(runtime_config=RUNTIME_CONFIG):
                 else:
                     resources.append(Resource(x, y, 'stone'))
             
-            # First pass: update health, age, bonds, happiness for all praxans
+            # First pass: Sync entities and run staggered ticking
+            game_state = {
+                'praxans': praxans,
+                'buildings': buildings,
+                'resources': resources,
+                'advisor': advisor,
+                'narrative_panel': narrative_panel,
+                'weather_effects': weather_effects,
+                'temperature_grid': temperature_grid,
+                'world_map': world_map,
+                'rooms': rooms,
+                'season': season,
+                'settlement_state': settlement_state,
+                'policy_manager': policy_manager,
+                'storyteller': getattr(advisor, 'storyteller', None),
+            }
+            tick_manager.sync_entities(praxans, buildings)
+            tick_manager.tick(delta_time, game_state)
+            
+            # Remove monolithic O(N) updates and extract dead praxans for cleanup
             praxans_to_remove = []
             for idx, praxan in enumerate(praxans):
-                # Safety check - skip invalid praxans
-                if praxan is None or not hasattr(praxan, 'id'):
-                    continue
-                try:
-                    praxan.update_temperature(delta_time, temperature_grid)
-                    praxan.update_hediffs(delta_time)
-                    
-                    # Update age and health - check for death
-                    if not praxan.update_age_and_health(delta_time, advisor.game_modifiers):
+                if not praxan.alive:
+                    if not getattr(praxan, 'death_processed', False):
+                        praxan.death_processed = True
                         # Create death particle effect
                         particle_system.create_particles(praxan.x, praxan.y, 'death', 10)
                         praxans_to_remove.append(idx)
                         narrative_panel.add_message(f"A praxan has passed away...", 'Crisis')
                         advisor.total_deaths = getattr(advisor, 'total_deaths', 0) + 1
+                        
                         # Track death cause
                         if praxan.age >= PRAXAN_MAX_AGE:
                             cause = 'old_age'
@@ -5900,12 +5968,14 @@ def main(runtime_config=RUNTIME_CONFIG):
                             cause = 'health_failure'
                         else:
                             cause = 'unknown'
+                            
                         advisor.session_stats['deaths_by_cause'][cause] = advisor.session_stats['deaths_by_cause'].get(cause, 0) + 1
                         previous_average = advisor.session_stats.get('avg_survival_time', 0.0)
                         death_count = max(1, advisor.total_deaths)
                         advisor.session_stats['avg_survival_time'] = (
                             ((previous_average * max(0, death_count - 1)) + praxan.age) / death_count
                         )
+                        
                         append_bounded_history(
                             advisor.session_stats.setdefault('lineage_events', []),
                             {
@@ -5917,6 +5987,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                             },
                             16,
                         )
+                        
                         record_observer_timeline_event(
                             advisor,
                             current_time,
@@ -5924,16 +5995,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                             f"Lineage loss: #{praxan.id} from L{getattr(praxan, 'lineage_id', praxan.id)}",
                             f"Cause: {cause.replace('_', ' ')}.",
                         )
-                    
-                    # Update social bonds
-                    praxan.update_bonds(praxans, delta_time, advisor.game_modifiers)
-                    praxan.update_opinions(praxans, delta_time)
-                except Exception as e:
-                    # Log error but don't crash - skip this praxan for this frame
-                    game_logger.log_error(f"Error updating praxan {praxan.id if hasattr(praxan, 'id') else idx}: {str(e)}", exc_info=True)
-                    continue
             
-            # Update factions after bonds are updated (outside the loop for efficiency)
+            # Update factions outside the loop for efficiency
             faction_manager.update_factions(praxans, advisor)
             faction_manager.apply_autonomous_pressure(
                 praxans,
@@ -5948,31 +6011,6 @@ def main(runtime_config=RUNTIME_CONFIG):
             if current_time - last_room_update > 5.0:
                 update_rooms(rooms, buildings, world_width, world_height)
                 last_room_update = current_time
-            
-            # Update happiness (move outside loop for efficiency)
-            for praxan in praxans:
-                try:
-                    # Update happiness
-                    praxan.update_happiness(buildings, praxans, advisor.game_modifiers, world_map, rooms=rooms)
-                    
-                    # Store knowledge when discovering resources
-                    for resource in resources:
-                        if not resource.collected:
-                            distance = math.sqrt((resource.x - praxan.x)**2 + (resource.y - praxan.y)**2)
-                            if distance < 30 and (resource.x, resource.y) not in praxan.known_resources:
-                                praxan.known_resources.append((resource.x, resource.y))
-                                
-                                # Explorer luck mechanic - chance to find bonus resources
-                                if praxan.role == 'explorer' and random.random() < EXPLORER_LUCK_CHANCE * praxan.get_exploration_bonus():
-                                    bonus_type = random.choice(['food', 'wood', 'stone'])
-                                    resources.append(Resource(praxan.x + random.randint(-30, 30), 
-                                                             praxan.y + random.randint(-30, 30), 
-                                                             bonus_type))
-                                    narrative_panel.add_message(f"Explorer discovered bonus {bonus_type}!", 'Achievement')
-                except Exception as e:
-                    # Log error but don't crash - skip this praxan for this frame
-                    game_logger.log_error(f"Error updating praxan {praxan.id if hasattr(praxan, 'id') else 'unknown'}: {str(e)}", exc_info=True)
-                    continue
             
             # Remove dead praxans (in reverse order to maintain indices)
             for idx in reversed(praxans_to_remove):

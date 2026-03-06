@@ -5,6 +5,34 @@ from systems.def_database import DefDatabase
 
 BUILDING_ORDER = ["house", "farm", "storage", "workshop", "shrine", "well", "hospital", "school", "watchtower", "market"]
 
+# Compatibility shim: other modules still reference this constant.
+# After DefDatabase.initialize(), this returns the same dict shape as the old hardcoded definitions.
+def _get_building_definitions():
+    """Lazy accessor so it works both before and after DefDatabase.initialize()."""
+    return DefDatabase.get_all("BuildingDef")
+
+class _BuildingDefsProxy(dict):
+    """Dict-like proxy that always reads from DefDatabase at access time."""
+    def __getitem__(self, key):
+        return _get_building_definitions()[key]
+    def get(self, key, default=None):
+        return _get_building_definitions().get(key, default)
+    def __contains__(self, key):
+        return key in _get_building_definitions()
+    def __iter__(self):
+        return iter(_get_building_definitions())
+    def __len__(self):
+        return len(_get_building_definitions())
+    def items(self):
+        return _get_building_definitions().items()
+    def keys(self):
+        return _get_building_definitions().keys()
+    def values(self):
+        return _get_building_definitions().values()
+
+BUILDING_DEFINITIONS = _BuildingDefsProxy()
+
+
 LEGACY_BONUS_DEFINITIONS = {
     "head_start": {"unlocked": False, "effect": "Start with 5 praxans"},
     "wise_elders": {"unlocked": False, "effect": "Start with level 2 skills"},
@@ -28,21 +56,33 @@ GOAL_TYPE_DEFINITIONS = [
 ]
 
 # ---- Phase 3B: Armor & Weapons ----
+# Now loaded from defs/core/items.json via DefDatabase
 
-ARMOR_DEFS = {
-    "cloth_tunic":   {"name": "Cloth Tunic",   "armor_rating": 0.15, "move_penalty": 0.0,  "cost": {"wood": 0, "stone": 0}},
-    "leather_vest":  {"name": "Leather Vest",  "armor_rating": 0.30, "move_penalty": 0.02, "cost": {"wood": 2, "stone": 0}},
-    "chain_mail":    {"name": "Chain Mail",    "armor_rating": 0.55, "move_penalty": 0.08, "cost": {"wood": 0, "stone": 5}},
-    "plate_armor":   {"name": "Plate Armor",   "armor_rating": 0.75, "move_penalty": 0.15, "cost": {"wood": 0, "stone": 10}},
-}
+class _DefProxy(dict):
+    """Dict-like proxy that always reads from DefDatabase at access time."""
+    def __init__(self, def_type):
+        self._def_type = def_type
+    def _data(self):
+        return DefDatabase.get_all(self._def_type)
+    def __getitem__(self, key):
+        return self._data()[key]
+    def get(self, key, default=None):
+        return self._data().get(key, default)
+    def __contains__(self, key):
+        return key in self._data()
+    def __iter__(self):
+        return iter(self._data())
+    def __len__(self):
+        return len(self._data())
+    def items(self):
+        return self._data().items()
+    def keys(self):
+        return self._data().keys()
+    def values(self):
+        return self._data().values()
 
-WEAPON_DEFS = {
-    "fists":        {"name": "Fists",        "damage": 5,  "penetration": 0.0,  "speed": 1.0,  "range": 1},
-    "club":         {"name": "Club",         "damage": 10, "penetration": 0.05, "speed": 0.8,  "range": 1},
-    "spear":        {"name": "Spear",        "damage": 12, "penetration": 0.20, "speed": 0.9,  "range": 2},
-    "sword":        {"name": "Sword",        "damage": 15, "penetration": 0.35, "speed": 1.0,  "range": 1},
-    "short_bow":    {"name": "Short Bow",    "damage": 8,  "penetration": 0.15, "speed": 1.2,  "range": 8},
-}
+ARMOR_DEFS = _DefProxy("ArmorDef")
+WEAPON_DEFS = _DefProxy("WeaponDef")
 
 # ---- Phase 3C: Item Quality & Crafting ----
 
@@ -58,39 +98,9 @@ QUALITY_MULTIPLIERS = {
     'Legendary':   2.0,
 }
 
-JOB_DEFS = {
-    "CookMeal": {
-        "work_type": "Cooking",
-        "station": "farm",
-        "ingredients": [{"type": "food", "amount": 1}],
-        "output": "meal",
-        "skill_factor": "cooking",
-        "base_work": 400,
-    },
-    "SmithArmor": {
-        "work_type": "Crafting",
-        "station": "workshop",
-        "ingredients": [{"type": "stone", "amount": 5}],
-        "output": "chain_mail",
-        "skill_factor": "crafting",
-        "base_work": 800,
-    },
-    "CraftWeapon": {
-        "work_type": "Crafting",
-        "station": "workshop",
-        "ingredients": [{"type": "wood", "amount": 3}, {"type": "stone", "amount": 2}],
-        "output": "spear",
-        "skill_factor": "crafting",
-        "base_work": 600,
-    },
-}
+JOB_DEFS = _DefProxy("JobDef")
 
-MOOD_DEFS = {
-    "AteRawFood":         {"mood_offset": -7, "duration": 86400},
-    "AteFineFood":        {"mood_offset": 5,  "duration": 86400},
-    "Catharsis":          {"mood_offset": 30, "duration": 300},
-    "FoughtOffInfection": {"mood_offset": 5,  "duration": 120},
-}
+MOOD_DEFS = _DefProxy("MoodDef")
 
 
 

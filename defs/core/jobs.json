@@ -1,0 +1,50 @@
+{
+    "JobDef": [
+        {
+            "id": "CookMeal",
+            "work_type": "Cooking",
+            "station": "farm",
+            "ingredients": [
+                {
+                    "type": "food",
+                    "amount": 1
+                }
+            ],
+            "output": "meal",
+            "skill_factor": "cooking",
+            "base_work": 400
+        },
+        {
+            "id": "SmithArmor",
+            "work_type": "Crafting",
+            "station": "workshop",
+            "ingredients": [
+                {
+                    "type": "stone",
+                    "amount": 5
+                }
+            ],
+            "output": "chain_mail",
+            "skill_factor": "crafting",
+            "base_work": 800
+        },
+        {
+            "id": "CraftWeapon",
+            "work_type": "Crafting",
+            "station": "workshop",
+            "ingredients": [
+                {
+                    "type": "wood",
+                    "amount": 3
+                },
+                {
+                    "type": "stone",
+                    "amount": 2
+                }
+            ],
+            "output": "spear",
+            "skill_factor": "crafting",
+            "base_work": 600
+        }
+    ]
+}

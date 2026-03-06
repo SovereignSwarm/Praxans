@@ -1,0 +1,24 @@
+{
+    "MoodDef": [
+        {
+            "id": "AteRawFood",
+            "mood_offset": -7,
+            "duration": 86400
+        },
+        {
+            "id": "AteFineFood",
+            "mood_offset": 5,
+            "duration": 86400
+        },
+        {
+            "id": "Catharsis",
+            "mood_offset": 30,
+            "duration": 300
+        },
+        {
+            "id": "FoughtOffInfection",
+            "mood_offset": 5,
+            "duration": 120
+        }
+    ]
+}

@@ -1,0 +1,5 @@
+pygame 2.6.1 (SDL 2.28.4, Python 3.13.6)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Display window created
+Detecting fastest available LLM model...
+[LLM] Using model: qwen3.5:9b
