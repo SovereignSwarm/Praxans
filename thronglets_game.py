@@ -2892,6 +2892,7 @@ class Faction:
         self.last_schism_time = 0.0
         self.last_migration_time = 0.0
         self.last_doctrine_goal_time = 0.0
+        self.golden_age = False
     
     def add_member(self, thronglet_id):
         """Add a member to this faction"""
@@ -2995,6 +2996,12 @@ class Faction:
         self.schism_pressure = clamp(float(metrics["schism_pressure"]), 0.0, 100.0)
         self.migration_pressure = clamp(float(metrics["migration_pressure"]), 0.0, 100.0)
         self.preferred_biome = str(metrics.get("preferred_biome", "plains"))
+
+        if getattr(self, "golden_age", False):
+            for member in members:
+                member.inspiration = min(100.0, member.inspiration + 0.25)
+                member.morale = min(100.0, getattr(member, "morale", 65.0) + 0.25)
+                member.happiness = min(100.0, member.happiness + 0.25)
 
     def assign_shared_goal(self, goal_text, reasoning="", doctrine_key=""):
         goal_text = str(goal_text or "").strip()
@@ -3140,6 +3147,19 @@ class FactionManager:
 
         for faction in self.factions.values():
             faction.refresh_identity(thronglets)
+            
+            if faction.cohesion >= 95.0 and faction.stability >= 90.0 and not getattr(faction, "golden_age", False):
+                faction.golden_age = True
+                if advisor is not None:
+                    record_observer_timeline_event(
+                        advisor,
+                        current_time,
+                        "cultural_shift",
+                        f"Faction {faction.id} entered a Golden Age",
+                        f"Unprecedented cohesion under {faction.primary_doctrine} triggers incredible inspiration across all members."
+                    )
+                    advisor.session_stats["golden_ages"] = advisor.session_stats.get("golden_ages", 0) + 1
+
         self._update_rivalries()
         self._evaluate_schisms(thronglets, advisor, current_time)
         self._update_rivalries()
@@ -11235,6 +11255,21 @@ def main(runtime_config=RUNTIME_CONFIG):
             weather_event = weather_system.check_event(current_time, advisor.challenge_difficulty, season.current)
             if weather_event and weather_event['type'] != 'clear':
                 narrative_panel.add_message(f"Weather Alert: {weather_event['type']}!", 'Crisis')
+                if weather_event['type'] in ('storm', 'drought'):
+                    impact = 25.0 if weather_event['type'] == 'storm' else 15.0
+                    affected_count = 0
+                    for _t in thronglets:
+                        if random.random() < 0.4:
+                            _t.health = max(1.0, _t.health - impact)
+                            _t.needs['energy'] = max(0.0, _t.needs['energy'] - impact)
+                            affected_count += 1
+                    record_observer_timeline_event(
+                        advisor,
+                        current_time,
+                        "disaster",
+                        f"A severe {weather_event['type']} struck the settlement",
+                        f"{affected_count} thronglets suffered immediate health and energy damage from the catastrophe."
+                    )
             
             # Get weather effects for building and thronglet updates
             weather_effects = weather_system.get_effects()
