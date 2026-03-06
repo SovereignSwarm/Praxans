@@ -35,18 +35,25 @@ class CivilizationMemory:
         self.digests: list[str] = []
 
     def record(self, category: str, summary: str, time_stamp: float = 0.0) -> None:
-        _bounded_append(
-            self.entries,
-            {"time": time_stamp or time.time(), "category": category, "summary": summary},
-            self.MAX_ENTRIES,
-        )
+        if self.entries and self.entries[-1]["summary"] == summary and self.entries[-1]["category"] == category:
+            count = self.entries[-1].get("count", 1) + 1
+            self.entries[-1]["count"] = count
+            self.entries[-1]["time"] = time_stamp or time.time()
+            return
+        entry = {"time": time_stamp or time.time(), "category": category, "summary": summary, "count": 1}
+        _bounded_append(self.entries, entry, self.MAX_ENTRIES)
 
     def set_digest(self, digest_text: str) -> None:
         if digest_text:
             _bounded_append(self.digests, digest_text, self.MAX_DIGESTS)
 
     def recent_text(self, count: int = 8) -> str:
-        lines = [e["summary"] for e in self.entries[-count:]]
+        lines = []
+        for e in self.entries[-count:]:
+            if e.get("count", 1) > 1:
+                lines.append(f"{e['summary']} (x{e['count']})")
+            else:
+                lines.append(e["summary"])
         return "\n".join(lines) if lines else "(no recent events)"
 
     def digest_text(self) -> str:
@@ -80,11 +87,13 @@ class FactionMemory:
 
     def record(self, faction_id: int, category: str, summary: str, time_stamp: float = 0.0) -> None:
         bucket = self._entries.setdefault(faction_id, [])
-        _bounded_append(
-            bucket,
-            {"time": time_stamp or time.time(), "category": category, "summary": summary},
-            self.MAX_ENTRIES_PER_FACTION,
-        )
+        if bucket and bucket[-1]["summary"] == summary and bucket[-1]["category"] == category:
+            count = bucket[-1].get("count", 1) + 1
+            bucket[-1]["count"] = count
+            bucket[-1]["time"] = time_stamp or time.time()
+            return
+        entry = {"time": time_stamp or time.time(), "category": category, "summary": summary, "count": 1}
+        _bounded_append(bucket, entry, self.MAX_ENTRIES_PER_FACTION)
 
     def set_digest(self, faction_id: int, digest_text: str) -> None:
         if digest_text:
@@ -93,7 +102,12 @@ class FactionMemory:
 
     def recent_text(self, faction_id: int, count: int = 6) -> str:
         bucket = self._entries.get(faction_id, [])
-        lines = [e["summary"] for e in bucket[-count:]]
+        lines = []
+        for e in bucket[-count:]:
+            if e.get("count", 1) > 1:
+                lines.append(f"{e['summary']} (x{e['count']})")
+            else:
+                lines.append(e["summary"])
         return "\n".join(lines) if lines else "(no faction events)"
 
     def digest_text(self, faction_id: int) -> str:
@@ -142,18 +156,25 @@ class MapMemory:
         self.digests: list[str] = []
 
     def record(self, category: str, summary: str, time_stamp: float = 0.0) -> None:
-        _bounded_append(
-            self.entries,
-            {"time": time_stamp or time.time(), "category": category, "summary": summary},
-            self.MAX_ENTRIES,
-        )
+        if self.entries and self.entries[-1]["summary"] == summary and self.entries[-1]["category"] == category:
+            count = self.entries[-1].get("count", 1) + 1
+            self.entries[-1]["count"] = count
+            self.entries[-1]["time"] = time_stamp or time.time()
+            return
+        entry = {"time": time_stamp or time.time(), "category": category, "summary": summary, "count": 1}
+        _bounded_append(self.entries, entry, self.MAX_ENTRIES)
 
     def set_digest(self, digest_text: str) -> None:
         if digest_text:
             _bounded_append(self.digests, digest_text, self.MAX_DIGESTS)
 
     def recent_text(self, count: int = 6) -> str:
-        lines = [e["summary"] for e in self.entries[-count:]]
+        lines = []
+        for e in self.entries[-count:]:
+            if e.get("count", 1) > 1:
+                lines.append(f"{e['summary']} (x{e['count']})")
+            else:
+                lines.append(e["summary"])
         return "\n".join(lines) if lines else "(no map events)"
 
     def digest_text(self) -> str:

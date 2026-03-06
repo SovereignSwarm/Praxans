@@ -182,25 +182,11 @@ class OllamaClient:
                     )
                     return self._detected_model
 
-                # Fallback: any qwen3.5 variant
-                qwen = [n for n in names if n.startswith("qwen3.5:")]
-                if qwen:
-                    self._detected_model = qwen[0]
-                    logger.info(
-                        "[LLM] Selected qwen fallback: %s (available: %s)",
-                        self._detected_model,
-                        names,
-                    )
-                    return self._detected_model
-
-                # Last resort: first available model
-                self._detected_model = names[0]
-                logger.info(
-                    "[LLM] Selected first-available model: %s (available: %s)",
-                    self._detected_model,
-                    names,
+                logger.warning(
+                    "[LLM] Preferred model %s not found in available models: %s",
+                    self.preferred_model, names
                 )
-                return self._detected_model
+                return None
 
             except Exception as exc:
                 logger.error("[LLM] Model detection error: %s", exc)

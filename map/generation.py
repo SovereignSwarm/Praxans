@@ -113,6 +113,10 @@ def _climate_bias_adjustments(climate_bias: str) -> tuple[float, float]:
         return (0.02, 0.2)
     if normalized in {"arid", "dry", "desert"}:
         return (0.16, -0.2)
+    if normalized in {"tropical", "jungle", "lush"}:
+        return (0.12, 0.24)
+    if normalized in {"volcanic", "ash", "inferno"}:
+        return (0.28, -0.15)
     return (0.0, 0.0)
 
 
@@ -220,19 +224,28 @@ def _build_regions(seed: int, profile: WorldProfile) -> dict[str, WorldRegion]:
 
 
 def _route_points_between(profile: WorldProfile, start_region: WorldRegion, end_region: WorldRegion) -> tuple[tuple[float, float], ...]:
-    col = start_region.col
-    row = start_region.row
-    points: list[tuple[float, float]] = [_region_center(profile, col, row)]
-    while col != end_region.col or row != end_region.row:
-        if col < end_region.col:
-            col += 1
-        elif col > end_region.col:
-            col -= 1
-        elif row < end_region.row:
-            row += 1
-        else:
-            row -= 1
-        points.append(_region_center(profile, col, row))
+    col1 = start_region.col
+    row1 = start_region.row
+    col2 = end_region.col
+    row2 = end_region.row
+    points: list[tuple[float, float]] = []
+    dx = abs(col2 - col1)
+    dy = -abs(row2 - row1)
+    sx = 1 if col1 < col2 else -1
+    sy = 1 if row1 < row2 else -1
+    err = dx + dy
+    c, r = col1, row1
+    while True:
+        points.append(_region_center(profile, c, r))
+        if c == col2 and r == row2:
+            break
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            c += sx
+        if e2 <= dx:
+            err += dx
+            r += sy
     return tuple(points)
 
 
@@ -343,10 +356,14 @@ def _build_landmarks(seed: int, profile: WorldProfile, regions: dict[str, WorldR
     fertile = sorted(regions.values(), key=lambda region: (region.fertility + region.route_score), reverse=True)
     defensive = sorted(regions.values(), key=lambda region: (region.defensibility + region.frontier_score), reverse=True)
     scenic = sorted(regions.values(), key=lambda region: (region.water_score + (0.3 if region.coastal else 0.0)), reverse=True)
+    desolate = sorted(regions.values(), key=lambda region: (1.0 - region.fertility + region.elevation * 0.5), reverse=True)
+    isolated = sorted(regions.values(), key=lambda region: (1.0 - region.route_score + (0.5 if region.biome == "forest" else 0.0)), reverse=True)
     picks = [
         ("granary", fertile[0] if fertile else None),
         ("citadel", defensive[0] if defensive else None),
         ("crossing", scenic[0] if scenic else None),
+        ("ruins", desolate[0] if desolate else None),
+        ("sanctuary", isolated[0] if isolated else None),
     ]
     used_region_ids: set[str] = set()
     landmarks: list[Landmark] = []
@@ -359,6 +376,8 @@ def _build_landmarks(seed: int, profile: WorldProfile, regions: dict[str, WorldR
             "granary": ("Amber Fields", "Harvest Rise", "Saffron Reach"),
             "citadel": ("Stonewatch", "Ridge Crown", "Iron Bastion"),
             "crossing": ("Blueford", "Salt Mouth", "Reed Crossing"),
+            "ruins": ("Shattered Spire", "Dust Echoes", "Old Scars"),
+            "sanctuary": ("Verdant Hollow", "Silent Grove", "Hidden Shrine"),
         }
         options = names.get(category, ("Frontier Mark",))
         landmarks.append(
@@ -408,7 +427,7 @@ def _river_paths(profile: WorldProfile, regions: dict[str, WorldRegion]) -> list
     return paths
 
 
-def _distance_to_polyline(x: float, y: float, polyline: list[tuple[float, float]]) -> float:
+def _distance_squared_to_polyline(x: float, y: float, polyline: list[tuple[float, float]]) -> float:
     best = float("inf")
     for index in range(len(polyline) - 1):
         x1, y1 = polyline[index]
@@ -416,12 +435,12 @@ def _distance_to_polyline(x: float, y: float, polyline: list[tuple[float, float]
         dx = x2 - x1
         dy = y2 - y1
         if abs(dx) < 0.0001 and abs(dy) < 0.0001:
-            best = min(best, math.hypot(x - x1, y - y1))
+            best = min(best, (x - x1)**2 + (y - y1)**2)
             continue
         t = _clamp((((x - x1) * dx) + ((y - y1) * dy)) / ((dx * dx) + (dy * dy)), 0.0, 1.0)
         projected_x = x1 + (dx * t)
         projected_y = y1 + (dy * t)
-        best = min(best, math.hypot(x - projected_x, y - projected_y))
+        best = min(best, (x - projected_x)**2 + (y - projected_y)**2)
     return best
 
 
@@ -446,14 +465,9 @@ def _chunk_tiles(seed: int, profile: WorldProfile, chunk_x: int, chunk_y: int, r
             local_elevation = _clamp(region.elevation + (_fractal_noise(nx * 9.0, ny * 9.0, seed + 701, octaves=3, gain=0.52) * 0.14), 0.0, 1.0)
             local_temperature = _clamp(region.temperature + (_fractal_noise(nx * 7.0, ny * 7.0, seed + 719, octaves=2, gain=0.5) * 0.08), 0.0, 1.0)
             local_moisture = _clamp(region.moisture + (_fractal_noise(nx * 8.0, ny * 8.0, seed + 733, octaves=3, gain=0.5) * 0.1), 0.0, 1.0)
-            distance_to_river = min((_distance_to_polyline(sample_world_x, sample_world_y, path) for path in river_paths), default=99999.0)
-            river_here = distance_to_river <= (profile.tile_size * 1.4)
-            coastal_here = region.coastal and (
-                (region.col == 0 and tile_x < 2)
-                or (region.col == profile.region_cols - 1 and tile_x >= tiles_per_chunk - 2)
-                or (region.row == 0 and tile_y < 2)
-                or (region.row == profile.region_rows - 1 and tile_y >= tiles_per_chunk - 2)
-            )
+            distance_to_river_sq = min((_distance_squared_to_polyline(sample_world_x, sample_world_y, path) for path in river_paths), default=999999999.0)
+            river_here = distance_to_river_sq <= (profile.tile_size * 1.4) ** 2
+            coastal_here = local_elevation < 0.38
             biome = _pick_biome(local_elevation, local_temperature, local_moisture + (0.16 if river_here else 0.0), coastal_here, river_here)
             tiles[(tile_x, tile_y)] = biome
             biome_mix_counter[biome] += 1

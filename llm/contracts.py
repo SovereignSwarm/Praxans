@@ -60,6 +60,12 @@ def _try_parse_json(text: str) -> dict | None:
     try:
         return json.loads(blob)
     except json.JSONDecodeError:
+        pass
+    import re
+    cleaned = re.sub(r',(\s*[}\]])', r'\1', blob)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
         return None
 
 
