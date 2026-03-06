@@ -315,6 +315,24 @@ def build_run_summary(
             "doctrine": doctrine,
             "strategic_priorities": list((getattr(advisor, "council_state", {}) or {}).get("strategic_priorities", [])),
             "event_framing": str((getattr(advisor, "council_state", {}) or {}).get("event_framing", "")),
+            "doctrine_history": list(getattr(advisor, "advisory_history", []))[-6:],
+        },
+        "llm_channels": {
+            "channel_stats": (
+                getattr(advisor, "llm_scheduler", None) and advisor.llm_scheduler.get_stats() or {}
+            ),
+            "memory_digest": {
+                "civilization": (
+                    getattr(advisor, "llm_memory", None)
+                    and advisor.llm_memory.civilization.digest_text()
+                    or ""
+                ),
+                "map": (
+                    getattr(advisor, "llm_memory", None)
+                    and advisor.llm_memory.map.digest_text()
+                    or ""
+                ),
+            },
         },
     }
 
@@ -358,6 +376,10 @@ def build_run_archive(
     archive["lineage_history"] = list((getattr(advisor, "session_stats", {}) or {}).get("lineage_events", []))[-16:]
     archive["faction_history"] = list((getattr(advisor, "session_stats", {}) or {}).get("faction_history", []))[-16:]
     archive["timeline"] = list(archive["observer_report"].get("timeline", []))
+    # LLM V2: serialize full memory state for archival replay
+    archive["llm_memory"] = (
+        getattr(advisor, "llm_memory", None) and advisor.llm_memory.serialize() or {}
+    )
     return archive
 
 

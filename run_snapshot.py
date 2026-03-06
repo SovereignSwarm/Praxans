@@ -5,7 +5,7 @@ import os
 from typing import Any
 
 
-SNAPSHOT_VERSION = 8
+SNAPSHOT_VERSION = 9
 
 
 def _sanitize_json_value(value: Any) -> Any:
@@ -517,6 +517,13 @@ def build_run_snapshot(
             "history": _sanitize_json_value(list(getattr(advisor, "history", []))),
             "events_history": _sanitize_json_value(list(getattr(advisor, "events_history", []))),
             "last_model_used": getattr(advisor, "last_model_used", None),
+            "llm_memory": _sanitize_json_value(
+                getattr(advisor, "llm_memory", None) and advisor.llm_memory.serialize() or {}
+            ),
+            "llm_channel_stats": _sanitize_json_value(
+                getattr(advisor, "llm_scheduler", None) and advisor.llm_scheduler.get_stats() or {}
+            ),
+            "doctrine_history": _sanitize_json_value(list(getattr(advisor, "advisory_history", []))[-10:]),
         },
     }
 

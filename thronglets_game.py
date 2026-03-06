@@ -18,7 +18,14 @@ import traceback
 from dataclasses import replace
 from datetime import datetime
 
-from advisor_contract import advisory_payload_defaults, parse_advisory_payload
+from llm.contracts import council_payload_defaults as advisory_payload_defaults, parse_council_payload as parse_advisory_payload
+from llm.client import OllamaClient, sanitize_llm_response as _llm_sanitize
+from llm.scheduler import LLMScheduler
+from llm.memory import LLMMemory
+from llm.state_views import build_council_view, build_faction_view, build_historian_view, build_memory_view
+from llm.prompts import build_council_prompt, build_faction_prompt, build_historian_prompt, build_memory_prompt
+from llm.interpreters import apply_council_payload, apply_faction_intent, apply_historian, apply_memory_summary
+from llm import CHANNEL_COUNCIL, CHANNEL_FACTION, CHANNEL_HISTORIAN, CHANNEL_MEMORY
 from game_scenarios import DEFAULT_SCENARIO_ID, get_scenario_profile
 from graphics import GraphicsConfig, SceneRenderer, build_render_frame
 from graphics.content import SNAP_ZOOM_LEVELS
@@ -102,8 +109,13 @@ TERRITORY_DECAY_RATE = 0.1  # Decay rate for unclaimed tiles
 TERRITORY_CLAIM_RADIUS = 40  # Pixels around thronglets to claim
 BUILDING_CLAIM_RADIUS = 60  # Pixels around buildings to claim
 
-# Civilization Advisor Configuration
-CIVILIZATION_ADVISOR_INTERVAL = 30.0  # Query LLM every 30 seconds
+# Civilization Advisor Configuration — multi-channel cadences
+COUNCIL_REVIEW_INTERVAL = 12.0
+FACTION_REVIEW_INTERVAL = 18.0
+HISTORIAN_REVIEW_INTERVAL = 20.0
+MEMORY_SUMMARY_INTERVAL = 90.0
+# Legacy alias kept for any remaining references
+CIVILIZATION_ADVISOR_INTERVAL = COUNCIL_REVIEW_INTERVAL
 
 # Day/Night Cycle Configuration
 DAY_LENGTH = 60.0  # seconds (full cycle = day + night)
@@ -194,14 +206,6 @@ SEASON_LENGTH = 90.0  # 90 seconds per season
 
 # AI / simulation tuning
 PREFERRED_OLLAMA_MODEL = (RUNTIME_CONFIG.model or "qwen3.5:9b").strip()
-MODEL_PRIORITY = [
-    PREFERRED_OLLAMA_MODEL,
-    "qwen3.5:27b",
-    "qwen3-coder:30b",
-    "qwen3-coder-next:latest",
-    "deepseek-r1:32b",
-    "gpt-oss:20b",
-]
 ROLE_SKILL_MAP = {
     "gatherer": "gathering",
     "builder": "building",
@@ -225,11 +229,9 @@ FAVORITE_BIOME_SPEED_BONUS = 0.08
 MORALE_SPEED_BONUS = 0.06
 INSPIRATION_SKILL_BONUS = 0.15
 OLLAMA_DETECTION_TIMEOUT_SECONDS = 2.5
-OLLAMA_REQUEST_TIMEOUT_SECONDS = 20.0
-OLLAMA_KEEP_ALIVE = "90s"
-LLM_BACKOFF_SECONDS = 90.0
-GOAL_ASSIGNMENT_INTERVAL = 60.0
-POST_ADVISOR_GOAL_COOLDOWN = 20.0
+OLLAMA_REQUEST_TIMEOUT_SECONDS = 25.0
+OLLAMA_KEEP_ALIVE = "15m"
+LLM_BACKOFF_SECONDS = 45.0
 
 # Configuration
 VERBOSE_LOGGING = RUNTIME_CONFIG.verbose_console
@@ -303,248 +305,51 @@ font_large = pygame.font.Font(None, 48)  # Increased for larger window
 font_small = pygame.font.Font(None, 24)  # Increased for larger window
 
 # ===================================================================
-# LLM Model Selection - Auto-detect fastest available model
+# LLM Subsystem — delegates to llm/ package
 # ===================================================================
 
-# Cache for selected model (set once at startup)
-_selected_llm_model = None
-_llm_backoff_until = 0.0
-_llm_request_lock = threading.Lock()
+# Global client instance (created lazily or at startup in main())
+_ollama_client: OllamaClient | None = None
 
 
-def get_ollama_client(timeout_seconds):
-    if ollama is None:
-        return None
-    try:
-        return ollama.Client(timeout=timeout_seconds)
-    except Exception:
-        return None
+def _get_llm_client() -> OllamaClient:
+    """Return the global OllamaClient, creating it if needed."""
+    global _ollama_client
+    if _ollama_client is None:
+        _ollama_client = OllamaClient(
+            preferred_model=PREFERRED_OLLAMA_MODEL,
+            detect_timeout=OLLAMA_DETECTION_TIMEOUT_SECONDS,
+            request_timeout=OLLAMA_REQUEST_TIMEOUT_SECONDS,
+            keep_alive=OLLAMA_KEEP_ALIVE,
+            seed=getattr(RUNTIME_CONFIG, "seed", None),
+        )
+    return _ollama_client
+
+
+# Legacy compatibility stubs — used by a handful of call sites that
+# haven't been migrated yet.  New code should use the scheduler.
 
 def get_fastest_available_model():
-    """
-    Detect and return the preferred Ollama model.
-    This repo now explicitly prefers qwen3.5:9b, then falls back through a
-    curated priority list before using a size-based heuristic.
-    Returns the model name string, or None if no models are available.
-    """
-    global _selected_llm_model
-
+    """Legacy stub — delegates to OllamaClient.detect_model()."""
     if not LLM_ENABLED:
         return None
-
-    # Return cached model if already selected
-    if _selected_llm_model:
-        return _selected_llm_model
-
-    try:
-        client = get_ollama_client(OLLAMA_DETECTION_TIMEOUT_SECONDS)
-        models_response = client.list() if client else ollama.list()
-        if hasattr(models_response, "get"):
-            available_models = models_response.get('models', [])
-        else:
-            available_models = getattr(models_response, 'models', [])
-
-        if not available_models:
-            print(f"[LLM] No models available. Install a model with: ollama pull {PREFERRED_OLLAMA_MODEL}")
-            return None
-
-        model_info = []
-        for model in available_models:
-            if isinstance(model, dict):
-                model_name = model.get('name', '')
-                size = model.get('size', 0)
-                details = model.get('details', {})
-                param_size_str = details.get('parameter_size', '') if isinstance(details, dict) else ''
-            elif hasattr(model, 'model'):
-                model_name = model.model
-                size = getattr(model, 'size', 0)
-                details = getattr(model, 'details', None)
-                if details and hasattr(details, 'parameter_size'):
-                    param_size_str = details.parameter_size
-                else:
-                    param_size_str = ''
-            elif isinstance(model, str):
-                model_name = model
-                size = 0
-                param_size_str = ''
-            else:
-                continue
-
-            if not model_name or not model_name.strip():
-                continue
-
-            size_estimate = float('inf')
-            if param_size_str:
-                try:
-                    match = re.search(r'([\d.]+)', param_size_str)
-                    if match:
-                        size_num = float(match.group(1))
-                        if 'B' in param_size_str.upper():
-                            size_estimate = size_num
-                        elif 'M' in param_size_str.upper():
-                            size_estimate = size_num / 1000
-                except:
-                    pass
-
-            if size_estimate == float('inf') and ':' in model_name:
-                try:
-                    size_part = model_name.split(':')[1]
-                    if 'b' in size_part.lower():
-                        size_num = float(size_part.lower().replace('b', ''))
-                        size_estimate = size_num
-                except:
-                    pass
-
-            if size > 0 and size_estimate == float('inf'):
-                size_estimate = size / (1024 * 1024 * 1024)
-
-            model_info.append((model_name, size_estimate))
-
-        available_names = [name for name, _ in model_info]
-        for preferred in MODEL_PRIORITY:
-            if preferred in available_names:
-                _selected_llm_model = preferred
-                print(f"[LLM] Selected preferred model: {preferred}")
-                print(f"[LLM] Available models: {available_names}")
-                return preferred
-
-        qwen_family = [name for name in available_names if name.startswith("qwen3.5:")]
-        if qwen_family:
-            qwen_family.sort(
-                key=lambda name: float(re.search(r"([\d.]+)b", name.lower()).group(1)) if re.search(r"([\d.]+)b", name.lower()) else 0.0,
-                reverse=True,
-            )
-            _selected_llm_model = qwen_family[0]
-            print(f"[LLM] Selected qwen fallback model: {_selected_llm_model}")
-            print(f"[LLM] Available models: {available_names}")
-            return _selected_llm_model
-
-        model_info.sort(key=lambda item: item[1])
-        _selected_llm_model = model_info[0][0]
-        print(f"[LLM] Selected size-based fallback model: {_selected_llm_model}")
-        print(f"[LLM] Available models: {available_names}")
-        return _selected_llm_model
-
-    except Exception as e:
-        print(f"[LLM] Error detecting models: {e}")
-        return None
-
-
-def get_ollama_options(purpose="general"):
-    """Return safe generation settings tuned for local Qwen usage via Ollama."""
-    options = {
-        "temperature": 0.2,
-        "top_p": 0.85,
-        "repeat_penalty": 1.08,
-        "num_ctx": 2048,
-        "num_predict": 120,
-    }
-    if purpose == "advisor":
-        options.update(
-            {
-                "temperature": 0.12,
-                "top_p": 0.8,
-                "num_ctx": 4096,
-                "num_predict": 240,
-            }
-        )
-    elif purpose == "goals":
-        options.update(
-            {
-                "temperature": 0.18,
-                "num_ctx": 2048,
-                "num_predict": 96,
-            }
-        )
-    elif purpose == "thronglet":
-        options.update(
-            {
-                "temperature": 0.15,
-                "num_ctx": 1024,
-                "num_predict": 24,
-            }
-        )
-    if RUNTIME_CONFIG.seed is not None:
-        options["seed"] = RUNTIME_CONFIG.seed
-    return options
+    return _get_llm_client().detect_model()
 
 
 def sanitize_llm_response(response_text):
-    """Strip Qwen thinking tags and markdown wrappers before parsing."""
-    if not response_text:
-        return ""
-
-    cleaned = re.sub(r"<think>.*?</think>", "", response_text, flags=re.IGNORECASE | re.DOTALL)
-    if re.search(r"</think>", cleaned, flags=re.IGNORECASE):
-        cleaned = re.split(r"</think>", cleaned, maxsplit=1, flags=re.IGNORECASE)[-1]
-
-    cleaned = cleaned.strip()
-    cleaned = re.sub(r"^```json", "", cleaned, flags=re.IGNORECASE).strip()
-    cleaned = cleaned.strip("`").strip()
-    return cleaned
+    """Legacy stub — delegates to llm.client.sanitize_llm_response."""
+    return _llm_sanitize(response_text)
 
 
 def generate_ollama_text(prompt, purpose="general"):
-    """Generate text with the configured Ollama model and curated fallbacks."""
-    global _llm_backoff_until
-
-    if not LLM_ENABLED or ollama is None:
+    """Legacy stub — blocking generate via OllamaClient."""
+    if not LLM_ENABLED:
         raise RuntimeError("LLM disabled or Ollama unavailable")
-
-    if time.time() < _llm_backoff_until:
-        remaining = max(0.0, _llm_backoff_until - time.time())
-        raise RuntimeError(f"LLM cooldown active for {remaining:.0f}s")
-
-    primary_model = get_fastest_available_model()
-    if not primary_model:
-        raise RuntimeError("No LLM model available")
-
-    options = get_ollama_options(purpose)
-    attempted = []
-    last_error = None
-
-    if not _llm_request_lock.acquire(blocking=False):
-        raise RuntimeError("LLM busy with another request")
-
-    try:
-        client = get_ollama_client(OLLAMA_REQUEST_TIMEOUT_SECONDS)
-        for model_name in [primary_model] + [model for model in MODEL_PRIORITY if model != primary_model]:
-            if not model_name or model_name in attempted:
-                continue
-            attempted.append(model_name)
-            try:
-                generate_fn = client.generate if client else ollama.generate
-                response = generate_fn(
-                    model=model_name,
-                    prompt=prompt,
-                    options=options,
-                    stream=False,
-                    think=False,
-                    raw=False,
-                    keep_alive=OLLAMA_KEEP_ALIVE,
-                )
-                if isinstance(response, dict):
-                    response_text = response.get("response", "")
-                else:
-                    response_text = getattr(response, "response", "")
-                response_text = sanitize_llm_response(response_text)
-                if response_text:
-                    _llm_backoff_until = 0.0
-                    if model_name != primary_model:
-                        print(f"[LLM] Fallback model succeeded for {purpose}: {model_name}")
-                    return response_text, model_name
-            except Exception as exc:
-                last_error = exc
-    finally:
-        _llm_request_lock.release()
-
-    _llm_backoff_until = time.time() + LLM_BACKOFF_SECONDS
-    print(f"[LLM] Entering cooldown for {LLM_BACKOFF_SECONDS:.0f}s after {purpose} failure")
-    raise last_error or RuntimeError("All LLM models failed")
+    return _get_llm_client().generate(prompt, channel=purpose)
 
 
 def start_async_llm_job(prompt, purpose, metadata=None):
-    """Run a guarded Ollama request off the main thread."""
+    """Legacy stub — wraps generate_ollama_text in a thread."""
     job = {
         "purpose": purpose,
         "metadata": metadata or {},
@@ -557,9 +362,9 @@ def start_async_llm_job(prompt, purpose, metadata=None):
 
     def _runner():
         try:
-            response_text, model_used = generate_ollama_text(prompt, purpose=purpose)
-            job["response_text"] = response_text
-            job["model_used"] = model_used
+            text, model = generate_ollama_text(prompt, purpose=purpose)
+            job["response_text"] = text
+            job["model_used"] = model
         except Exception as exc:
             job["error"] = exc
         finally:
@@ -568,6 +373,7 @@ def start_async_llm_job(prompt, purpose, metadata=None):
     job["thread"] = threading.Thread(target=_runner, daemon=True, name=f"ollama-{purpose}")
     job["thread"].start()
     return job
+
 
 
 def sample_procedural_noise(x, y, scale, octaves=1, persistence=0.5, lacunarity=2.0):
@@ -6080,6 +5886,16 @@ class CivilizationAdvisor:
         self.last_job_completed_at = 0.0
         self.last_evolution_sample_time = 0.0
         self.last_run_summary_refresh = 0.0
+
+        # ── Multi-channel LLM subsystem (V2) ──────────────────────
+        self.llm_scheduler: LLMScheduler | None = None
+        self.llm_memory = LLMMemory()
+        self._channel_last_fire: dict[str, float] = {
+            CHANNEL_COUNCIL: 0.0,
+            CHANNEL_FACTION: 0.0,
+            CHANNEL_HISTORIAN: 0.0,
+            CHANNEL_MEMORY: 0.0,
+        }
     
     def _generate_state_summary(self, thronglets, resources, buildings, territory_manager, world_map):
         """Generate concise state summary with health indicators"""
@@ -6803,9 +6619,17 @@ Directives:"""
             ]
 
     def has_pending_llm_jobs(self):
-        return self.pending_strategy_job is not None or self.pending_goal_job is not None
+        if self.pending_strategy_job is not None or self.pending_goal_job is not None:
+            return True
+        if self.llm_scheduler and self.llm_scheduler.has_active_jobs():
+            return True
+        return False
 
     def get_llm_status_label(self, fallback_model=None):
+        if self.llm_scheduler:
+            active = self.llm_scheduler.get_active_channels()
+            if active:
+                return f"{'+'.join(active)}"
         if self.pending_strategy_job:
             elapsed = time.time() - self.pending_strategy_job.get("queued_at", time.time())
             return f"advisor {elapsed:.0f}s"
@@ -6815,6 +6639,230 @@ Directives:"""
         if self.last_llm_error and time.time() - self.last_job_completed_at < LLM_BACKOFF_SECONDS:
             return "cooldown"
         return self.last_model_used or fallback_model or PREFERRED_OLLAMA_MODEL
+
+    # ── Multi-channel scheduling (V2) ─────────────────────────────
+
+    def ensure_scheduler(self):
+        """Create the LLM scheduler lazily (requires OllamaClient)."""
+        if self.llm_scheduler is None and LLM_ENABLED:
+            client = _get_llm_client()
+            self.llm_scheduler = LLMScheduler(
+                client, max_concurrent=2, default_backoff=LLM_BACKOFF_SECONDS
+            )
+        return self.llm_scheduler is not None
+
+    def queue_channel_reviews(
+        self,
+        current_time,
+        thronglets,
+        resources,
+        buildings,
+        state_summary,
+        faction_manager=None,
+    ):
+        """Submit channel jobs when their cadence interval has elapsed."""
+        if not self.ensure_scheduler():
+            return
+
+        sched = self.llm_scheduler
+        settlement = self.current_settlement_state or {}
+
+        # --- Council channel ---
+        if current_time - self._channel_last_fire[CHANNEL_COUNCIL] >= COUNCIL_REVIEW_INTERVAL:
+            should, reason, flags = self._should_intervene(state_summary, current_time)
+            if should:
+                view = build_council_view(
+                    population=len(thronglets),
+                    buildings={b.building_type: sum(1 for x in buildings if x.building_type == b.building_type) for b in buildings},
+                    resources_on_map={
+                        "food": sum(1 for r in resources if r.resource_type == "food" and not r.collected),
+                        "wood": sum(1 for r in resources if r.resource_type == "wood" and not r.collected),
+                        "stone": sum(1 for r in resources if r.resource_type == "stone" and not r.collected),
+                    },
+                    resources_carried={
+                        "food": sum(t.inventory["food"] for t in thronglets),
+                        "wood": sum(t.inventory["wood"] for t in thronglets),
+                        "stone": sum(t.inventory["stone"] for t in thronglets),
+                    },
+                    avg_needs={
+                        "hunger": sum(t.needs["hunger"] for t in thronglets) / max(1, len(thronglets)),
+                        "energy": sum(t.needs["energy"] for t in thronglets) / max(1, len(thronglets)),
+                        "health": sum(t.health for t in thronglets) / max(1, len(thronglets)),
+                        "morale": sum(getattr(t, "morale", 65) for t in thronglets) / max(1, len(thronglets)),
+                    },
+                    diseased_count=sum(1 for t in thronglets if t.diseased),
+                    settlement=settlement,
+                    faction_summaries=[
+                        {
+                            "id": f.id,
+                            "doctrine": f.primary_doctrine,
+                            "cohesion": f.cohesion,
+                            "member_count": len(f.member_ids),
+                            "rivals": list(f.rival_faction_ids),
+                        }
+                        for f in list((faction_manager.factions if faction_manager else {}).values())[:4]
+                    ],
+                    thronglet_snapshot=[
+                        {
+                            "id": t.id,
+                            "role": t.role or "unassigned",
+                            "hunger": t.needs["hunger"],
+                            "energy": t.needs["energy"],
+                            "health": t.health,
+                            "morale": getattr(t, "morale", 65),
+                        }
+                        for t in thronglets[:8]
+                    ],
+                    crisis_flags=state_summary.get("crisis_flags", []),
+                    summary_text=state_summary.get("summary_text", ""),
+                    intervention_reason=reason,
+                    current_focus=self.current_focus,
+                    memory_civ_digest=self.llm_memory.civilization.digest_text(),
+                    memory_faction_digest="\n".join(
+                        self.llm_memory.factions.digest_text(fid)
+                        for fid in self.llm_memory.factions.all_faction_ids()
+                    ),
+                    building_prompt_lines=format_building_prompt_lines(),
+                )
+                prompt = build_council_prompt(view, PREFERRED_OLLAMA_MODEL)
+                if sched.submit(CHANNEL_COUNCIL, prompt, priority=10, stale_key=f"council_{int(current_time)}"):
+                    self._channel_last_fire[CHANNEL_COUNCIL] = current_time
+
+        # --- Faction channel ---
+        if (
+            faction_manager
+            and faction_manager.factions
+            and current_time - self._channel_last_fire[CHANNEL_FACTION] >= FACTION_REVIEW_INTERVAL
+        ):
+            for faction in list(faction_manager.factions.values())[:2]:
+                view = build_faction_view(
+                    faction_id=faction.id,
+                    faction_name=getattr(faction, "name", f"Faction {faction.id}"),
+                    doctrine=faction.primary_doctrine,
+                    cohesion=faction.cohesion,
+                    member_count=len(faction.member_ids),
+                    rival_ids=list(faction.rival_faction_ids),
+                    leader_id=getattr(faction, "leader_id", None),
+                    schism_pressure=getattr(faction, "schism_pressure", 0),
+                    migration_pressure=getattr(faction, "migration_pressure", 0),
+                    preferred_biome=getattr(faction, "preferred_biome", "plains"),
+                    recent_events=self.llm_memory.factions.recent_text(faction.id),
+                    faction_digest=self.llm_memory.factions.digest_text(faction.id),
+                    colony_population=len(thronglets),
+                    colony_prosperity=settlement.get("prosperity_score", 0),
+                )
+                prompt = build_faction_prompt(view, PREFERRED_OLLAMA_MODEL)
+                sched.submit(
+                    CHANNEL_FACTION, prompt, priority=7,
+                    stale_key=f"faction_{faction.id}_{int(current_time)}",
+                )
+            self._channel_last_fire[CHANNEL_FACTION] = current_time
+
+        # --- Historian channel ---
+        if current_time - self._channel_last_fire[CHANNEL_HISTORIAN] >= HISTORIAN_REVIEW_INTERVAL:
+            recent = self.llm_memory.civilization.entries[-8:]
+            if recent:
+                view = build_historian_view(
+                    recent_events=recent,
+                    population=len(thronglets),
+                    settlement_summary=settlement.get("district_identity", "homestead"),
+                    faction_count=len(faction_manager.factions) if faction_manager else 0,
+                    memory_civ_digest=self.llm_memory.civilization.digest_text(),
+                    trigger_event=recent[-1].get("summary", "") if recent else "",
+                )
+                prompt = build_historian_prompt(view, PREFERRED_OLLAMA_MODEL)
+                if sched.submit(CHANNEL_HISTORIAN, prompt, priority=4, stale_key=f"hist_{int(current_time)}"):
+                    self._channel_last_fire[CHANNEL_HISTORIAN] = current_time
+
+        # --- Memory summarizer channel ---
+        if current_time - self._channel_last_fire[CHANNEL_MEMORY] >= MEMORY_SUMMARY_INTERVAL:
+            view = build_memory_view(
+                civ_recent=self.llm_memory.civilization.recent_text(),
+                faction_recent={
+                    fid: self.llm_memory.factions.recent_text(fid)
+                    for fid in self.llm_memory.factions.all_faction_ids()
+                },
+                map_recent=self.llm_memory.map.recent_text(),
+                current_civ_digest=self.llm_memory.civilization.digest_text(),
+                current_map_digest=self.llm_memory.map.digest_text(),
+            )
+            prompt = build_memory_prompt(view, PREFERRED_OLLAMA_MODEL)
+            if sched.submit(CHANNEL_MEMORY, prompt, priority=2, stale_key=f"mem_{int(current_time)}"):
+                self._channel_last_fire[CHANNEL_MEMORY] = current_time
+
+    def poll_llm_channels(self, thronglets, resources, buildings, narrative_panel=None, faction_manager=None):
+        """Process completed multi-channel LLM jobs."""
+        if not self.llm_scheduler:
+            return
+
+        completed = self.llm_scheduler.poll()
+        for job in completed:
+            self.last_job_completed_at = time.time()
+            if job.error:
+                self.last_llm_error = str(job.error)
+                print(f"[LLM-V2] {job.channel} failed: {job.error}")
+                continue
+
+            self.last_model_used = job.model_used or self.last_model_used
+            self.last_llm_error = None
+
+            if job.channel == CHANNEL_COUNCIL:
+                payload = parse_advisory_payload(job.response_text)
+                if payload is None:
+                    self.stability_counter += 1
+                    self.intervention_stats["no_changes"] += 1
+                else:
+                    advisor_state = {
+                        "council_state": self.council_state,
+                        "current_focus": self.current_focus,
+                        "json_directives": self.json_directives,
+                        "directives": self.directives,
+                        "advisory_history": self.advisory_history,
+                        "session_stats": self.session_stats,
+                    }
+                    result = apply_council_payload(payload, advisor_state, faction_manager)
+                    self.council_state = advisor_state["council_state"]
+                    self.current_focus = advisor_state["current_focus"]
+                    self.json_directives = advisor_state["json_directives"]
+                    self.directives = advisor_state["directives"]
+                    self.advisory_history = advisor_state["advisory_history"]
+                    self.stability_counter = 0
+                    self.intervention_stats["total_queries"] += 1
+                    if result.get("intervened"):
+                        self.intervention_stats["interventions"] += 1
+                    self.process_communal_tasks(thronglets, buildings, resources, faction_manager)
+                    if payload.get("event_framing") and narrative_panel:
+                        narrative_panel.add_message(payload["event_framing"], "Strategy")
+                    # Record in memory
+                    self.llm_memory.civilization.record(
+                        "council",
+                        payload.get("event_framing", "Council reviewed."),
+                        time.time(),
+                    )
+
+            elif job.channel == CHANNEL_FACTION:
+                from llm.contracts import parse_faction_intent_payload
+                payload = parse_faction_intent_payload(job.response_text)
+                if payload is not None and faction_manager:
+                    fid = payload.get("faction_id", 0)
+                    faction = faction_manager.get_faction(fid)
+                    if faction:
+                        result = apply_faction_intent(payload, faction, faction_manager)
+                        self.llm_memory.factions.record(
+                            fid, "intent", f"Intent: {result.get('intent', 'unknown')}", time.time()
+                        )
+
+            elif job.channel == CHANNEL_HISTORIAN:
+                from llm.contracts import parse_historian_payload
+                payload = parse_historian_payload(job.response_text)
+                if payload is not None:
+                    apply_historian(payload, narrative_panel=narrative_panel, memory=self.llm_memory)
+
+            elif job.channel == CHANNEL_MEMORY:
+                from llm.contracts import parse_memory_summary_payload
+                payload = parse_memory_summary_payload(job.response_text)
+                if payload is not None:
+                    apply_memory_summary(payload, self.llm_memory)
 
     def _build_compact_strategy_request(
         self,
@@ -9036,8 +9084,15 @@ class ObserverOverlay:
         doctrine = dict(advisor.session_stats.get("current_doctrine", {}) or {})
         llm_status = advisor.get_llm_status_label("offline")
         follow_state = "ON" if camera.follow_mode else "OFF"
+        # Show multi-channel status when scheduler is active
+        channel_info = ""
+        if getattr(advisor, "llm_scheduler", None):
+            stats = advisor.llm_scheduler.get_stats()
+            total = sum(stats.get(ch, {}).get("completed", 0) for ch in stats if isinstance(stats.get(ch), dict))
+            if total > 0:
+                channel_info = f"  |  LLM calls: {total}"
         status = font_small.render(
-            f"Advisor: {llm_status}  |  Phase: {phase_label}  |  Score: {observer_score}  |  Follow: {follow_state}",
+            f"Advisor: {llm_status}  |  Phase: {phase_label}  |  Score: {observer_score}  |  Follow: {follow_state}{channel_info}",
             True,
             (160, 220, 170),
         )
@@ -9545,6 +9600,16 @@ def restore_session_from_snapshot(
     advisor.last_goal_assignment = now
     advisor.last_pop_count = len(restored_thronglets)
     advisor.last_llm_error = None
+
+    # Restore LLM V2 memory from snapshot
+    llm_memory_data = advisor_data.get("llm_memory", {})
+    if isinstance(llm_memory_data, dict) and llm_memory_data:
+        try:
+            advisor.llm_memory = LLMMemory.deserialize(llm_memory_data)
+            print(f"[Restore] LLM memory restored: {len(advisor.llm_memory.civilization.entries)} civ entries")
+        except Exception as exc:
+            print(f"[Restore] LLM memory restore failed (using fresh): {exc}")
+            advisor.llm_memory = LLMMemory()
 
     restored_techs = advisor_data.get("tech_unlocked", [])
     advisor.game_modifiers.tech_unlocked = {tech_id for tech_id in restored_techs if tech_id in advisor.tech_tree}
@@ -10812,6 +10877,14 @@ def main(runtime_config=RUNTIME_CONFIG):
                 narrative_panel=narrative_panel,
                 faction_manager=faction_manager,
             )
+            # V2 multi-channel poll / queue --------------------------------
+            advisor.poll_llm_channels(
+                thronglets,
+                resources,
+                buildings,
+                narrative_panel=narrative_panel,
+                faction_manager=faction_manager,
+            )
             if advisor.last_model_used:
                 selected_model = advisor.last_model_used
             record_population_evolution_sample(advisor, thronglets, current_time, game_start_time, force=False)
@@ -10848,7 +10921,18 @@ def main(runtime_config=RUNTIME_CONFIG):
             # Civilization advisor query with smart intervals and intervention assessment
             # Generate state summary
             state_summary = advisor._generate_state_summary(thronglets, resources, buildings, territory_manager, world_map)
+
+            # V2 multi-channel scheduling — runs all 4 channels at different cadences
+            advisor.queue_channel_reviews(
+                current_time,
+                thronglets,
+                resources,
+                buildings,
+                state_summary,
+                faction_manager=faction_manager,
+            )
             
+            # Legacy single-channel advisor (runs in parallel with V2 for backward compat)
             # Calculate dynamic interval
             if advisor.stability_counter > 3:
                 current_interval = CIVILIZATION_ADVISOR_INTERVAL * 2  # 60 seconds when stable
@@ -10884,9 +10968,6 @@ def main(runtime_config=RUNTIME_CONFIG):
                     advisor.intervention_stats['total_queries'] += 1
                     advisor.intervention_stats['no_changes'] += 1
                     advisor.last_query_time = current_time
-            
-            # Assign individual goals every 60 seconds
-            advisor.assign_individual_goals(thronglets, buildings, resources, world_map)
             
             # Update resources (respawn logic)
             for resource in resources:
