@@ -2,7 +2,7 @@ import pygame
 import pygame.gfxdraw
 import math
 from datetime import datetime
-from thronglets_game import *
+from praxans_game import *
 from ui.theme import wrap_text
 
 class InfoPanel:
@@ -33,35 +33,35 @@ class InfoPanel:
         
         y_offset = 40
         
-        if selected_type == 'thronglet':
-            thronglet = selected_entity
-            role_name = thronglet.role.title() if thronglet.role else "Unassigned"
+        if selected_type == 'praxan':
+            praxan = selected_entity
+            role_name = praxan.role.title() if praxan.role else "Unassigned"
             # Detailed stats
             stats = [
-                f"ID: {thronglet.id}",
+                f"ID: {praxan.id}",
                 f"Role: {role_name}",
-                f"Health: {int(thronglet.health)}/100",
-                f"Age: {int(current_time - thronglet.birth_time)}s",
-                f"Generation: {getattr(thronglet, 'generation', 0)}",
-                f"Lineage: L{getattr(thronglet, 'lineage_id', thronglet.id)}",
+                f"Health: {int(praxan.health)}/100",
+                f"Age: {int(current_time - praxan.birth_time)}s",
+                f"Generation: {getattr(praxan, 'generation', 0)}",
+                f"Lineage: L{getattr(praxan, 'lineage_id', praxan.id)}",
                 "",
                 "Needs:",
-                f"  Hunger: {int(thronglet.needs['hunger'])}/100",
-                f"  Energy: {int(thronglet.needs['energy'])}/100",
-                f"  Thirst: {int(thronglet.needs['thirst'])}/100",
+                f"  Hunger: {int(praxan.needs['hunger'])}/100",
+                f"  Energy: {int(praxan.needs['energy'])}/100",
+                f"  Thirst: {int(praxan.needs['thirst'])}/100",
                 "",
                 "Status:",
-                f"  Happiness: {int(thronglet.happiness)}/100",
-                f"  Morale: {int(getattr(thronglet, 'morale', 0))}/100",
-                f"  Inspiration: {int(getattr(thronglet, 'inspiration', 0))}/100",
-                f"  Favorite Biome: {getattr(thronglet, 'favorite_biome', 'plains').title()}",
-                f"  Disease: {'Yes' if thronglet.diseased else 'No'}",
-                f"  Can Reproduce: {'Yes' if thronglet.can_reproduce() else 'No'}",
-                f"  Mutations: {int(getattr(thronglet, 'mutation_count', 0))}",
+                f"  Happiness: {int(praxan.happiness)}/100",
+                f"  Morale: {int(getattr(praxan, 'morale', 0))}/100",
+                f"  Inspiration: {int(getattr(praxan, 'inspiration', 0))}/100",
+                f"  Favorite Biome: {getattr(praxan, 'favorite_biome', 'plains').title()}",
+                f"  Disease: {'Yes' if praxan.diseased else 'No'}",
+                f"  Can Reproduce: {'Yes' if praxan.can_reproduce() else 'No'}",
+                f"  Mutations: {int(getattr(praxan, 'mutation_count', 0))}",
             ]
 
-            if getattr(thronglet, "parent_ids", None):
-                stats.append(f"Parents: {', '.join(str(parent_id) for parent_id in thronglet.parent_ids[:2])}")
+            if getattr(praxan, "parent_ids", None):
+                stats.append(f"Parents: {', '.join(str(parent_id) for parent_id in praxan.parent_ids[:2])}")
 
             stats.extend(
                 [
@@ -69,36 +69,36 @@ class InfoPanel:
                     "Genetics:",
                 ]
             )
-            stats.extend(build_trait_display_lines(thronglet.genetics))
+            stats.extend(build_trait_display_lines(praxan.genetics))
             
             # Add skills if they exist
-            skill_key = get_role_skill_key(thronglet.role)
-            if skill_key and skill_key in thronglet.skills:
-                skill_level = thronglet.skills[skill_key]['level']
+            skill_key = get_role_skill_key(praxan.role)
+            if skill_key and skill_key in praxan.skills:
+                skill_level = praxan.skills[skill_key]['level']
                 stats.append(f"Skill Level: {skill_level}")
                 
                 # Show specific bonuses
-                if thronglet.role == 'gatherer':
-                    bonus = int((thronglet.get_gathering_bonus() - 1.0) * 100)
+                if praxan.role == 'gatherer':
+                    bonus = int((praxan.get_gathering_bonus() - 1.0) * 100)
                     stats.append(f"  Gather Speed: +{bonus}%")
-                elif thronglet.role == 'builder':
-                    bonus = int((thronglet.get_building_bonus() - 1.0) * 100)
+                elif praxan.role == 'builder':
+                    bonus = int((praxan.get_building_bonus() - 1.0) * 100)
                     stats.append(f"  Build Discount: {bonus}%")
-                elif thronglet.role == 'explorer':
-                    bonus = int((thronglet.get_exploration_bonus() - 1.0) * 100)
+                elif praxan.role == 'explorer':
+                    bonus = int((praxan.get_exploration_bonus() - 1.0) * 100)
                     stats.append(f"  Exploration: +{bonus}%")
             
             # Add bonds
-            if thronglet.bonds:
-                stats.append(f"Bonds: {len(thronglet.bonds)}")
+            if praxan.bonds:
+                stats.append(f"Bonds: {len(praxan.bonds)}")
             
             # Add current task
-            if thronglet.current_action:
-                stats.append(f"Task: {thronglet.current_action}")
+            if praxan.current_action:
+                stats.append(f"Task: {praxan.current_action}")
             
             # Add inventory
-            if sum(thronglet.inventory.values()) > 0:
-                inv_str = ", ".join([f"{k}:{v}" for k, v in thronglet.inventory.items() if v > 0])
+            if sum(praxan.inventory.values()) > 0:
+                inv_str = ", ".join([f"{k}:{v}" for k, v in praxan.inventory.items() if v > 0])
                 stats.append(f"Inventory: {inv_str}")
             
         elif selected_type == 'building':
@@ -106,7 +106,7 @@ class InfoPanel:
             stats = [
                 f"Type: {building.building_type.title()}",
                 f"Level: {getattr(building, 'level', 1)}",
-                f"Built by: Thronglet #{building.built_by}" if building.built_by is not None else "Built by: Unknown",
+                f"Built by: Praxan #{building.built_by}" if building.built_by is not None else "Built by: Unknown",
             ]
             
             if building.building_type == 'house':
@@ -200,7 +200,7 @@ class EvolutionStatsPanel:
         self.panel_w = 560
         self.panel_h = 440
 
-    def draw(self, surface, thronglets, advisor, current_time):
+    def draw(self, surface, praxans, advisor, current_time):
         panel_x = WINDOW_WIDTH // 2 - self.panel_w // 2
         panel_y = WINDOW_HEIGHT // 2 - self.panel_h // 2
         panel = pygame.Surface((self.panel_w, self.panel_h))
@@ -212,7 +212,7 @@ class EvolutionStatsPanel:
         title = font.render("EVOLUTION OBSERVER", True, (220, 230, 255))
         surface.blit(title, (panel_x + 20, panel_y + 16))
 
-        summary = advisor.session_stats.get("current_evolution_summary") or summarize_population_evolution(thronglets)
+        summary = advisor.session_stats.get("current_evolution_summary") or summarize_population_evolution(praxans)
         line_y = panel_y + 62
         overview_lines = [
             f"Population: {summary['population']}  |  Avg generation: {summary['avg_generation']:.1f}  |  Max generation: {summary['max_generation']}",
@@ -273,7 +273,7 @@ class EvolutionStatsPanel:
 class ObserverAnalyticsPanel:
     """Observer-facing colony analytics for lineage, mortality, and faction history."""
 
-    def draw(self, surface, thronglets, advisor, current_time, faction_manager=None):
+    def draw(self, surface, praxans, advisor, current_time, faction_manager=None):
         panel_w = min(860, WINDOW_WIDTH - 40)
         panel_h = min(560, WINDOW_HEIGHT - 70)
         panel_x = max(20, WINDOW_WIDTH // 2 - panel_w // 2)
@@ -285,7 +285,7 @@ class ObserverAnalyticsPanel:
         surface.blit(panel, (panel_x, panel_y))
         pygame.draw.rect(surface, (120, 160, 215), (panel_x, panel_y, panel_w, panel_h), 3)
 
-        report = build_observer_report(thronglets, advisor, faction_manager)
+        report = build_observer_report(praxans, advisor, faction_manager)
         scenario_name = advisor.session_stats.get("scenario_name", ACTIVE_SCENARIO_PROFILE.get("name", "Standard Basin"))
         title = font.render("OBSERVER ANALYTICS", True, (220, 230, 255))
         subtitle = font_small.render(f"{scenario_name}  |  Timeline, mortality, and faction drift", True, (170, 210, 255))

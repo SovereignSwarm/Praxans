@@ -1,4 +1,4 @@
-"""LLM subsystem for Thronglets — multi-channel civilization engine.
+"""LLM subsystem for Praxans — multi-channel civilization engine.
 
 Provides scheduler, contracts, memory, state views, prompt templates,
 and deterministic interpreters for five live LLM channels:

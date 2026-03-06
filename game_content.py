@@ -9,7 +9,7 @@ BUILDING_DEFINITIONS = {
     "house": {
         "name": "House",
         "cost": {"wood": 4, "stone": 0},
-        "prompt_summary": "Base capacity 2 thronglets, capacity scales with building level, restores energy while inside.",
+        "prompt_summary": "Base capacity 2 praxans, capacity scales with building level, restores energy while inside.",
     },
     "farm": {
         "name": "Farm",
@@ -44,7 +44,7 @@ BUILDING_DEFINITIONS = {
     "school": {
         "name": "School",
         "cost": {"wood": 12, "stone": 6},
-        "prompt_summary": "Accelerates skill acquisition and experience gain for nearby thronglets.",
+        "prompt_summary": "Accelerates skill acquisition and experience gain for nearby praxans.",
     },
     "watchtower": {
         "name": "Watchtower",
@@ -81,19 +81,19 @@ TECH_TREE_DEFINITIONS = {
         "effect": {"happiness_base": 1.4, "bond_decay": 0.5},
         "requires": ["social_1"],
     },
-    "exploration_1": {"cost": 150, "name": "Scout Training", "effect": {"thronglet_speed": 1.3}},
+    "exploration_1": {"cost": 150, "name": "Scout Training", "effect": {"praxan_speed": 1.3}},
     "industry_1": {"cost": 200, "name": "Workshop Efficiency", "effect": {"workshop_bonus": 1.25, "build_speed": 1.2}},
 }
 
 ABILITY_DEFINITIONS = {
-    "speed_burst": {"cost": 50, "duration": 30, "effect": {"thronglet_speed": 2.0}},
+    "speed_burst": {"cost": 50, "duration": 30, "effect": {"praxan_speed": 2.0}},
     "workers_focus": {"cost": 75, "duration": 60, "effect": {"gather_rate": 1.5, "build_speed": 1.3}},
     "heal_wave": {"cost": 100, "instant": True},
     "resource_blessing": {"cost": 80, "instant": True},
 }
 
 LEGACY_BONUS_DEFINITIONS = {
-    "head_start": {"unlocked": False, "effect": "Start with 5 thronglets"},
+    "head_start": {"unlocked": False, "effect": "Start with 5 praxans"},
     "wise_elders": {"unlocked": False, "effect": "Start with level 2 skills"},
     "prepared": {"unlocked": False, "effect": "Start with 10 food, 5 wood"},
     "architect": {"unlocked": False, "effect": "Start with 1 house, 1 storage"},

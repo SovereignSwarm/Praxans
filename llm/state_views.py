@@ -24,7 +24,7 @@ def build_council_view(
     diseased_count: int,
     settlement: dict[str, Any],
     faction_summaries: list[dict[str, Any]],
-    thronglet_snapshot: list[dict[str, Any]],
+    praxan_snapshot: list[dict[str, Any]],
     crisis_flags: list[str],
     summary_text: str,
     intervention_reason: str,
@@ -40,10 +40,10 @@ def build_council_view(
     res_carry = ", ".join(f"{k}={v}" for k, v in resources_carried.items())
     needs = ", ".join(f"{k}={v:.0f}" for k, v in avg_needs.items())
 
-    thronglet_lines = "\n".join(
+    praxan_lines = "\n".join(
         f"- {t.get('id', '?')}: role={t.get('role', 'unassigned')}, hunger={t.get('hunger', 0):.0f}, "
         f"energy={t.get('energy', 0):.0f}, health={t.get('health', 0):.0f}, morale={t.get('morale', 65):.0f}"
-        for t in thronglet_snapshot[:8]
+        for t in praxan_snapshot[:8]
     ) or "- none"
 
     faction_lines = "\n".join(
@@ -72,8 +72,8 @@ Colony:
 Factions:
 {faction_lines}
 
-Thronglets:
-{thronglet_lines}
+Praxans:
+{praxan_lines}
 
 Buildings:
 {chr(10).join(building_prompt_lines)}

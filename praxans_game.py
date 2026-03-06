@@ -1,6 +1,6 @@
 from __future__ import annotations
 """
-Thronglets - A Black Mirror-style Lemmings simulation game
+Praxans - A Black Mirror-style Lemmings simulation game
 Cute pixelated creatures make AI-powered decisions using a local LLM
 """
 
@@ -86,14 +86,14 @@ LLM_ENABLED = not RUNTIME_CONFIG.disable_llm and ollama is not None
 WINDOW_WIDTH = RUNTIME_CONFIG.width
 WINDOW_HEIGHT = RUNTIME_CONFIG.height
 FPS = RUNTIME_CONFIG.fps
-THRONGLET_SPEED = 1.5  # Doubled for larger scale
+PRAXAN_SPEED = 1.5  # Doubled for larger scale
 RESOURCE_COLLISION_DIST = 24  # Adjusted for larger sprites
 
 # Time speed control
 TIME_SPEED_OPTIONS = [1.0, 2.0, 5.0]  # 1x, 2x, 5x
 
 # Visual scale constants
-THRONGLET_RADIUS = 16  # Visually larger relative to grid
+PRAXAN_RADIUS = 16  # Visually larger relative to grid
 BUILDING_SIZE = 32  # Half scale of new 64 tile size, but larger overall
 RESOURCE_RADIUS_FOOD = 8  # Larger, more visible resources
 RESOURCE_RADIUS_WOOD = 10  # Larger, more visible resources
@@ -128,7 +128,7 @@ REPRODUCTION_COOLDOWN = 45.0  # 45 seconds between reproductions (faster for gro
 REPRODUCTION_PROXIMITY = 60  # Doubled for larger sprites
 REPRODUCTION_NEEDS_THRESHOLD = 60  # both hunger and energy must be above this (easier to reproduce)
 MAX_POPULATION = 25  # soft cap to maintain performance
-INITIAL_POPULATION = 2  # start with 2 thronglets
+INITIAL_POPULATION = 2  # start with 2 praxans
 
 # Resource Configuration
 RESOURCE_RESPAWN_TIME = 30.0  # Food respawns every 30 seconds
@@ -139,7 +139,7 @@ WOOD_MAX_ON_MAP = 1000  # Maximum wood resources at once (massive map)
 # FOOD_MAX_ON_MAP removed - food uses respawn timer system instead
 
 # Health & Lifespan
-THRONGLET_MAX_AGE = 420.0  # 7 minutes (increased for better survival)
+PRAXAN_MAX_AGE = 420.0  # 7 minutes (increased for better survival)
 HEALTH_DECAY_BASE = 0.01
 DISEASE_CHANCE_BASE = 0.001
 
@@ -170,7 +170,7 @@ BOND_INCREASE_RATE = 0.5  # Per second working together
 BOND_DECAY_RATE = 0.1     # Per second apart
 
 # Resource Sharing
-RESOURCE_SHARING_RADIUS = 100  # Doubled for new scale - thronglets within this distance can share resources for building
+RESOURCE_SHARING_RADIUS = 100  # Doubled for new scale - praxans within this distance can share resources for building
 
 # Behavior Tree Constants
 BT_NODE_SELECTOR = 'selector'
@@ -191,7 +191,7 @@ RESOURCE_RADIUS_STONE = 10  # Larger, more visible resources
 # Water & Hygiene
 WATER_NEED_DECAY = 0.04
 
-# Thronglet State Machine Constants
+# Praxan State Machine Constants
 STATE_IDLE = 'idle'
 STATE_SEEK_NEED = 'seek_need'
 STATE_EXECUTE_DIRECTIVE = 'execute_directive'
@@ -451,29 +451,29 @@ def spawn_resource_cluster(resources, center_x, center_y, count, resource_type, 
         resources.append(Resource(x, y, resource_type))
 
 
-def apply_scenario_startup_conditions(scenario_profile, thronglets, advisor, season, weather_system, current_time):
+def apply_scenario_startup_conditions(scenario_profile, praxans, advisor, season, weather_system, current_time):
     favorite_biomes = [biome for biome in scenario_profile.get("favorite_biomes", []) if biome in BIOME_TYPES] or BIOME_TYPES
     morale_bonus = float(scenario_profile.get("morale_bonus", 0.0))
     inspiration_bonus = float(scenario_profile.get("inspiration_bonus", 0.0))
     health_bonus = float(scenario_profile.get("health_bonus", 0.0))
     disease_health_penalty = float(scenario_profile.get("disease_health_penalty", 0.0))
 
-    for thronglet in thronglets:
-        thronglet.favorite_biome = random.choice(favorite_biomes)
-        thronglet.morale = clamp(thronglet.morale + morale_bonus, 0.0, 100.0)
-        thronglet.inspiration = clamp(thronglet.inspiration + inspiration_bonus, 0.0, 100.0)
-        thronglet.health = clamp(thronglet.health + health_bonus, 10.0, 100.0)
+    for praxan in praxans:
+        praxan.favorite_biome = random.choice(favorite_biomes)
+        praxan.morale = clamp(praxan.morale + morale_bonus, 0.0, 100.0)
+        praxan.inspiration = clamp(praxan.inspiration + inspiration_bonus, 0.0, 100.0)
+        praxan.health = clamp(praxan.health + health_bonus, 10.0, 100.0)
 
-    diseased_count = min(len(thronglets), max(0, int(scenario_profile.get("starting_diseased", 0))))
+    diseased_count = min(len(praxans), max(0, int(scenario_profile.get("starting_diseased", 0))))
     if diseased_count > 0:
-        for thronglet in random.sample(thronglets, diseased_count):
-            thronglet.diseased = True
-            thronglet.disease_start_time = current_time - random.uniform(5.0, 15.0)
-            thronglet.health = clamp(thronglet.health - disease_health_penalty, 10.0, 100.0)
-            thronglet.add_moodlet("Sickly Start", -12.0, 600, current_time)
+        for praxan in random.sample(praxans, diseased_count):
+            praxan.diseased = True
+            praxan.disease_start_time = current_time - random.uniform(5.0, 15.0)
+            praxan.health = clamp(praxan.health - disease_health_penalty, 10.0, 100.0)
+            praxan.add_moodlet("Sickly Start", -12.0, 600, current_time)
 
     advisor.research_points += max(0, int(scenario_profile.get("starting_research", 0)))
-    advisor.last_pop_count = len(thronglets)
+    advisor.last_pop_count = len(praxans)
     advisor.session_stats["scenario_id"] = scenario_profile["id"]
     advisor.session_stats["scenario_name"] = scenario_profile["name"]
     advisor.session_stats["mutation_scale"] = ACTIVE_MUTATION_SCALE
@@ -525,8 +525,8 @@ def format_genetic_trait_delta(value):
     return f"{delta_pct:+.0f}%"
 
 
-def summarize_population_evolution(thronglets):
-    if not thronglets:
+def summarize_population_evolution(praxans):
+    if not praxans:
         return {
             "population": 0,
             "avg_generation": 0.0,
@@ -547,17 +547,17 @@ def summarize_population_evolution(thronglets):
     generation_values = []
     total_mutations = 0
 
-    for thronglet in thronglets:
-        lineage_id = getattr(thronglet, "lineage_id", thronglet.id)
+    for praxan in praxans:
+        lineage_id = getattr(praxan, "lineage_id", praxan.id)
         lineage_counts[lineage_id] = lineage_counts.get(lineage_id, 0) + 1
-        biome_name = getattr(thronglet, "favorite_biome", "plains")
+        biome_name = getattr(praxan, "favorite_biome", "plains")
         biome_counts[biome_name] = biome_counts.get(biome_name, 0) + 1
-        generation_values.append(getattr(thronglet, "generation", 0))
-        total_mutations += int(getattr(thronglet, "mutation_count", 0))
+        generation_values.append(getattr(praxan, "generation", 0))
+        total_mutations += int(getattr(praxan, "mutation_count", 0))
         for trait_name in GENETIC_TRAIT_SPECS:
-            avg_traits[trait_name] += getattr(thronglet, "genetics", {}).get(trait_name, 1.0)
+            avg_traits[trait_name] += getattr(praxan, "genetics", {}).get(trait_name, 1.0)
 
-    population = len(thronglets)
+    population = len(praxans)
     for trait_name in avg_traits:
         avg_traits[trait_name] = round(avg_traits[trait_name] / population, 3)
 
@@ -684,7 +684,7 @@ def build_trait_display_lines(genetics):
 
 def refresh_run_summary_cache(
     advisor,
-    thronglets,
+    praxans,
     buildings,
     current_time,
     game_start_time,
@@ -705,7 +705,7 @@ def refresh_run_summary_cache(
         return advisor.session_stats.get("current_run_summary", {})
 
     summary = build_run_summary(
-        thronglets=thronglets,
+        praxans=praxans,
         buildings=buildings,
         advisor=advisor,
         current_time=current_time,
@@ -724,15 +724,15 @@ def refresh_run_summary_cache(
     return summary
 
 
-def record_population_evolution_sample(advisor, thronglets, current_time, game_start_time, force=False):
+def record_population_evolution_sample(advisor, praxans, current_time, game_start_time, force=False):
     if advisor is None:
-        return summarize_population_evolution(thronglets)
+        return summarize_population_evolution(praxans)
 
     last_sample_time = getattr(advisor, "last_evolution_sample_time", 0.0)
     if not force and current_time - last_sample_time < 20.0:
-        return advisor.session_stats.get("current_evolution_summary", summarize_population_evolution(thronglets))
+        return advisor.session_stats.get("current_evolution_summary", summarize_population_evolution(praxans))
 
-    summary = summarize_population_evolution(thronglets)
+    summary = summarize_population_evolution(praxans)
     sample = {
         "elapsed_seconds": round(max(0.0, current_time - game_start_time), 2),
         "population": summary["population"],
@@ -758,12 +758,12 @@ def record_population_evolution_sample(advisor, thronglets, current_time, game_s
     return summary
 
 
-def compute_settlement_snapshot(thronglets, buildings, world_map=None, season=None, weather_system=None):
+def compute_settlement_snapshot(praxans, buildings, world_map=None, season=None, weather_system=None):
     counts = {btype: 0 for btype in ["house", "storage", "farm", "workshop", "shrine", "well"]}
     stored_food = 0
     stored_wood = 0
     stored_stone = 0
-    total_inventory_food = sum(t.inventory.get("food", 0) for t in thronglets)
+    total_inventory_food = sum(t.inventory.get("food", 0) for t in praxans)
 
     for building in buildings:
         counts[building.building_type] = counts.get(building.building_type, 0) + 1
@@ -771,10 +771,10 @@ def compute_settlement_snapshot(thronglets, buildings, world_map=None, season=No
         stored_wood += building.stored_resources.get("wood", 0)
         stored_stone += building.stored_resources.get("stone", 0)
 
-    population = max(1, len(thronglets))
-    avg_health = sum(t.health for t in thronglets) / population if thronglets else 100
-    avg_happiness = sum(t.happiness for t in thronglets) / population if thronglets else 80
-    avg_morale = sum(getattr(t, "morale", 65) for t in thronglets) / population if thronglets else 65
+    population = max(1, len(praxans))
+    avg_health = sum(t.health for t in praxans) / population if praxans else 100
+    avg_happiness = sum(t.happiness for t in praxans) / population if praxans else 80
+    avg_morale = sum(getattr(t, "morale", 65) for t in praxans) / population if praxans else 65
 
     shelter_ratio = clamp(counts.get("house", 0) / max(1.0, population / 2.0), 0.0, 1.0)
     water_ratio = clamp(counts.get("well", 0) / max(1.0, population / 5.0), 0.0, 1.0)
@@ -829,10 +829,10 @@ def compute_settlement_snapshot(thronglets, buildings, world_map=None, season=No
     )
 
     dominant_biome = "plains"
-    if world_map and thronglets:
+    if world_map and praxans:
         biome_counts = {}
-        for thronglet in thronglets:
-            biome = world_map.get_biome_at(thronglet.x, thronglet.y)
+        for praxan in praxans:
+            biome = world_map.get_biome_at(praxan.x, praxan.y)
             biome_counts[biome] = biome_counts.get(biome, 0) + 1
         dominant_biome = max(biome_counts.items(), key=lambda item: item[1])[0]
 
@@ -845,9 +845,9 @@ def compute_settlement_snapshot(thronglets, buildings, world_map=None, season=No
             if distance_between(building.x, building.y, other.x, other.y) <= SETTLEMENT_CLUSTER_RADIUS:
                 nearby_types.add(other.building_type)
 
-        if thronglets:
+        if praxans:
             nearby_population = sum(
-                1 for thronglet in thronglets if distance_between(building.x, building.y, thronglet.x, thronglet.y) <= SETTLEMENT_AURA_RADIUS
+                1 for praxan in praxans if distance_between(building.x, building.y, praxan.x, praxan.y) <= SETTLEMENT_AURA_RADIUS
             )
 
         storage_bonus = min(0.35, sum(building.stored_resources.values()) / 30.0)
@@ -883,7 +883,7 @@ def compute_settlement_snapshot(thronglets, buildings, world_map=None, season=No
 def update_settlement_celebration(
     celebration_state,
     settlement_state,
-    thronglets,
+    praxans,
     buildings,
     particle_system,
     narrative_panel,
@@ -902,7 +902,7 @@ def update_settlement_celebration(
     has_cultural_anchor = counts.get("shrine", 0) > 0 or counts.get("workshop", 0) > 0
 
     if not festival_active and current_time >= celebration_state.get("cooldown_until", 0.0):
-        if len(thronglets) >= 4 and has_cultural_anchor and readiness >= 0.78:
+        if len(praxans) >= 4 and has_cultural_anchor and readiness >= 0.78:
             anchor = next(
                 (
                     building
@@ -913,10 +913,10 @@ def update_settlement_celebration(
             )
             if anchor:
                 center = (anchor.x, anchor.y)
-            elif thronglets:
+            elif praxans:
                 center = (
-                    sum(thronglet.x for thronglet in thronglets) / len(thronglets),
-                    sum(thronglet.y for thronglet in thronglets) / len(thronglets),
+                    sum(praxan.x for praxan in praxans) / len(praxans),
+                    sum(praxan.y for praxan in praxans) / len(praxans),
                 )
             else:
                 center = None
@@ -941,13 +941,13 @@ def update_settlement_celebration(
                 8,
             )
 
-        for thronglet in thronglets:
+        for praxan in praxans:
             bonus_scale = 1.0
-            if center and distance_between(thronglet.x, thronglet.y, center[0], center[1]) <= 220:
+            if center and distance_between(praxan.x, praxan.y, center[0], center[1]) <= 220:
                 bonus_scale = 1.35
-            thronglet.morale = clamp(thronglet.morale + 0.9 * delta_time * bonus_scale, 0.0, 100.0)
-            thronglet.add_moodlet("Festival Joy", 15.0 * bonus_scale, 5.0, current_time)
-            thronglet.inspiration = clamp(thronglet.inspiration + 0.65 * delta_time * bonus_scale, 0.0, 100.0)
+            praxan.morale = clamp(praxan.morale + 0.9 * delta_time * bonus_scale, 0.0, 100.0)
+            praxan.add_moodlet("Festival Joy", 15.0 * bonus_scale, 5.0, current_time)
+            praxan.inspiration = clamp(praxan.inspiration + 0.65 * delta_time * bonus_scale, 0.0, 100.0)
 
     settlement_state["festival_active"] = festival_active
     settlement_state["festival_timer"] = max(0.0, active_until - current_time) if festival_active else 0.0
@@ -1104,19 +1104,19 @@ class TooltipSystem:
         self.hovered_entity = None
         self.hovered_type = None
     
-    def detect_hover(self, mouse_world_x, mouse_world_y, camera, thronglets, buildings, resources, encounters, hazards, npcs, world_map):
+    def detect_hover(self, mouse_world_x, mouse_world_y, camera, praxans, buildings, resources, encounters, hazards, npcs, world_map):
         """Detect which entity the mouse is hovering over"""
         self.hovered_entity = None
         self.hovered_type = None
         
         # Check entities in priority order
-        # Check thronglets
-        for thronglet in thronglets:
-            distance = math.sqrt((mouse_world_x - thronglet.x)**2 + (mouse_world_y - thronglet.y)**2)
-            threshold = THRONGLET_RADIUS * camera.zoom
+        # Check praxans
+        for praxan in praxans:
+            distance = math.sqrt((mouse_world_x - praxan.x)**2 + (mouse_world_y - praxan.y)**2)
+            threshold = PRAXAN_RADIUS * camera.zoom
             if distance < threshold:
-                self.hovered_entity = thronglet
-                self.hovered_type = 'thronglet'
+                self.hovered_entity = praxan
+                self.hovered_type = 'praxan'
                 return
         
         # Check buildings
@@ -1181,61 +1181,61 @@ class TooltipSystem:
         lines = []
         line_colors = []  # Track colors for each line
         
-        if self.hovered_type == 'thronglet':
-            thronglet = self.hovered_entity
-            lines.append(f"Thronglet #{thronglet.id}")
+        if self.hovered_type == 'praxan':
+            praxan = self.hovered_entity
+            lines.append(f"Praxan #{praxan.id}")
             line_colors.append(WHITE)
             
-            if thronglet.role:
-                lines.append(f"Role: {thronglet.role.title()}")
+            if praxan.role:
+                lines.append(f"Role: {praxan.role.title()}")
                 line_colors.append((200, 200, 255))
             
             # Health with color coding
-            health_val = int(thronglet.health)
+            health_val = int(praxan.health)
             health_color = (100, 255, 100) if health_val > 70 else (255, 200, 100) if health_val > 40 else (255, 100, 100)
             lines.append(f"Health: {health_val}/100")
             line_colors.append(health_color)
             
             # Needs with color coding
-            hunger_val = int(thronglet.needs['hunger'])
+            hunger_val = int(praxan.needs['hunger'])
             hunger_color = (100, 255, 100) if hunger_val > 50 else (255, 100, 100)
             lines.append(f"Hunger: {hunger_val}/100")
             line_colors.append(hunger_color)
             
-            energy_val = int(thronglet.needs['energy'])
+            energy_val = int(praxan.needs['energy'])
             energy_color = (100, 255, 100) if energy_val > 50 else (255, 100, 100)
             lines.append(f"Energy: {energy_val}/100")
             line_colors.append(energy_color)
             
             # Happiness
-            if hasattr(thronglet, 'happiness'):
-                happiness_val = int(thronglet.happiness)
+            if hasattr(praxan, 'happiness'):
+                happiness_val = int(praxan.happiness)
                 happiness_color = (100, 255, 100) if happiness_val > 70 else (255, 200, 100) if happiness_val > 40 else (255, 100, 100)
                 lines.append(f"Happiness: {happiness_val}/100")
                 line_colors.append(happiness_color)
 
-            lines.append(f"Generation: {getattr(thronglet, 'generation', 0)}  Lineage: L{getattr(thronglet, 'lineage_id', thronglet.id)}")
+            lines.append(f"Generation: {getattr(praxan, 'generation', 0)}  Lineage: L{getattr(praxan, 'lineage_id', praxan.id)}")
             line_colors.append((255, 220, 150))
-            if getattr(thronglet, "parent_ids", None):
-                parent_text = ",".join(str(parent_id) for parent_id in thronglet.parent_ids[:2])
+            if getattr(praxan, "parent_ids", None):
+                parent_text = ",".join(str(parent_id) for parent_id in praxan.parent_ids[:2])
                 lines.append(f"Parents: {parent_text}")
                 line_colors.append((180, 180, 205))
             
             # Faction membership
-            if hasattr(thronglet, 'faction_id') and thronglet.faction_id is not None:
-                lines.append(f"Faction: {thronglet.faction_id}")
+            if hasattr(praxan, 'faction_id') and praxan.faction_id is not None:
+                lines.append(f"Faction: {praxan.faction_id}")
                 line_colors.append((200, 100, 255))
                 if faction_manager and hasattr(faction_manager, 'factions'):
-                    faction = faction_manager.get_faction(thronglet.faction_id)
+                    faction = faction_manager.get_faction(praxan.faction_id)
                     if faction:
                         lines.append(
                             f"Doctrine: {faction.primary_doctrine.title()}  Cohesion: {int(faction.cohesion)}  Schism: {int(faction.schism_pressure)}"
                         )
                         line_colors.append((220, 190, 255))
             elif faction_manager and hasattr(faction_manager, 'factions'):
-                # Check if thronglet is in any faction
+                # Check if praxan is in any faction
                 for fid, faction in faction_manager.factions.items():
-                    if thronglet.id in faction.member_ids:
+                    if praxan.id in faction.member_ids:
                         lines.append(f"Faction: {fid}")
                         line_colors.append((200, 100, 255))
                         lines.append(
@@ -1245,47 +1245,47 @@ class TooltipSystem:
                         break
             
             # Skills and bonuses
-            skill_key = get_role_skill_key(thronglet.role)
-            if skill_key and skill_key in thronglet.skills:
-                skill_level = thronglet.skills[skill_key]['level']
+            skill_key = get_role_skill_key(praxan.role)
+            if skill_key and skill_key in praxan.skills:
+                skill_level = praxan.skills[skill_key]['level']
                 lines.append(f"Skill Level: {skill_level}")
                 line_colors.append((255, 215, 0))
-                if thronglet.role == 'gatherer':
+                if praxan.role == 'gatherer':
                     bonus = (skill_level - 1) * 10
                     lines.append(f"Gather Bonus: +{bonus}%")
                     line_colors.append((100, 255, 100))
-                elif thronglet.role == 'builder':
+                elif praxan.role == 'builder':
                     bonus = (skill_level - 1) * 10
                     lines.append(f"Build Efficiency: +{bonus}%")
                     line_colors.append((100, 255, 100))
-                elif thronglet.role == 'explorer':
+                elif praxan.role == 'explorer':
                     bonus = (skill_level - 1) * 15
                     lines.append(f"Visibility: +{bonus}%")
                     line_colors.append((100, 255, 100))
             
             # Q-learning stats
-            if hasattr(thronglet, 'q_table'):
-                q_entries = len(thronglet.q_table)
+            if hasattr(praxan, 'q_table'):
+                q_entries = len(praxan.q_table)
                 if q_entries > 0:
                     lines.append(f"Learned Actions: {q_entries}")
                     line_colors.append((150, 200, 255))
             
             # State
-            if hasattr(thronglet, 'current_state'):
-                state_name = thronglet.current_state.replace('STATE_', '').replace('_', ' ').title()
+            if hasattr(praxan, 'current_state'):
+                state_name = praxan.current_state.replace('STATE_', '').replace('_', ' ').title()
                 lines.append(f"State: {state_name}")
                 line_colors.append((200, 200, 200))
             
             # Current action
-            if hasattr(thronglet, 'current_action') and thronglet.current_action:
-                lines.append(f"Task: {thronglet.current_action}")
+            if hasattr(praxan, 'current_action') and praxan.current_action:
+                lines.append(f"Task: {praxan.current_action}")
                 line_colors.append((255, 255, 200))
             trait_drift_name = max(
                 GENETIC_TRAIT_SPECS,
-                key=lambda trait_name: abs(getattr(thronglet, "genetics", {}).get(trait_name, 1.0) - 1.0),
+                key=lambda trait_name: abs(getattr(praxan, "genetics", {}).get(trait_name, 1.0) - 1.0),
             )
             trait_label = GENETIC_TRAIT_SPECS[trait_drift_name]["label"]
-            trait_delta = format_genetic_trait_delta(getattr(thronglet, "genetics", {}).get(trait_drift_name, 1.0))
+            trait_delta = format_genetic_trait_delta(getattr(praxan, "genetics", {}).get(trait_drift_name, 1.0))
             lines.append(f"{trait_label}: {trait_delta}")
             line_colors.append((150, 220, 255))
         elif self.hovered_type == 'building':
@@ -1296,7 +1296,7 @@ class TooltipSystem:
                 if building.occupants:
                     lines.append(f"Occupants: {len(building.occupants)}/2")
                     line_colors.append((200, 200, 255))
-                lines.append(f"Built by: Thronglet #{building.built_by}" if hasattr(building, 'built_by') and building.built_by is not None else "Built by: Unknown")
+                lines.append(f"Built by: Praxan #{building.built_by}" if hasattr(building, 'built_by') and building.built_by is not None else "Built by: Unknown")
                 line_colors.append((150, 150, 150))
             if building.stored_resources:
                 stored = building.stored_resources
@@ -1425,11 +1425,11 @@ class SelectionManager:
             return
         
         # Use world coordinates for the entity (already transformed to screen)
-        if entity_type == 'thronglet':
+        if entity_type == 'praxan':
             # Yellow glow
-            glow_surface = pygame.Surface((THRONGLET_RADIUS * 2 + 8, THRONGLET_RADIUS * 2 + 8), pygame.SRCALPHA)
-            pygame.draw.circle(glow_surface, (*YELLOW, 150), (THRONGLET_RADIUS + 4, THRONGLET_RADIUS + 4), THRONGLET_RADIUS + 4)
-            surface.blit(glow_surface, (int(entity.x - THRONGLET_RADIUS - 4), int(entity.y - THRONGLET_RADIUS - 4)))
+            glow_surface = pygame.Surface((PRAXAN_RADIUS * 2 + 8, PRAXAN_RADIUS * 2 + 8), pygame.SRCALPHA)
+            pygame.draw.circle(glow_surface, (*YELLOW, 150), (PRAXAN_RADIUS + 4, PRAXAN_RADIUS + 4), PRAXAN_RADIUS + 4)
+            surface.blit(glow_surface, (int(entity.x - PRAXAN_RADIUS - 4), int(entity.y - PRAXAN_RADIUS - 4)))
         elif entity_type == 'building':
             # Cyan outline
             size = BUILDING_SIZE
@@ -1577,12 +1577,12 @@ class ParticleSystem:
 
 
 class GroupTask:
-    """Represents a communal task that requires coordination between multiple thronglets"""
+    """Represents a communal task that requires coordination between multiple praxans"""
     def __init__(self, task_type, description, required_count=1, target_location=None, target_building_type=None):
         self.task_type = task_type  # 'build', 'gather', 'explore', etc.
         self.description = description
         self.required_count = required_count
-        self.assigned_thronglets = []  # List of thronglet IDs
+        self.assigned_praxans = []  # List of praxan IDs
         self.target_location = target_location  # (x, y) for coordinated gathering/building
         self.target_building_type = target_building_type  # For building tasks
         self.created_time = time.time()
@@ -1590,18 +1590,18 @@ class GroupTask:
         self.faction_id = None  # Optional: faction this task belongs to
     
     def is_complete(self):
-        """Check if task has required number of thronglets assigned"""
-        return len(self.assigned_thronglets) >= self.required_count
+        """Check if task has required number of praxans assigned"""
+        return len(self.assigned_praxans) >= self.required_count
     
-    def add_thronglet(self, thronglet_id):
-        """Assign a thronglet to this task"""
-        if thronglet_id not in self.assigned_thronglets:
-            self.assigned_thronglets.append(thronglet_id)
+    def add_praxan(self, praxan_id):
+        """Assign a praxan to this task"""
+        if praxan_id not in self.assigned_praxans:
+            self.assigned_praxans.append(praxan_id)
     
-    def remove_thronglet(self, thronglet_id):
-        """Remove a thronglet from this task"""
-        if thronglet_id in self.assigned_thronglets:
-            self.assigned_thronglets.remove(thronglet_id)
+    def remove_praxan(self, praxan_id):
+        """Remove a praxan from this task"""
+        if praxan_id in self.assigned_praxans:
+            self.assigned_praxans.remove(praxan_id)
 
 
 
@@ -1645,12 +1645,12 @@ class BehaviorTreeNode:
         self.action_func = action_func
         self.last_result = None  # Cache last result
     
-    def tick(self, thronglet, context):
+    def tick(self, praxan, context):
         """Execute this node and return result (SUCCESS, FAILURE, RUNNING)"""
         if self.node_type == BT_NODE_SELECTOR:
             # Selector: Returns SUCCESS if any child succeeds, FAILURE if all fail
             for child in self.children:
-                result = child.tick(thronglet, context)
+                result = child.tick(praxan, context)
                 if result == 'SUCCESS':
                     return 'SUCCESS'
             return 'FAILURE'
@@ -1658,7 +1658,7 @@ class BehaviorTreeNode:
         elif self.node_type == BT_NODE_SEQUENCE:
             # Sequence: Returns FAILURE if any child fails, SUCCESS if all succeed
             for child in self.children:
-                result = child.tick(thronglet, context)
+                result = child.tick(praxan, context)
                 if result == 'FAILURE':
                     return 'FAILURE'
                 if result == 'RUNNING':
@@ -1668,23 +1668,23 @@ class BehaviorTreeNode:
         elif self.node_type == BT_NODE_CONDITION:
             # Condition: Returns SUCCESS if condition is true
             if self.condition_func:
-                if self.condition_func(thronglet, context):
+                if self.condition_func(praxan, context):
                     return 'SUCCESS'
             return 'FAILURE'
         
         elif self.node_type == BT_NODE_ACTION:
             # Action: Executes action and returns result
             if self.action_func:
-                return self.action_func(thronglet, context)
+                return self.action_func(praxan, context)
             return 'FAILURE'
         
         return 'FAILURE'
 
 
 class BehaviorTree:
-    """Behavior tree for thronglet decision making - hybrid with FSM"""
-    def __init__(self, thronglet):
-        self.thronglet = thronglet
+    """Behavior tree for praxan decision making - hybrid with FSM"""
+    def __init__(self, praxan):
+        self.praxan = praxan
         self.root = None
         self.last_successful_path = []  # Cache last successful path
         self.max_depth = 5
@@ -1741,7 +1741,7 @@ class BehaviorTree:
             'has_group_task',
             condition_func=lambda t, ctx: (
                 ctx.get('group_tasks') and
-                any(t.id in task.assigned_thronglets for task in ctx['group_tasks'])
+                any(t.id in task.assigned_praxans for task in ctx['group_tasks'])
             )
         )
         group_task_action = BehaviorTreeNode(
@@ -1791,7 +1791,7 @@ class BehaviorTree:
             children=[survival_node, directive_node, group_task_node, socialize_node, idle_action]
         )
     
-    def _transition_to_state(self, thronglet, state_name):
+    def _transition_to_state(self, praxan, state_name):
         """Helper to transition FSM state"""
         # Map string to actual state constants
         state_map = {
@@ -1802,7 +1802,7 @@ class BehaviorTree:
             'STATE_REST': STATE_REST
         }
         if state_name in state_map:
-            thronglet.transition_to_state(state_map[state_name])
+            praxan.transition_to_state(state_map[state_name])
         return 'SUCCESS'
     
     def tick(self, context):
@@ -1811,7 +1811,7 @@ class BehaviorTree:
             return 'FAILURE'
         
         try:
-            result = self.root.tick(self.thronglet, context)
+            result = self.root.tick(self.praxan, context)
             
             # Cache successful path for performance
             if result == 'SUCCESS' and len(self.last_successful_path) < self.max_depth:
@@ -1875,7 +1875,7 @@ class Encounter:
 
 
 class TerrainHazard:
-    """Environmental hazards that affect thronglets"""
+    """Environmental hazards that affect praxans"""
     def __init__(self, x, y, hazard_type, radius=100):
         self.x = x
         self.y = y
@@ -1884,28 +1884,28 @@ class TerrainHazard:
         self.active = True
         self.damage_rate = 0.5  # Health loss per second
         
-    def check_affect(self, thronglet):
-        """Check if thronglet is in range and apply effects"""
+    def check_affect(self, praxan):
+        """Check if praxan is in range and apply effects"""
         if not self.active:
             return
         
-        distance = math.sqrt((self.x - thronglet.x)**2 + (self.y - thronglet.y)**2)
+        distance = math.sqrt((self.x - praxan.x)**2 + (self.y - praxan.y)**2)
         if distance < self.radius:
             # Apply hazard effects
             if self.hazard_type == 'quicksand':
                 # Slow movement
-                thronglet.needs['energy'] = max(0, thronglet.needs['energy'] - 0.3)
+                praxan.needs['energy'] = max(0, praxan.needs['energy'] - 0.3)
             elif self.hazard_type == 'avalanche_zone':
                 # Chance to take damage
                 if random.random() < 0.1:
-                    thronglet.take_damage(20, 'burn')
+                    praxan.take_damage(20, 'burn')
             elif self.hazard_type == 'flood_zone':
                 # Increase disease risk
-                thronglet.contract_disease(DISEASE_CHANCE_BASE * 10)
+                praxan.contract_disease(DISEASE_CHANCE_BASE * 10)
             elif self.hazard_type == 'predator_lair':
                 # Chance of attack
                 if random.random() < 0.15:
-                    thronglet.take_damage(30, 'crush')
+                    praxan.take_damage(30, 'crush')
     
     def draw(self, surface):
         """Draw hazard marker"""
@@ -1993,7 +1993,7 @@ class Resource:
                 self.collected = False
                 self.collect_time = 0
     
-    def draw(self, surface, thronglets=None):
+    def draw(self, surface, praxans=None):
         """Draw stylized resources with silhouette and shimmer."""
         if not self.collected:
             if self.resource_type == 'food':
@@ -2006,11 +2006,11 @@ class Resource:
                 color = BROWN
                 base_radius = RESOURCE_RADIUS_WOOD
             
-            # Check if any thronglet is nearby for glow effect
+            # Check if any praxan is nearby for glow effect
             nearby = False
-            if thronglets:
-                for thronglet in thronglets:
-                    distance = math.sqrt((self.x - thronglet.x)**2 + (self.y - thronglet.y)**2)
+            if praxans:
+                for praxan in praxans:
+                    distance = math.sqrt((self.x - praxan.x)**2 + (self.y - praxan.y)**2)
                     if distance < 60:  # Glow if within 60 pixels (scaled)
                         nearby = True
                         break
@@ -2055,11 +2055,11 @@ class Resource:
                 pygame.draw.polygon(surface, color, inner_points)
                 pygame.draw.line(surface, highlight_color, (int(self.x - 2), int(self.y - 2)), (int(self.x + 2), int(self.y + 2)), 2)
     
-    def check_collision(self, thronglet):
-        """Check if thronglet is within collection distance"""
+    def check_collision(self, praxan):
+        """Check if praxan is within collection distance"""
         if self.collected:
             return False
-        distance = math.sqrt((self.x - thronglet.x)**2 + (self.y - thronglet.y)**2)
+        distance = math.sqrt((self.x - praxan.x)**2 + (self.y - praxan.y)**2)
         return distance < RESOURCE_COLLISION_DIST
 
 
@@ -2360,14 +2360,14 @@ class Camera:
             self.x += speed
         self.clamp_camera()
     
-    def update_follow(self, thronglets):
+    def update_follow(self, praxans):
         """Update camera to follow civilization center"""
-        if not self.follow_mode or not thronglets:
+        if not self.follow_mode or not praxans:
             return
         
         # Calculate mean position
-        mean_x = sum(t.x for t in thronglets) / len(thronglets)
-        mean_y = sum(t.y for t in thronglets) / len(thronglets)
+        mean_x = sum(t.x for t in praxans) / len(praxans)
+        mean_y = sum(t.y for t in praxans) / len(praxans)
         
         # Smooth follow (lerp)
         self.follow_target_x = mean_x
@@ -2948,13 +2948,13 @@ class WorldMap:
 
 
 class Building:
-    """A structure built by thronglets"""
+    """A structure built by praxans"""
     def __init__(self, x, y, building_type):
         self.x = x
         self.y = y
         self.building_type = building_type  # 'house', 'storage', 'farm', 'workshop', 'shrine', 'well'
-        self.built_by = None  # Will store thronglet ID who built it
-        self.occupants = []  # Thronglets currently using this building
+        self.built_by = None  # Will store praxan ID who built it
+        self.occupants = []  # Praxans currently using this building
         self.last_production_time = time.time()  # For farms
         self.stored_resources = {'food': 0, 'wood': 0, 'stone': 0}  # For storage/farms
         self.level = 1
@@ -2982,24 +2982,24 @@ class Building:
                     self.stored_resources['wood'] -= 0.1
                 self.last_production_time = current_time
     
-    def can_enter(self, thronglet, modifiers=None):
-        """Check if thronglet can use this building"""
+    def can_enter(self, praxan, modifiers=None):
+        """Check if praxan can use this building"""
         if self.building_type == 'house':
             capacity = int((2 + max(0, self.level - 1)) * (modifiers.get_modifier('house_capacity') if modifiers else 1.0))
             return len(self.occupants) < capacity
         return True  # Other buildings have no capacity limit
     
-    def enter(self, thronglet, modifiers=None):
-        """Thronglet enters building"""
-        if thronglet not in self.occupants and self.can_enter(thronglet, modifiers):
-            self.occupants.append(thronglet)
+    def enter(self, praxan, modifiers=None):
+        """Praxan enters building"""
+        if praxan not in self.occupants and self.can_enter(praxan, modifiers):
+            self.occupants.append(praxan)
             return True
         return False
     
-    def leave(self, thronglet):
-        """Thronglet leaves building"""
-        if thronglet in self.occupants:
-            self.occupants.remove(thronglet)
+    def leave(self, praxan):
+        """Praxan leaves building"""
+        if praxan in self.occupants:
+            self.occupants.remove(praxan)
     
     def draw(self, surface):
         """Draw the building based on type with polished pixel art graphics"""
@@ -3465,8 +3465,8 @@ class GameLogger:
         print("="*80)
 
 
-def center_camera_on_colony(camera, thronglets, buildings):
-    anchors = [(thronglet.x, thronglet.y) for thronglet in thronglets]
+def center_camera_on_colony(camera, praxans, buildings):
+    anchors = [(praxan.x, praxan.y) for praxan in praxans]
     anchors.extend((building.x, building.y) for building in buildings)
     if not anchors:
         return
@@ -3528,119 +3528,119 @@ def restore_session_from_snapshot(
         paused_seconds = max(0.0, saved_at - saved_timestamp)
         return now - paused_seconds
 
-    restored_thronglets = []
-    max_thronglet_id = -1
-    for thronglet_data in snapshot.get("thronglets", []):
-        x = clamp(float(thronglet_data.get("x", world_width / 2)), 50.0, world_width - 50.0)
-        y = clamp(float(thronglet_data.get("y", world_height / 2)), 50.0, world_height - 50.0)
-        thronglet = Thronglet(x, y)
+    restored_praxans = []
+    max_praxan_id = -1
+    for praxan_data in snapshot.get("praxans", []):
+        x = clamp(float(praxan_data.get("x", world_width / 2)), 50.0, world_width - 50.0)
+        y = clamp(float(praxan_data.get("y", world_height / 2)), 50.0, world_height - 50.0)
+        praxan = Praxan(x, y)
 
-        saved_id = int(thronglet_data.get("id", thronglet.id))
-        thronglet.id = saved_id
-        max_thronglet_id = max(max_thronglet_id, saved_id)
+        saved_id = int(praxan_data.get("id", praxan.id))
+        praxan.id = saved_id
+        max_praxan_id = max(max_praxan_id, saved_id)
 
-        thronglet.role = thronglet_data.get("role")
-        thronglet.health = clamp(float(thronglet_data.get("health", 100.0)), 0.0, 100.0)
-        thronglet.base_mood = clamp(float(thronglet_data.get("happiness", thronglet.base_mood)), 0.0, 100.0)
-        thronglet.morale = clamp(float(thronglet_data.get("morale", thronglet.morale)), 0.0, 100.0)
-        thronglet.inspiration = clamp(float(thronglet_data.get("inspiration", thronglet.inspiration)), 0.0, 100.0)
-        thronglet.favorite_biome = thronglet_data.get("favorite_biome") if thronglet_data.get("favorite_biome") in BIOME_TYPES else thronglet.favorite_biome
-        thronglet.diseased = bool(thronglet_data.get("diseased", False))
-        thronglet.resilience = float(thronglet_data.get("resilience", thronglet.resilience))
-        thronglet.settlement_prosperity = float(thronglet_data.get("settlement_prosperity", thronglet.settlement_prosperity))
-        thronglet.generation = max(0, int(thronglet_data.get("generation", getattr(thronglet, "generation", 0))))
-        thronglet.parent_ids = [
+        praxan.role = praxan_data.get("role")
+        praxan.health = clamp(float(praxan_data.get("health", 100.0)), 0.0, 100.0)
+        praxan.base_mood = clamp(float(praxan_data.get("happiness", praxan.base_mood)), 0.0, 100.0)
+        praxan.morale = clamp(float(praxan_data.get("morale", praxan.morale)), 0.0, 100.0)
+        praxan.inspiration = clamp(float(praxan_data.get("inspiration", praxan.inspiration)), 0.0, 100.0)
+        praxan.favorite_biome = praxan_data.get("favorite_biome") if praxan_data.get("favorite_biome") in BIOME_TYPES else praxan.favorite_biome
+        praxan.diseased = bool(praxan_data.get("diseased", False))
+        praxan.resilience = float(praxan_data.get("resilience", praxan.resilience))
+        praxan.settlement_prosperity = float(praxan_data.get("settlement_prosperity", praxan.settlement_prosperity))
+        praxan.generation = max(0, int(praxan_data.get("generation", getattr(praxan, "generation", 0))))
+        praxan.parent_ids = [
             parsed_parent_id
-            for parsed_parent_id in (_parse_optional_int(parent_id) for parent_id in thronglet_data.get("parent_ids", []))
+            for parsed_parent_id in (_parse_optional_int(parent_id) for parent_id in praxan_data.get("parent_ids", []))
             if parsed_parent_id is not None
         ]
-        thronglet.lineage_id = _parse_optional_int(thronglet_data.get("lineage_id"), saved_id) or saved_id
-        thronglet.mutation_count = max(0, int(thronglet_data.get("mutation_count", 0)))
-        thronglet.birth_origin = str(thronglet_data.get("birth_origin", getattr(thronglet, "birth_origin", "founder")))
+        praxan.lineage_id = _parse_optional_int(praxan_data.get("lineage_id"), saved_id) or saved_id
+        praxan.mutation_count = max(0, int(praxan_data.get("mutation_count", 0)))
+        praxan.birth_origin = str(praxan_data.get("birth_origin", getattr(praxan, "birth_origin", "founder")))
 
-        personality_data = thronglet_data.get("personality", {})
+        personality_data = praxan_data.get("personality", {})
         if isinstance(personality_data, dict):
-            for trait_name in thronglet.personality:
-                trait_value = personality_data.get(trait_name, thronglet.personality[trait_name])
+            for trait_name in praxan.personality:
+                trait_value = personality_data.get(trait_name, praxan.personality[trait_name])
                 try:
-                    thronglet.personality[trait_name] = clamp(float(trait_value), 0.0, 1.0)
+                    praxan.personality[trait_name] = clamp(float(trait_value), 0.0, 1.0)
                 except (TypeError, ValueError):
                     continue
 
-        genetics_data = thronglet_data.get("genetics", {})
+        genetics_data = praxan_data.get("genetics", {})
         if isinstance(genetics_data, dict):
             for trait_name, trait_spec in GENETIC_TRAIT_SPECS.items():
-                trait_value = genetics_data.get(trait_name, thronglet.genetics.get(trait_name, 1.0))
+                trait_value = genetics_data.get(trait_name, praxan.genetics.get(trait_name, 1.0))
                 try:
-                    thronglet.genetics[trait_name] = clamp(float(trait_value), trait_spec["min"], trait_spec["max"])
+                    praxan.genetics[trait_name] = clamp(float(trait_value), trait_spec["min"], trait_spec["max"])
                 except (TypeError, ValueError):
                     continue
 
-        skills_data = thronglet_data.get("skills", {})
+        skills_data = praxan_data.get("skills", {})
         if isinstance(skills_data, dict):
             for skill_name, skill_state in skills_data.items():
-                if skill_name not in thronglet.skills or not isinstance(skill_state, dict):
+                if skill_name not in praxan.skills or not isinstance(skill_state, dict):
                     continue
-                thronglet.skills[skill_name]["level"] = max(
+                praxan.skills[skill_name]["level"] = max(
                     1,
-                    min(MAX_SKILL_LEVEL, int(skill_state.get("level", thronglet.skills[skill_name]["level"]))),
+                    min(MAX_SKILL_LEVEL, int(skill_state.get("level", praxan.skills[skill_name]["level"]))),
                 )
-                thronglet.skills[skill_name]["xp"] = max(
+                praxan.skills[skill_name]["xp"] = max(
                     0.0,
-                    float(skill_state.get("xp", thronglet.skills[skill_name]["xp"])),
+                    float(skill_state.get("xp", praxan.skills[skill_name]["xp"])),
                 )
 
-        bonds_data = thronglet_data.get("bonds", {})
-        thronglet.bonds = {}
+        bonds_data = praxan_data.get("bonds", {})
+        praxan.bonds = {}
         if isinstance(bonds_data, dict):
             for other_id, bond_strength in bonds_data.items():
                 parsed_other_id = _parse_optional_int(other_id)
                 if parsed_other_id is None:
                     continue
                 try:
-                    thronglet.bonds[parsed_other_id] = max(0.0, float(bond_strength))
+                    praxan.bonds[parsed_other_id] = max(0.0, float(bond_strength))
                 except (TypeError, ValueError):
                     continue
 
-        thronglet.faction_id = _parse_optional_int(thronglet_data.get("faction_id"))
-        thronglet.known_resources = []
-        for resource_entry in thronglet_data.get("known_resources", []):
+        praxan.faction_id = _parse_optional_int(praxan_data.get("faction_id"))
+        praxan.known_resources = []
+        for resource_entry in praxan_data.get("known_resources", []):
             parsed_resource = _parse_coordinate_entry(resource_entry)
             if not parsed_resource:
                 continue
             resource_x = clamp(parsed_resource[0], 0.0, world_width)
             resource_y = clamp(parsed_resource[1], 0.0, world_height)
-            thronglet.known_resources.append((resource_x, resource_y))
+            praxan.known_resources.append((resource_x, resource_y))
 
-        inventory = thronglet_data.get("inventory", {})
-        for resource_name in thronglet.inventory:
-            thronglet.inventory[resource_name] = max(0, int(inventory.get(resource_name, 0)))
+        inventory = praxan_data.get("inventory", {})
+        for resource_name in praxan.inventory:
+            praxan.inventory[resource_name] = max(0, int(inventory.get(resource_name, 0)))
 
-        needs = thronglet_data.get("needs", {})
-        for need_name in thronglet.needs:
-            thronglet.needs[need_name] = clamp(float(needs.get(need_name, thronglet.needs[need_name])), 0.0, 100.0)
+        needs = praxan_data.get("needs", {})
+        for need_name in praxan.needs:
+            praxan.needs[need_name] = clamp(float(needs.get(need_name, praxan.needs[need_name])), 0.0, 100.0)
 
-        thronglet.state = thronglet_data.get("state") or STATE_IDLE
-        thronglet.current_action = thronglet_data.get("current_action") or "wander"
-        thronglet.personal_goal = thronglet_data.get("personal_goal")
-        thronglet.goal_progress = clamp(float(thronglet_data.get("goal_progress", 0.0)), 0.0, 1.0)
+        praxan.state = praxan_data.get("state") or STATE_IDLE
+        praxan.current_action = praxan_data.get("current_action") or "wander"
+        praxan.personal_goal = praxan_data.get("personal_goal")
+        praxan.goal_progress = clamp(float(praxan_data.get("goal_progress", 0.0)), 0.0, 1.0)
 
-        age_seconds = max(0.0, float(thronglet_data.get("age_seconds", elapsed_seconds)))
-        thronglet.birth_time = now - age_seconds
-        thronglet.age = age_seconds
-        disease_elapsed = max(0.0, float(thronglet_data.get("disease_elapsed", 0.0)))
-        thronglet.disease_start_time = now - disease_elapsed if thronglet.diseased and disease_elapsed > 0 else 0.0
-        reproduction_elapsed = max(0.0, float(thronglet_data.get("last_reproduction_elapsed", 0.0)))
-        thronglet.last_reproduction_time = now - reproduction_elapsed if reproduction_elapsed > 0 else 0.0
-        goal_assigned_elapsed = max(0.0, float(thronglet_data.get("goal_assigned_elapsed", 0.0)))
-        thronglet.goal_assigned_time = now - goal_assigned_elapsed if goal_assigned_elapsed > 0 else 0.0
-        thronglet.alive = thronglet.health > 0
-        restored_thronglets.append(thronglet)
+        age_seconds = max(0.0, float(praxan_data.get("age_seconds", elapsed_seconds)))
+        praxan.birth_time = now - age_seconds
+        praxan.age = age_seconds
+        disease_elapsed = max(0.0, float(praxan_data.get("disease_elapsed", 0.0)))
+        praxan.disease_start_time = now - disease_elapsed if praxan.diseased and disease_elapsed > 0 else 0.0
+        reproduction_elapsed = max(0.0, float(praxan_data.get("last_reproduction_elapsed", 0.0)))
+        praxan.last_reproduction_time = now - reproduction_elapsed if reproduction_elapsed > 0 else 0.0
+        goal_assigned_elapsed = max(0.0, float(praxan_data.get("goal_assigned_elapsed", 0.0)))
+        praxan.goal_assigned_time = now - goal_assigned_elapsed if goal_assigned_elapsed > 0 else 0.0
+        praxan.alive = praxan.health > 0
+        restored_praxans.append(praxan)
 
-    if max_thronglet_id >= 0:
-        Thronglet._next_id = max_thronglet_id + 1
+    if max_praxan_id >= 0:
+        Praxan._next_id = max_praxan_id + 1
 
-    thronglet_lookup = {thronglet.id: thronglet for thronglet in restored_thronglets}
+    praxan_lookup = {praxan.id: praxan for praxan in restored_praxans}
     restored_buildings = []
     building_occupancy_refs = []
     for building_data in snapshot.get("buildings", []):
@@ -3664,9 +3664,9 @@ def restore_session_from_snapshot(
 
     for building, occupant_ids in building_occupancy_refs:
         building.occupants = [
-            thronglet_lookup[occupant_id]
+            praxan_lookup[occupant_id]
             for occupant_id in (_parse_optional_int(saved_id) for saved_id in occupant_ids)
-            if occupant_id in thronglet_lookup
+            if occupant_id in praxan_lookup
         ]
 
     restored_resources = []
@@ -3762,10 +3762,10 @@ def restore_session_from_snapshot(
             target_location=_parse_coordinate_entry(task_data.get("target_location")),
             target_building_type=task_data.get("target_building_type"),
         )
-        restored_task.assigned_thronglets = [
+        restored_task.assigned_praxans = [
             parsed_id
-            for parsed_id in (_parse_optional_int(thronglet_id) for thronglet_id in task_data.get("assigned_thronglets", []))
-            if parsed_id is not None and parsed_id in thronglet_lookup
+            for parsed_id in (_parse_optional_int(praxan_id) for praxan_id in task_data.get("assigned_praxans", []))
+            if parsed_id is not None and parsed_id in praxan_lookup
         ]
         restored_task.active = bool(task_data.get("active", True))
         restored_task.faction_id = _parse_optional_int(task_data.get("faction_id"))
@@ -3774,7 +3774,7 @@ def restore_session_from_snapshot(
         advisor.group_tasks.append(restored_task)
     advisor.last_query_time = now
     advisor.last_goal_assignment = now
-    advisor.last_pop_count = len(restored_thronglets)
+    advisor.last_pop_count = len(restored_praxans)
     advisor.last_llm_error = None
 
     # Restore LLM V2 memory from snapshot
@@ -3842,7 +3842,7 @@ def restore_session_from_snapshot(
         territory_manager.voronoi_cache = {}
         territory_manager.voronoi_seeds = []
         territory_manager.last_voronoi_calculation = now
-        territory_manager.last_population_count = len(restored_thronglets) + len(restored_buildings)
+        territory_manager.last_population_count = len(restored_praxans) + len(restored_buildings)
         territory_manager.voronoi_cache_valid = False
 
     if city_planner is not None:
@@ -3868,15 +3868,15 @@ def restore_session_from_snapshot(
         faction_manager.factions = {}
         faction_manager.last_update = now
         max_faction_id = -1
-        for thronglet in restored_thronglets:
-            thronglet.faction_id = None
+        for praxan in restored_praxans:
+            praxan.faction_id = None
         for faction_data in snapshot.get("factions", []):
             if not isinstance(faction_data, dict):
                 continue
             member_ids = [
                 member_id
                 for member_id in (_parse_optional_int(raw_id) for raw_id in faction_data.get("member_ids", []))
-                if member_id is not None and member_id in thronglet_lookup
+                if member_id is not None and member_id in praxan_lookup
             ]
             if not member_ids:
                 continue
@@ -3916,11 +3916,11 @@ def restore_session_from_snapshot(
             faction_manager.factions[saved_faction_id] = restored_faction
             max_faction_id = max(max_faction_id, saved_faction_id)
             for member_id in member_ids:
-                thronglet_lookup[member_id].faction_id = saved_faction_id
+                praxan_lookup[member_id].faction_id = saved_faction_id
         if max_faction_id >= 0:
             Faction._next_id = max(Faction._next_id, max_faction_id + 1)
         for restored_faction in faction_manager.factions.values():
-            restored_faction.refresh_identity(restored_thronglets)
+            restored_faction.refresh_identity(restored_praxans)
         faction_manager._update_rivalries()
 
     if world_map is not None:
@@ -3988,13 +3988,13 @@ def restore_session_from_snapshot(
             restored_buildings[0],
         )
         celebration_center = (anchor.x, anchor.y)
-    elif restored_thronglets:
+    elif restored_praxans:
         celebration_center = (
-            sum(thronglet.x for thronglet in restored_thronglets) / len(restored_thronglets),
-            sum(thronglet.y for thronglet in restored_thronglets) / len(restored_thronglets),
+            sum(praxan.x for praxan in restored_praxans) / len(restored_praxans),
+            sum(praxan.y for praxan in restored_praxans) / len(restored_praxans),
         )
 
-    settlement_state = compute_settlement_snapshot(restored_thronglets, restored_buildings, None, season, weather_system)
+    settlement_state = compute_settlement_snapshot(restored_praxans, restored_buildings, None, season, weather_system)
     settlement_state.update(dict(advisor.current_settlement_state or {}))
     celebration_data = snapshot.get("celebration", {})
     if isinstance(celebration_data, dict):
@@ -4049,7 +4049,7 @@ def restore_session_from_snapshot(
         "selected_model": snapshot.get("selected_model"),
         "scenario_id": snapshot.get("scenario_id", DEFAULT_SCENARIO_ID) or DEFAULT_SCENARIO_ID,
         "run_summary": dict(snapshot.get("run_summary", {}) or {}),
-        "thronglets": restored_thronglets,
+        "praxans": restored_praxans,
         "buildings": restored_buildings,
         "resources": restored_resources,
         "settlement_state": settlement_state,
@@ -4113,7 +4113,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     from systems.spatial import FogOfWar, TerritoryManager, CityPlanner
     from systems.society import Faction, FactionManager, TradeSystem
     from systems.advisor import CivilizationAdvisor
-    from entities.thronglet import Thronglet
+    from entities.praxan import Praxan
     if screen is None:
         try:
             try:
@@ -4130,7 +4130,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             # #endregion
             
             # Set window caption
-            pygame.display.set_caption("Thronglets - AI Civilization Simulator")
+            pygame.display.set_caption("Praxans - AI Civilization Simulator")
             clock = pygame.time.Clock()
             
             # Verify screen was created successfully
@@ -4329,7 +4329,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     print(f"[LOGGING] Session log: {os.path.abspath(game_logger.log_file)}\n")
     print(f"[Scenario] {scenario_profile['name']} ({scenario_profile['id']})")
     
-    print("Starting Thronglets...")
+    print("Starting Praxans...")
     
     # Helper: draw a non-blocking loading message and pump events
     def _draw_loading(message):
@@ -4342,11 +4342,11 @@ def main(runtime_config=RUNTIME_CONFIG):
             pass
 
     # Initialize world map and camera systems
-    _draw_loading("Loading Thronglets... Assets")
+    _draw_loading("Loading Praxans... Assets")
     asset_manager = AssetManager()
     print("Asset manager created")
     print(f"[DEBUG] Asset manager type: {type(asset_manager)}")
-    _draw_loading("Loading Thronglets... World")
+    _draw_loading("Loading Praxans... World")
     
     # [Phase 3] Check if a specific planet tile was selected to anchor the local map's climate
     planet_tile = None
@@ -4366,15 +4366,15 @@ def main(runtime_config=RUNTIME_CONFIG):
     print(f"[DEBUG] Chunks created: {len(world_map.chunks)} (surfaces will be created on first render)")
     world_width = int(getattr(world_map, "world_width", INITIAL_CHUNKS_X * CHUNK_SIZE))
     world_height = int(getattr(world_map, "world_height", INITIAL_CHUNKS_Y * CHUNK_SIZE))
-    _draw_loading("Loading Thronglets... Camera")
+    _draw_loading("Loading Praxans... Camera")
     camera = Camera(world_width, world_height)
     # Center camera on world initially to ensure chunks are visible
     camera.x = max(0, (world_width - WINDOW_WIDTH) / 2)
     camera.y = max(0, (world_height - WINDOW_HEIGHT) / 2)
     print(f"Camera initialized at ({camera.x:.1f}, {camera.y:.1f})")
     
-    # Initialize thronglets - CLUSTERED SPAWN
-    thronglets = []
+    # Initialize praxans - CLUSTERED SPAWN
+    praxans = []
     # Find safe spawn location (plains or forest biome preferred)
     safe_biomes = list(scenario_profile.get("spawn_biomes", ['plains', 'forest']))
     spawn_center_x, spawn_center_y = world_map.get_spawn_point(safe_biomes)
@@ -4404,8 +4404,8 @@ def main(runtime_config=RUNTIME_CONFIG):
     print(f"[DEBUG] Camera world size: {camera.world_width}x{camera.world_height}")
     print(f"[DEBUG] Window size: {WINDOW_WIDTH}x{WINDOW_HEIGHT}")
     
-    _draw_loading("Loading Thronglets... Spawning")
-    # Spawn all thronglets clustered around center
+    _draw_loading("Loading Praxans... Spawning")
+    # Spawn all praxans clustered around center
     initial_population = max(1, int(scenario_profile.get("initial_population", INITIAL_POPULATION)))
     for _ in range(initial_population):
         angle = random.uniform(0, 2 * math.pi)
@@ -4415,9 +4415,9 @@ def main(runtime_config=RUNTIME_CONFIG):
         # Ensure within bounds
         x = max(50, min(world_width - 50, x))
         y = max(50, min(world_height - 50, y))
-        thronglets.append(Thronglet(x, y))
+        praxans.append(Praxan(x, y))
     
-    _draw_loading("Loading Thronglets... Resources")
+    _draw_loading("Loading Praxans... Resources")
     # Initialize resources
     resources = []
     
@@ -4435,7 +4435,7 @@ def main(runtime_config=RUNTIME_CONFIG):
         80,
     )
     
-    _draw_loading("Loading Thronglets... Resources")
+    _draw_loading("Loading Praxans... Resources")
     spawn_resource_cluster(
         resources,
         spawn_center_x,
@@ -4448,7 +4448,7 @@ def main(runtime_config=RUNTIME_CONFIG):
         80,
     )
     
-    _draw_loading("Loading Thronglets... Resources")
+    _draw_loading("Loading Praxans... Resources")
     spawn_resource_cluster(
         resources,
         spawn_center_x,
@@ -4534,8 +4534,8 @@ def main(runtime_config=RUNTIME_CONFIG):
     season = Season()
     weather_system = WeatherSystem()
     temperature_grid = TemperatureGrid(world_width, world_height)
-    apply_scenario_startup_conditions(scenario_profile, thronglets, advisor, season, weather_system, time.time())
-    settlement_state = compute_settlement_snapshot(thronglets, buildings, world_map, season, weather_system)
+    apply_scenario_startup_conditions(scenario_profile, praxans, advisor, season, weather_system, time.time())
+    settlement_state = compute_settlement_snapshot(praxans, buildings, world_map, season, weather_system)
     celebration_state = {
         "active_until": 0.0,
         "cooldown_until": 0.0,
@@ -4551,10 +4551,10 @@ def main(runtime_config=RUNTIME_CONFIG):
         f"Scenario active: {scenario_profile['name']}",
         scenario_profile.get("description"),
     )
-    record_population_evolution_sample(advisor, thronglets, time.time(), time.time(), force=True)
+    record_population_evolution_sample(advisor, praxans, time.time(), time.time(), force=True)
     refresh_run_summary_cache(
         advisor,
-        thronglets,
+        praxans,
         buildings,
         time.time(),
         time.time(),
@@ -4584,10 +4584,10 @@ def main(runtime_config=RUNTIME_CONFIG):
                 faction_manager=faction_manager,
                 city_planner=city_planner,
             )
-            thronglets = restored_state["thronglets"]
+            praxans = restored_state["praxans"]
             buildings = restored_state["buildings"]
             resources = restored_state["resources"]
-            settlement_state = compute_settlement_snapshot(thronglets, buildings, world_map, season, weather_system)
+            settlement_state = compute_settlement_snapshot(praxans, buildings, world_map, season, weather_system)
             settlement_state.update(restored_state["settlement_state"])
             celebration_state = restored_state["celebration_state"]
             advisor.current_settlement_state = settlement_state
@@ -4609,14 +4609,14 @@ def main(runtime_config=RUNTIME_CONFIG):
                 camera.follow_mode = bool(restored_camera.get("follow_mode", True))
                 camera.clamp_camera()
             else:
-                center_camera_on_colony(camera, thronglets, buildings)
+                center_camera_on_colony(camera, praxans, buildings)
                 camera.follow_mode = True
-            fog_of_war.update(thronglets, buildings, world_map)
-            territory_manager.update(thronglets, buildings)
-            record_population_evolution_sample(advisor, thronglets, time.time(), time.time() - restored_elapsed_seconds, force=True)
+            fog_of_war.update(praxans, buildings, world_map)
+            territory_manager.update(praxans, buildings)
+            record_population_evolution_sample(advisor, praxans, time.time(), time.time() - restored_elapsed_seconds, force=True)
             refresh_run_summary_cache(
                 advisor,
-                thronglets,
+                praxans,
                 buildings,
                 time.time(),
                 time.time() - restored_elapsed_seconds,
@@ -4754,10 +4754,10 @@ def main(runtime_config=RUNTIME_CONFIG):
     game_start_time = time.time() - restored_elapsed_seconds
     last_status_time = game_start_time
     render_diag_until = game_start_time  # Disable diag overlay
-    record_population_evolution_sample(advisor, thronglets, time.time(), game_start_time, force=True)
+    record_population_evolution_sample(advisor, praxans, time.time(), game_start_time, force=True)
     refresh_run_summary_cache(
         advisor,
-        thronglets,
+        praxans,
         buildings,
         time.time(),
         game_start_time,
@@ -4769,7 +4769,7 @@ def main(runtime_config=RUNTIME_CONFIG):
         session_id=game_logger.session_id,
         force=True,
     )
-    print("Thronglets game started! Observer mode is active - the colony evolves without player commands.")
+    print("Praxans game started! Observer mode is active - the colony evolves without player commands.")
     print(f"[DEBUG] Entering main game loop...")
     
     # #region agent log
@@ -4860,13 +4860,13 @@ def main(runtime_config=RUNTIME_CONFIG):
                             entity, entity_type = pick_world_entity(
                                 event.pos,
                                 camera,
-                                thronglets,
+                                praxans,
                                 buildings,
                                 resources,
                                 world_map.encounters,
                                 world_map.hazards,
                                 world_map.npcs,
-                                thronglet_radius=THRONGLET_RADIUS,
+                                praxan_radius=PRAXAN_RADIUS,
                                 building_size=BUILDING_SIZE,
                                 resource_radii={
                                     "food": RESOURCE_RADIUS_FOOD,
@@ -5038,45 +5038,45 @@ def main(runtime_config=RUNTIME_CONFIG):
             camera.update_key_pan(keys, delta_time)
             
             # Update camera follow
-            camera.update_follow(thronglets)
+            camera.update_follow(praxans)
             
             # Skip heavy updates on first frame to ensure immediate rendering
             if frame_count > 1:
                 # Update fog of war
                 try:
-                    fog_of_war.update(thronglets, buildings, world_map)
+                    fog_of_war.update(praxans, buildings, world_map)
                 except Exception as e:
                     print(f"[ERROR] Fog of war update failed: {e}")
                     game_logger.log_error(f"Fog of war update error: {e}")
                 
                 # Update territory manager (can be expensive - skip first frame)
                 try:
-                    territory_manager.update(thronglets, buildings)
+                    territory_manager.update(praxans, buildings)
                 except Exception as e:
                     print(f"[ERROR] Territory manager update failed: {e}")
                     game_logger.log_error(f"Territory manager update error: {e}")
                 
                 # Update city planner
                 try:
-                    city_planner.update(thronglets, buildings, advisor, current_time)
+                    city_planner.update(praxans, buildings, advisor, current_time)
                 except Exception as e:
                     print(f"[ERROR] City planner update failed: {e}")
                     game_logger.log_error(f"City planner update error: {e}")
             else:
                 print("[DEBUG] Skipping heavy updates on first frame for faster initial render")
             
-            # Update thronglets
+            # Update praxans
             num_active_resources = sum(1 for r in resources if not r.collected)
             num_buildings = len(buildings)
             
             # Calculate population pressure
-            population_ratio = len(thronglets) / MAX_POPULATION
+            population_ratio = len(praxans) / MAX_POPULATION
             overpopulation_penalty = 0
             if population_ratio >= OVERPOPULATION_THRESHOLD:
                 overpopulation_penalty = (population_ratio - OVERPOPULATION_THRESHOLD) * 10  # 0-100% penalty
                 # Apply to needs decay
-                for thronglet in thronglets:
-                    thronglet.needs_decay_multiplier = 1.0 + overpopulation_penalty
+                for praxan in praxans:
+                    praxan.needs_decay_multiplier = 1.0 + overpopulation_penalty
             
             # Calculate day/night cycle
             day_cycle = (current_time - game_start_time) % DAY_LENGTH
@@ -5086,16 +5086,16 @@ def main(runtime_config=RUNTIME_CONFIG):
             # Periodic status updates every 10 seconds
             if current_time - last_status_time >= 10:
                 elapsed = int(current_time - game_start_time)
-                total_food_inv = sum(t.inventory['food'] for t in thronglets)
-                total_wood_inv = sum(t.inventory['wood'] for t in thronglets)
+                total_food_inv = sum(t.inventory['food'] for t in praxans)
+                total_wood_inv = sum(t.inventory['wood'] for t in praxans)
                 print(f"\n[STATUS {elapsed}s] {num_active_resources} resources left, Total inventory: {total_food_inv} food, {total_wood_inv} wood, Buildings: {num_buildings}")
-                for idx, t in enumerate(thronglets):
-                    print(f"   Thronglet {idx}: pos=({int(t.x)}, {int(t.y)}), inv={t.inventory}")
+                for idx, t in enumerate(praxans):
+                    print(f"   Praxan {idx}: pos=({int(t.x)}, {int(t.y)}), inv={t.inventory}")
                 print()
                 last_status_time = current_time
 
             advisor.poll_async_jobs(
-                thronglets,
+                praxans,
                 resources,
                 buildings,
                 narrative_panel=narrative_panel,
@@ -5103,7 +5103,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             )
             # V2 multi-channel poll / queue --------------------------------
             advisor.poll_llm_channels(
-                thronglets,
+                praxans,
                 resources,
                 buildings,
                 narrative_panel=narrative_panel,
@@ -5111,7 +5111,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             )
             if advisor.last_model_used:
                 selected_model = advisor.last_model_used
-            record_population_evolution_sample(advisor, thronglets, current_time, game_start_time, force=False)
+            record_population_evolution_sample(advisor, praxans, current_time, game_start_time, force=False)
             
             # Award research points (time-based and milestones)
             days_survived = int((current_time - game_start_time) / DAY_LENGTH)
@@ -5120,8 +5120,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                 advisor.civilization_age = days_survived
                 narrative_panel.add_message(f"Day {days_survived} survived! +25 research points", 'Achievement')
             
-            # Population milestones (every 5 thronglets)
-            pop_milestone = (len(thronglets) // 5) * 5
+            # Population milestones (every 5 praxans)
+            pop_milestone = (len(praxans) // 5) * 5
             if pop_milestone > 0 and not hasattr(advisor, 'last_pop_milestone'):
                 advisor.last_pop_milestone = 0
             if pop_milestone > getattr(advisor, 'last_pop_milestone', 0):
@@ -5133,7 +5133,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             # Track max population in session stats
             advisor.session_stats['max_population'] = max(
                 advisor.session_stats.get('max_population', 0),
-                len(thronglets)
+                len(praxans)
             )
             
             # Building milestones (one-time per building)
@@ -5144,12 +5144,12 @@ def main(runtime_config=RUNTIME_CONFIG):
             
             # Civilization advisor query with smart intervals and intervention assessment
             # Generate state summary
-            state_summary = advisor._generate_state_summary(thronglets, resources, buildings, territory_manager, world_map)
+            state_summary = advisor._generate_state_summary(praxans, resources, buildings, territory_manager, world_map)
 
             # V2 multi-channel scheduling — runs all 4 channels at different cadences
             advisor.queue_channel_reviews(
                 current_time,
-                thronglets,
+                praxans,
                 resources,
                 buildings,
                 state_summary,
@@ -5179,7 +5179,7 @@ def main(runtime_config=RUNTIME_CONFIG):
 
                 if should_intervene:
                     advisor.queue_strategy_query(
-                        thronglets,
+                        praxans,
                         resources,
                         buildings,
                         state_summary=state_summary,
@@ -5205,12 +5205,12 @@ def main(runtime_config=RUNTIME_CONFIG):
             
             # Update tooltip system - detect hover
             mouse_world_x, mouse_world_y = camera.screen_to_world(mouse_screen_pos[0], mouse_screen_pos[1])
-            tooltip_system.detect_hover(mouse_world_x, mouse_world_y, camera, thronglets, buildings, resources, 
+            tooltip_system.detect_hover(mouse_world_x, mouse_world_y, camera, praxans, buildings, resources, 
                                          world_map.encounters, world_map.hazards, world_map.npcs, world_map)
             
             # Update season and weather
             season.update(current_time - game_start_time)
-            advisor.challenge_difficulty = advisor.calculate_difficulty(thronglets, buildings, resources)
+            advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
             temperature_grid.update(current_time, world_map, season, weather_system, buildings)
             weather_event = weather_system.check_event(current_time, advisor.challenge_difficulty, season.current)
             if weather_event and weather_event['type'] != 'clear':
@@ -5218,7 +5218,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 if weather_event['type'] in ('storm', 'drought'):
                     impact = 25.0 if weather_event['type'] == 'storm' else 15.0
                     affected_count = 0
-                    for _t in thronglets:
+                    for _t in praxans:
                         if random.random() < 0.4:
                             _t.take_damage(impact, 'crush')
                             _t.needs['energy'] = max(0.0, _t.needs['energy'] - impact)
@@ -5228,21 +5228,21 @@ def main(runtime_config=RUNTIME_CONFIG):
                         current_time,
                         "disaster",
                         f"A severe {weather_event['type']} struck the settlement",
-                        f"{affected_count} thronglets suffered immediate health and energy damage from the catastrophe."
+                        f"{affected_count} praxans suffered immediate health and energy damage from the catastrophe."
                     )
             
-            # Get weather effects for building and thronglet updates
+            # Get weather effects for building and praxan updates
             weather_effects = weather_system.get_effects()
             
             # Update buildings (production, etc.) - now with weather effects
             for building in buildings:
                 building.update(delta_time, advisor.game_modifiers, weather_effects)
 
-            settlement_state = compute_settlement_snapshot(thronglets, buildings, world_map, season, weather_system)
+            settlement_state = compute_settlement_snapshot(praxans, buildings, world_map, season, weather_system)
             update_settlement_celebration(
                 celebration_state,
                 settlement_state,
-                thronglets,
+                praxans,
                 buildings,
                 particle_system,
                 narrative_panel,
@@ -5252,7 +5252,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             advisor.current_settlement_state = settlement_state
             refresh_run_summary_cache(
                 advisor,
-                thronglets,
+                praxans,
                 buildings,
                 current_time,
                 game_start_time,
@@ -5266,15 +5266,15 @@ def main(runtime_config=RUNTIME_CONFIG):
                 force=False,
             )
             
-            # Apply weather effects to thronglets (per second)
-            for thronglet in thronglets:
+            # Apply weather effects to praxans (per second)
+            for praxan in praxans:
                 if 'energy' in weather_effects:
-                    thronglet.needs['energy'] = max(0, min(100, thronglet.needs['energy'] + weather_effects['energy'] * delta_time))
+                    praxan.needs['energy'] = max(0, min(100, praxan.needs['energy'] + weather_effects['energy'] * delta_time))
                 if 'thirst' in weather_effects:
-                    thronglet.needs['thirst'] = max(0, min(100, thronglet.needs['thirst'] + weather_effects['thirst'] * delta_time))
+                    praxan.needs['thirst'] = max(0, min(100, praxan.needs['thirst'] + weather_effects['thirst'] * delta_time))
                 if 'happiness' in weather_effects:
-                    thronglet.morale = clamp(thronglet.morale + weather_effects['happiness'] * 0.12 * delta_time, 0.0, 100.0)
-                thronglet.apply_settlement_effects(settlement_state, delta_time, world_map, weather_effects, buildings)
+                    praxan.morale = clamp(praxan.morale + weather_effects['happiness'] * 0.12 * delta_time, 0.0, 100.0)
+                praxan.apply_settlement_effects(settlement_state, delta_time, world_map, weather_effects, buildings)
             
             # Maintain resource counts by respawning resources if needed
             num_food_active = sum(1 for r in resources if r.resource_type == 'food' and not r.collected)
@@ -5316,26 +5316,26 @@ def main(runtime_config=RUNTIME_CONFIG):
                 else:
                     resources.append(Resource(x, y, 'stone'))
             
-            # First pass: update health, age, bonds, happiness for all thronglets
-            thronglets_to_remove = []
-            for idx, thronglet in enumerate(thronglets):
-                # Safety check - skip invalid thronglets
-                if thronglet is None or not hasattr(thronglet, 'id'):
+            # First pass: update health, age, bonds, happiness for all praxans
+            praxans_to_remove = []
+            for idx, praxan in enumerate(praxans):
+                # Safety check - skip invalid praxans
+                if praxan is None or not hasattr(praxan, 'id'):
                     continue
                 try:
-                    thronglet.update_temperature(delta_time, temperature_grid)
+                    praxan.update_temperature(delta_time, temperature_grid)
                     
                     # Update age and health - check for death
-                    if not thronglet.update_age_and_health(delta_time, advisor.game_modifiers):
+                    if not praxan.update_age_and_health(delta_time, advisor.game_modifiers):
                         # Create death particle effect
-                        particle_system.create_particles(thronglet.x, thronglet.y, 'death', 10)
-                        thronglets_to_remove.append(idx)
-                        narrative_panel.add_message(f"A thronglet has passed away...", 'Crisis')
+                        particle_system.create_particles(praxan.x, praxan.y, 'death', 10)
+                        praxans_to_remove.append(idx)
+                        narrative_panel.add_message(f"A praxan has passed away...", 'Crisis')
                         advisor.total_deaths = getattr(advisor, 'total_deaths', 0) + 1
                         # Track death cause
-                        if thronglet.age >= THRONGLET_MAX_AGE:
+                        if praxan.age >= PRAXAN_MAX_AGE:
                             cause = 'old_age'
-                        elif thronglet.health <= 0:
+                        elif praxan.health <= 0:
                             cause = 'health_failure'
                         else:
                             cause = 'unknown'
@@ -5343,15 +5343,15 @@ def main(runtime_config=RUNTIME_CONFIG):
                         previous_average = advisor.session_stats.get('avg_survival_time', 0.0)
                         death_count = max(1, advisor.total_deaths)
                         advisor.session_stats['avg_survival_time'] = (
-                            ((previous_average * max(0, death_count - 1)) + thronglet.age) / death_count
+                            ((previous_average * max(0, death_count - 1)) + praxan.age) / death_count
                         )
                         append_bounded_history(
                             advisor.session_stats.setdefault('lineage_events', []),
                             {
                                 "time": current_time,
                                 "label": (
-                                    f"Death: #{thronglet.id} G{getattr(thronglet, 'generation', 0)} "
-                                    f"L{getattr(thronglet, 'lineage_id', thronglet.id)} ({cause})"
+                                    f"Death: #{praxan.id} G{getattr(praxan, 'generation', 0)} "
+                                    f"L{getattr(praxan, 'lineage_id', praxan.id)} ({cause})"
                                 ),
                             },
                             16,
@@ -5360,21 +5360,21 @@ def main(runtime_config=RUNTIME_CONFIG):
                             advisor,
                             current_time,
                             "death",
-                            f"Lineage loss: #{thronglet.id} from L{getattr(thronglet, 'lineage_id', thronglet.id)}",
+                            f"Lineage loss: #{praxan.id} from L{getattr(praxan, 'lineage_id', praxan.id)}",
                             f"Cause: {cause.replace('_', ' ')}.",
                         )
                     
                     # Update social bonds
-                    thronglet.update_bonds(thronglets, delta_time, advisor.game_modifiers)
+                    praxan.update_bonds(praxans, delta_time, advisor.game_modifiers)
                 except Exception as e:
-                    # Log error but don't crash - skip this thronglet for this frame
-                    game_logger.log_error(f"Error updating thronglet {thronglet.id if hasattr(thronglet, 'id') else idx}: {str(e)}", exc_info=True)
+                    # Log error but don't crash - skip this praxan for this frame
+                    game_logger.log_error(f"Error updating praxan {praxan.id if hasattr(praxan, 'id') else idx}: {str(e)}", exc_info=True)
                     continue
             
             # Update factions after bonds are updated (outside the loop for efficiency)
-            faction_manager.update_factions(thronglets, advisor)
+            faction_manager.update_factions(praxans, advisor)
             faction_manager.apply_autonomous_pressure(
-                thronglets,
+                praxans,
                 advisor,
                 world_map,
                 world_width,
@@ -5383,43 +5383,43 @@ def main(runtime_config=RUNTIME_CONFIG):
             )
             
             # Update happiness (move outside loop for efficiency)
-            for thronglet in thronglets:
+            for praxan in praxans:
                 try:
                     # Update happiness
-                    thronglet.update_happiness(buildings, thronglets, advisor.game_modifiers, world_map)
+                    praxan.update_happiness(buildings, praxans, advisor.game_modifiers, world_map)
                     
                     # Store knowledge when discovering resources
                     for resource in resources:
                         if not resource.collected:
-                            distance = math.sqrt((resource.x - thronglet.x)**2 + (resource.y - thronglet.y)**2)
-                            if distance < 30 and (resource.x, resource.y) not in thronglet.known_resources:
-                                thronglet.known_resources.append((resource.x, resource.y))
+                            distance = math.sqrt((resource.x - praxan.x)**2 + (resource.y - praxan.y)**2)
+                            if distance < 30 and (resource.x, resource.y) not in praxan.known_resources:
+                                praxan.known_resources.append((resource.x, resource.y))
                                 
                                 # Explorer luck mechanic - chance to find bonus resources
-                                if thronglet.role == 'explorer' and random.random() < EXPLORER_LUCK_CHANCE * thronglet.get_exploration_bonus():
+                                if praxan.role == 'explorer' and random.random() < EXPLORER_LUCK_CHANCE * praxan.get_exploration_bonus():
                                     bonus_type = random.choice(['food', 'wood', 'stone'])
-                                    resources.append(Resource(thronglet.x + random.randint(-30, 30), 
-                                                             thronglet.y + random.randint(-30, 30), 
+                                    resources.append(Resource(praxan.x + random.randint(-30, 30), 
+                                                             praxan.y + random.randint(-30, 30), 
                                                              bonus_type))
                                     narrative_panel.add_message(f"Explorer discovered bonus {bonus_type}!", 'Achievement')
                 except Exception as e:
-                    # Log error but don't crash - skip this thronglet for this frame
-                    game_logger.log_error(f"Error updating thronglet {thronglet.id if hasattr(thronglet, 'id') else 'unknown'}: {str(e)}", exc_info=True)
+                    # Log error but don't crash - skip this praxan for this frame
+                    game_logger.log_error(f"Error updating praxan {praxan.id if hasattr(praxan, 'id') else 'unknown'}: {str(e)}", exc_info=True)
                     continue
             
-            # Remove dead thronglets (in reverse order to maintain indices)
-            for idx in reversed(thronglets_to_remove):
-                thronglets.pop(idx)
-                print(f"A thronglet has died. Population: {len(thronglets)}")
+            # Remove dead praxans (in reverse order to maintain indices)
+            for idx in reversed(praxans_to_remove):
+                praxans.pop(idx)
+                print(f"A praxan has died. Population: {len(praxans)}")
             
             # Check for extinction
-            if len(thronglets) == 0 and not game_over:
+            if len(praxans) == 0 and not game_over:
                 game_over = True
                 ui_state.end_summary_open = True
                 ui_state.active_modal = None
                 extinction_summary = refresh_run_summary_cache(
                     advisor,
-                    thronglets,
+                    praxans,
                     buildings,
                     current_time,
                     game_start_time,
@@ -5462,41 +5462,41 @@ def main(runtime_config=RUNTIME_CONFIG):
                     narrative_panel.add_message(f"Unlocked bonuses: {', '.join(new_unlocks)}", 'Achievement')
             
             # Get conditional behaviors for this frame
-            conditional_behaviors = advisor.get_conditional_behaviors(thronglets, buildings, resources)
+            conditional_behaviors = advisor.get_conditional_behaviors(praxans, buildings, resources)
             
-            # Process group tasks: assign thronglets to group tasks
+            # Process group tasks: assign praxans to group tasks
             for group_task in advisor.group_tasks:
                 if not group_task.is_complete():
-                    # Find suitable thronglets for this task
-                    available_thronglets = [t for t in thronglets if 
-                                           t.id not in group_task.assigned_thronglets and
+                    # Find suitable praxans for this task
+                    available_praxans = [t for t in praxans if 
+                                           t.id not in group_task.assigned_praxans and
                                            t.needs['hunger'] > 50 and t.needs['energy'] > 50]
                     
                     # Assign based on role match
-                    for thronglet in available_thronglets:
-                        if len(group_task.assigned_thronglets) >= group_task.required_count:
+                    for praxan in available_praxans:
+                        if len(group_task.assigned_praxans) >= group_task.required_count:
                             break
-                        if group_task.task_type == 'build' and thronglet.role == 'builder':
-                            group_task.add_thronglet(thronglet.id)
-                        elif group_task.task_type == 'gather' and thronglet.role == 'gatherer':
-                            group_task.add_thronglet(thronglet.id)
-                        elif group_task.task_type == 'explore' and thronglet.role == 'explorer':
-                            group_task.add_thronglet(thronglet.id)
-                        elif not thronglet.role:  # No role yet, assign anyway
-                            group_task.add_thronglet(thronglet.id)
+                        if group_task.task_type == 'build' and praxan.role == 'builder':
+                            group_task.add_praxan(praxan.id)
+                        elif group_task.task_type == 'gather' and praxan.role == 'gatherer':
+                            group_task.add_praxan(praxan.id)
+                        elif group_task.task_type == 'explore' and praxan.role == 'explorer':
+                            group_task.add_praxan(praxan.id)
+                        elif not praxan.role:  # No role yet, assign anyway
+                            group_task.add_praxan(praxan.id)
             
-            for idx, thronglet in enumerate(thronglets):
-                # Safety check - skip invalid thronglets
-                if thronglet is None or not hasattr(thronglet, 'id'):
+            for idx, praxan in enumerate(praxans):
+                # Safety check - skip invalid praxans
+                if praxan is None or not hasattr(praxan, 'id'):
                     continue
                 try:
-                    # Get individual directive for this thronglet
-                    individual_directive = advisor.get_individual_directive(thronglet.id)
+                    # Get individual directive for this praxan
+                    individual_directive = advisor.get_individual_directive(praxan.id)
                     
-                    # Check if thronglet is assigned to a group task
+                    # Check if praxan is assigned to a group task
                     group_task = None
                     for task in advisor.group_tasks:
-                        if thronglet.id in task.assigned_thronglets:
+                        if praxan.id in task.assigned_praxans:
                             group_task = task
                             break
                     
@@ -5524,51 +5524,51 @@ def main(runtime_config=RUNTIME_CONFIG):
                             'reasoning': f'Group task: {group_task.task_type}'
                         })
                     
-                    # Autonomous decision-making (no per-thronglet LLM)
-                    # Pass is_night to influence energy decay, and thronglets list for mate-seeking
-                    # Create a safe copy of thronglets list to avoid iteration issues
+                    # Autonomous decision-making (no per-praxan LLM)
+                    # Pass is_night to influence energy decay, and praxans list for mate-seeking
+                    # Create a safe copy of praxans list to avoid iteration issues
                     try:
-                        # Filter out None or invalid thronglets for safety
-                        safe_thronglets = [t for t in thronglets if t is not None and hasattr(t, 'id') and hasattr(t, 'inventory')]
-                        building_type = thronglet.decide_action(resources, buildings, delta_time, combined_directives, is_night, safe_thronglets, advisor.group_tasks, conditional_behaviors, territory_manager, city_planner, world_map.hazards if world_map else [], world_map)
+                        # Filter out None or invalid praxans for safety
+                        safe_praxans = [t for t in praxans if t is not None and hasattr(t, 'id') and hasattr(t, 'inventory')]
+                        building_type = praxan.decide_action(resources, buildings, delta_time, combined_directives, is_night, safe_praxans, advisor.group_tasks, conditional_behaviors, territory_manager, city_planner, world_map.hazards if world_map else [], world_map)
                     except Exception as e:
-                        game_logger.log_error(f"Error in thronglet {thronglet.id if hasattr(thronglet, 'id') else 'unknown'} decide_action: {str(e)}", exc_info=True)
-                        building_type = None  # Skip this thronglet for this frame
+                        game_logger.log_error(f"Error in praxan {praxan.id if hasattr(praxan, 'id') else 'unknown'} decide_action: {str(e)}", exc_info=True)
+                        building_type = None  # Skip this praxan for this frame
                     
                     # Handle building from directive
                     if building_type:
-                        # Use city planner location if set, otherwise use thronglet position
-                        build_x = thronglet.next_build_location[0] if thronglet.next_build_location else thronglet.x
-                        build_y = thronglet.next_build_location[1] if thronglet.next_build_location else thronglet.y
+                        # Use city planner location if set, otherwise use praxan position
+                        build_x = praxan.next_build_location[0] if praxan.next_build_location else praxan.x
+                        build_y = praxan.next_build_location[1] if praxan.next_build_location else praxan.y
                         
                         # Snap perfectly to the grid (Rimworld style)
                         build_x = round(build_x / TILE_SIZE) * TILE_SIZE
                         build_y = round(build_y / TILE_SIZE) * TILE_SIZE
                         
-                        thronglet.next_build_location = None  # Clear for next build
+                        praxan.next_build_location = None  # Clear for next build
                         
                         new_building = Building(build_x, build_y, building_type)
-                        new_building.built_by = thronglet.id
+                        new_building.built_by = praxan.id
                         buildings.append(new_building)
                         # Create particle effect
                         particle_system.create_particles(build_x, build_y, 'build', 12)
                         # Gain building skill XP
-                        thronglet.gain_skill_xp('building', SKILL_XP_BUILDING)
+                        praxan.gain_skill_xp('building', SKILL_XP_BUILDING)
                         # Record success for Q-learning
-                        thronglet.record_success('build_' + building_type)
+                        praxan.record_success('build_' + building_type)
                         record_observer_timeline_event(
                             advisor,
                             current_time,
                             "build",
                             f"Built {building_type}",
-                            f"Builder #{thronglet.id} completed new infrastructure.",
+                            f"Builder #{praxan.id} completed new infrastructure.",
                         )
                         # Track building statistics
                         advisor.session_stats['buildings_built'][building_type] = advisor.session_stats['buildings_built'].get(building_type, 0) + 1
                     
                     # Check collision with resources - now requires gathering time
                     for resource in resources:
-                        if resource.check_collision(thronglet):
+                        if resource.check_collision(praxan):
                             # Determine required gathering time based on resource type
                             if resource.resource_type == 'food':
                                 required_time = RESOURCE_GATHER_TIME_FOOD
@@ -5581,77 +5581,77 @@ def main(runtime_config=RUNTIME_CONFIG):
                             
                             # Apply gather_rate modifier and skill bonus to reduce time
                             gather_rate = advisor.game_modifiers.get_modifier('gather_rate') if advisor.game_modifiers else 1.0
-                            skill_bonus = thronglet.get_gathering_bonus() if thronglet.role == 'gatherer' else 1.0
+                            skill_bonus = praxan.get_gathering_bonus() if praxan.role == 'gatherer' else 1.0
                             required_time = required_time / (gather_rate * skill_bonus)
                             
                             # Start gathering if not already gathering this resource
-                            if thronglet.gathering_resource != resource:
-                                thronglet.gathering_resource = resource
-                                thronglet.gathering_start_time = current_time
-                                thronglet.current_action = f"gathering {resource.resource_type}"
-                                thronglet.vx = 0  # Stop moving while gathering
-                                thronglet.vy = 0
+                            if praxan.gathering_resource != resource:
+                                praxan.gathering_resource = resource
+                                praxan.gathering_start_time = current_time
+                                praxan.current_action = f"gathering {resource.resource_type}"
+                                praxan.vx = 0  # Stop moving while gathering
+                                praxan.vy = 0
                             
                             # Check if gathering is complete
-                            elapsed_time = current_time - thronglet.gathering_start_time
+                            elapsed_time = current_time - praxan.gathering_start_time
                             if elapsed_time >= required_time:
                                 resource.collected = True
                                 resource.collect_time = current_time
                                 
                                 # Get workshop bonus, skill bonus, and role bonus for gathering
-                                workshop_bonus = thronglet.get_workshop_bonus(buildings, advisor.game_modifiers)
-                                skill_bonus = thronglet.get_gathering_bonus() if thronglet.role == 'gatherer' else 1.0
-                                role_bonus = GATHERER_SPEED_BONUS if thronglet.role == 'gatherer' else 1.0
+                                workshop_bonus = praxan.get_workshop_bonus(buildings, advisor.game_modifiers)
+                                skill_bonus = praxan.get_gathering_bonus() if praxan.role == 'gatherer' else 1.0
+                                role_bonus = GATHERER_SPEED_BONUS if praxan.role == 'gatherer' else 1.0
                                 efficiency = 1.0 - (overpopulation_penalty * 0.01)  # Max -10% at full penalty
                                 resources_gained = workshop_bonus * skill_bonus * role_bonus * efficiency
                                 
                                 if resource.resource_type == 'food':
-                                    thronglet.inventory['food'] += int(resources_gained)
+                                    praxan.inventory['food'] += int(resources_gained)
                                     # Handle fractional gathering (store in float)
-                                    if not hasattr(thronglet, 'fractional_inventory'):
-                                        thronglet.fractional_inventory = {'food': 0.0, 'wood': 0.0, 'stone': 0.0}
-                                    thronglet.fractional_inventory['food'] += (resources_gained - int(resources_gained))
-                                    if thronglet.fractional_inventory['food'] >= 1.0:
-                                        thronglet.inventory['food'] += 1
-                                        thronglet.fractional_inventory['food'] -= 1.0
+                                    if not hasattr(praxan, 'fractional_inventory'):
+                                        praxan.fractional_inventory = {'food': 0.0, 'wood': 0.0, 'stone': 0.0}
+                                    praxan.fractional_inventory['food'] += (resources_gained - int(resources_gained))
+                                    if praxan.fractional_inventory['food'] >= 1.0:
+                                        praxan.inventory['food'] += 1
+                                        praxan.fractional_inventory['food'] -= 1.0
                                     
-                                    thronglet.needs['hunger'] = min(100, thronglet.needs['hunger'] + 20)  # Eating restores hunger
+                                    praxan.needs['hunger'] = min(100, praxan.needs['hunger'] + 20)  # Eating restores hunger
                                     # Create particle effect
                                     particle_system.create_particles(resource.x, resource.y, 'sparkle', 8)
                                     # Record success for Q-learning
-                                    thronglet.record_success('gather_food')
+                                    praxan.record_success('gather_food')
                                 elif resource.resource_type == 'wood':
-                                    thronglet.inventory['wood'] += int(resources_gained)
-                                    if not hasattr(thronglet, 'fractional_inventory'):
-                                        thronglet.fractional_inventory = {'food': 0.0, 'wood': 0.0, 'stone': 0.0}
-                                    thronglet.fractional_inventory['wood'] += (resources_gained - int(resources_gained))
-                                    if thronglet.fractional_inventory['wood'] >= 1.0:
-                                        thronglet.inventory['wood'] += 1
-                                        thronglet.fractional_inventory['wood'] -= 1.0
+                                    praxan.inventory['wood'] += int(resources_gained)
+                                    if not hasattr(praxan, 'fractional_inventory'):
+                                        praxan.fractional_inventory = {'food': 0.0, 'wood': 0.0, 'stone': 0.0}
+                                    praxan.fractional_inventory['wood'] += (resources_gained - int(resources_gained))
+                                    if praxan.fractional_inventory['wood'] >= 1.0:
+                                        praxan.inventory['wood'] += 1
+                                        praxan.fractional_inventory['wood'] -= 1.0
                                     
                                     # Create particle effect
                                     particle_system.create_particles(resource.x, resource.y, 'dust', 6)
                                     # Record success for Q-learning
-                                    thronglet.record_success('gather_wood')
+                                    praxan.record_success('gather_wood')
                                 elif resource.resource_type == 'stone':
-                                    thronglet.inventory['stone'] += int(resources_gained)
-                                    if not hasattr(thronglet, 'fractional_inventory'):
-                                        thronglet.fractional_inventory = {'food': 0.0, 'wood': 0.0, 'stone': 0.0}
-                                    thronglet.fractional_inventory['stone'] += (resources_gained - int(resources_gained))
-                                    if thronglet.fractional_inventory['stone'] >= 1.0:
-                                        thronglet.inventory['stone'] += 1
-                                        thronglet.fractional_inventory['stone'] -= 1.0
+                                    praxan.inventory['stone'] += int(resources_gained)
+                                    if not hasattr(praxan, 'fractional_inventory'):
+                                        praxan.fractional_inventory = {'food': 0.0, 'wood': 0.0, 'stone': 0.0}
+                                    praxan.fractional_inventory['stone'] += (resources_gained - int(resources_gained))
+                                    if praxan.fractional_inventory['stone'] >= 1.0:
+                                        praxan.inventory['stone'] += 1
+                                        praxan.fractional_inventory['stone'] -= 1.0
                                     
                                     # Create particle effect
                                     particle_system.create_particles(resource.x, resource.y, 'dust', 6)
                                     # Record success for Q-learning
-                                    thronglet.record_success('gather_stone')
+                                    praxan.record_success('gather_stone')
                                 
                                 if VERBOSE_LOGGING:
-                                    print(f"[Thronglet {idx}] *** Gathered {resource.resource_type}! Inventory now: {thronglet.inventory}")
+                                    print(f"[Praxan {idx}] *** Gathered {resource.resource_type}! Inventory now: {praxan.inventory}")
                                 
                                 # Gain skill XP for gathering
-                                thronglet.gain_skill_xp('gathering', SKILL_XP_GATHERING)
+                                praxan.gain_skill_xp('gathering', SKILL_XP_GATHERING)
                                 
                                 # Track bounty challenge progress
                                 for challenge in advisor.active_challenges:
@@ -5659,73 +5659,73 @@ def main(runtime_config=RUNTIME_CONFIG):
                                         challenge['collected'] = challenge.get('collected', 0) + 1
                                 
                                 # Clear gathering state
-                                thronglet.gathering_resource = None
-                                thronglet.gathering_start_time = 0
+                                praxan.gathering_resource = None
+                                praxan.gathering_start_time = 0
                             # Continue gathering in next frame
                             break
                     else:
                         # Not near any resource, clear gathering state if was gathering
-                        if thronglet.gathering_resource:
-                            thronglet.gathering_resource = None
-                            thronglet.gathering_start_time = 0
+                        if praxan.gathering_resource:
+                            praxan.gathering_resource = None
+                            praxan.gathering_start_time = 0
                     
                     # Check building interaction
                     for building in buildings:
-                        distance = math.sqrt((building.x - thronglet.x)**2 + (building.y - thronglet.y)**2)
+                        distance = math.sqrt((building.x - praxan.x)**2 + (building.y - praxan.y)**2)
                         if distance < 15:  # Within interaction range (adjusted for smaller sprites)
-                            if building.building_type == 'house' and building.enter(thronglet, advisor.game_modifiers):
+                            if building.building_type == 'house' and building.enter(praxan, advisor.game_modifiers):
                                 # Restoring energy in house
-                                thronglet.needs['energy'] = min(100, thronglet.needs['energy'] + 0.5)
-                                thronglet.current_action = "resting"
+                                praxan.needs['energy'] = min(100, praxan.needs['energy'] + 0.5)
+                                praxan.current_action = "resting"
                             elif building.building_type == 'farm' and building.stored_resources['food'] > 0:
                                 # Collect food from farm
                                 building.stored_resources['food'] -= 1
-                                thronglet.inventory['food'] += 1
-                                thronglet.needs['hunger'] = min(100, thronglet.needs['hunger'] + 30)
+                                praxan.inventory['food'] += 1
+                                praxan.needs['hunger'] = min(100, praxan.needs['hunger'] + 30)
                                 if VERBOSE_LOGGING:
-                                    print(f"[Thronglet {idx}] *** Collected food from farm! Hunger: {thronglet.needs['hunger']}")
+                                    print(f"[Praxan {idx}] *** Collected food from farm! Hunger: {praxan.needs['hunger']}")
                             elif building.building_type == 'storage':
                                 # Deposit resources in storage
                                 total_deposited = 0
-                                if thronglet.inventory['food'] > 0:
-                                    building.stored_resources['food'] += thronglet.inventory['food']
-                                    total_deposited += thronglet.inventory['food']
-                                    thronglet.inventory['food'] = 0
-                                if thronglet.inventory['wood'] > 0:
-                                    building.stored_resources['wood'] += thronglet.inventory['wood']
-                                    total_deposited += thronglet.inventory['wood']
-                                    thronglet.inventory['wood'] = 0
-                                if thronglet.inventory['stone'] > 0:
-                                    building.stored_resources['stone'] = building.stored_resources.get('stone', 0) + thronglet.inventory['stone']
-                                    total_deposited += thronglet.inventory['stone']
-                                    thronglet.inventory['stone'] = 0
+                                if praxan.inventory['food'] > 0:
+                                    building.stored_resources['food'] += praxan.inventory['food']
+                                    total_deposited += praxan.inventory['food']
+                                    praxan.inventory['food'] = 0
+                                if praxan.inventory['wood'] > 0:
+                                    building.stored_resources['wood'] += praxan.inventory['wood']
+                                    total_deposited += praxan.inventory['wood']
+                                    praxan.inventory['wood'] = 0
+                                if praxan.inventory['stone'] > 0:
+                                    building.stored_resources['stone'] = building.stored_resources.get('stone', 0) + praxan.inventory['stone']
+                                    total_deposited += praxan.inventory['stone']
+                                    praxan.inventory['stone'] = 0
                                 if total_deposited > 0 and VERBOSE_LOGGING:
-                                    print(f"[Thronglet {idx}] *** Deposited {total_deposited} resources in storage!")
+                                    print(f"[Praxan {idx}] *** Deposited {total_deposited} resources in storage!")
                             elif building.building_type == 'well':
                                 # Drink from well to restore thirst (if not disabled by challenge)
                                 if not getattr(building, 'challenge_disabled', False):
-                                    thronglet.needs['thirst'] = min(100, thronglet.needs['thirst'] + 0.5)
+                                    praxan.needs['thirst'] = min(100, praxan.needs['thirst'] + 0.5)
                         else:
                             # Too far away, leave building if inside
-                            building.leave(thronglet)
+                            building.leave(praxan)
                     
                     # Update position
                     try:
-                        safe_thronglets_for_update = [t for t in thronglets if t is not None and hasattr(t, 'id') and hasattr(t, 'inventory')]
-                        thronglet.update_position(advisor.game_modifiers, world_map, world_width, world_height, buildings, safe_thronglets_for_update)
+                        safe_praxans_for_update = [t for t in praxans if t is not None and hasattr(t, 'id') and hasattr(t, 'inventory')]
+                        praxan.update_position(advisor.game_modifiers, world_map, world_width, world_height, buildings, safe_praxans_for_update)
                     except Exception as e:
-                        game_logger.log_error(f"Error updating position for thronglet {thronglet.id if hasattr(thronglet, 'id') else 'unknown'}: {str(e)}", exc_info=True)
+                        game_logger.log_error(f"Error updating position for praxan {praxan.id if hasattr(praxan, 'id') else 'unknown'}: {str(e)}", exc_info=True)
                 except Exception as e:
-                    # Catch any other unexpected errors in thronglet update loop
-                    game_logger.log_error(f"Unexpected error processing thronglet {thronglet.id if hasattr(thronglet, 'id') else 'unknown'}: {str(e)}", exc_info=True)
+                    # Catch any other unexpected errors in praxan update loop
+                    game_logger.log_error(f"Unexpected error processing praxan {praxan.id if hasattr(praxan, 'id') else 'unknown'}: {str(e)}", exc_info=True)
                     continue
             
             # Check for encounter discovery and exploration
             for encounter in world_map.encounters:
                 if not encounter.discovered:
-                    # Check if any thronglet is nearby
-                    for thronglet in thronglets:
-                        distance = math.sqrt((encounter.x - thronglet.x)**2 + (encounter.y - thronglet.y)**2)
+                    # Check if any praxan is nearby
+                    for praxan in praxans:
+                        distance = math.sqrt((encounter.x - praxan.x)**2 + (encounter.y - praxan.y)**2)
                         if distance < 50:  # Adjusted for smaller sprites
                             encounter.discovered = True
                             encounter_names = {
@@ -5739,17 +5739,17 @@ def main(runtime_config=RUNTIME_CONFIG):
                 
                 # Check for encounter exploration (after discovery, reward only once)
                 if encounter.discovered and not encounter.explored and not encounter.reward_given:
-                    for thronglet in thronglets:
-                        distance = math.sqrt((encounter.x - thronglet.x)**2 + (encounter.y - thronglet.y)**2)
+                    for praxan in praxans:
+                        distance = math.sqrt((encounter.x - praxan.x)**2 + (encounter.y - praxan.y)**2)
                         if distance < 40:  # Within exploration range
                             # Start or continue exploration
-                            if thronglet.exploring_encounter == encounter:
+                            if praxan.exploring_encounter == encounter:
                                 # Continue exploring
-                                if current_time - thronglet.exploration_start_time >= thronglet.exploration_duration:
+                                if current_time - praxan.exploration_start_time >= praxan.exploration_duration:
                                     # Exploration complete! Give rewards
                                     encounter.explored = True
                                     encounter.reward_given = True
-                                    thronglet.exploring_encounter = None
+                                    praxan.exploring_encounter = None
                                     
                                     # Give rewards based on encounter type
                                     if encounter.encounter_type == 'ruins':
@@ -5780,19 +5780,19 @@ def main(runtime_config=RUNTIME_CONFIG):
                                                 break
                                         narrative_panel.add_message(f"EXPLORED: Mineral Vein! +{stone_bonus} stone +20 research", 'Achievement')
                                     elif encounter.encounter_type == 'oasis':
-                                        # Heal all thronglets and restore thirst
-                                        for t in thronglets:
+                                        # Heal all praxans and restore thirst
+                                        for t in praxans:
                                             t.heal_damage(30)
                                             t.needs['thirst'] = 100
                                             # Temporary disease immunity
                                             t.disease_immunity_until = current_time + 60
-                                        narrative_panel.add_message("EXPLORED: Oasis! All thronglets healed and hydrated", 'Achievement')
+                                        narrative_panel.add_message("EXPLORED: Oasis! All praxans healed and hydrated", 'Achievement')
                                     elif encounter.encounter_type == 'sacred_grove':
                                         # Increase happiness for all and strengthen bonds
-                                        for t in thronglets:
+                                        for t in praxans:
                                             t.happiness = min(100, t.happiness + 20)
                                             # Strengthen all bonds
-                                            for other in thronglets:
+                                            for other in praxans:
                                                 if other.id != t.id:
                                                     key = tuple(sorted([t.id, other.id]))
                                                     t.bonds[key] = min(100, t.bonds.get(key, 0) + 20)
@@ -5800,102 +5800,102 @@ def main(runtime_config=RUNTIME_CONFIG):
                                         narrative_panel.add_message("EXPLORED: Sacred Grove! +20 happiness +30 research", 'Achievement')
                             else:
                                 # Start new exploration
-                                thronglet.exploring_encounter = encounter
-                                thronglet.exploration_start_time = current_time
+                                praxan.exploring_encounter = encounter
+                                praxan.exploration_start_time = current_time
                         else:
                             # Too far away, cancel exploration if we're exploring this encounter
-                            if thronglet.exploring_encounter == encounter:
-                                thronglet.exploring_encounter = None
+                            if praxan.exploring_encounter == encounter:
+                                praxan.exploring_encounter = None
             
             # Check for disease outbreaks and recovery
-            for thronglet in thronglets:
+            for praxan in praxans:
                 # Chance to contract disease based on population density, hygiene, health, and biome
-                population_density = len(thronglets) / (WINDOW_WIDTH * WINDOW_HEIGHT / 10000)  # Normalized density
+                population_density = len(praxans) / (WINDOW_WIDTH * WINDOW_HEIGHT / 10000)  # Normalized density
                 num_wells = sum(1 for b in buildings if b.building_type == 'well')
-                hygiene_factor = max(0.5, num_wells / max(1, len(thronglets) / 5))  # More wells = better hygiene
+                hygiene_factor = max(0.5, num_wells / max(1, len(praxans) / 5))  # More wells = better hygiene
                 
                 # Biome risk modifier
                 biome_risk_mod = 1.0
                 if world_map:
-                    biome_type = world_map.get_biome_at(thronglet.x, thronglet.y)
+                    biome_type = world_map.get_biome_at(praxan.x, praxan.y)
                     biome_props = world_map.get_biome_properties(biome_type)
                     biome_risk_mod = biome_props.get('disease_risk', 1.0)
                 
                 overpopulation_stress = 1.0 + (population_ratio - 0.9) * 2 if population_ratio >= 0.9 else 1.0
-                adaptability = getattr(thronglet, "genetics", {}).get("adaptability", 1.0)
+                adaptability = getattr(praxan, "genetics", {}).get("adaptability", 1.0)
                 disease_chance = (
                     DISEASE_CHANCE_BASE
                     * population_density
                     * (2 - hygiene_factor)
-                    * (100 - thronglet.health)
+                    * (100 - praxan.health)
                     / 100
                     * (biome_risk_mod / max(0.75, adaptability))
                     * overpopulation_stress
                 )
-                thronglet.contract_disease(disease_chance)
+                praxan.contract_disease(disease_chance)
                 
                 # Disease recovery (slow healing with rest)
-                if thronglet.diseased and current_time - thronglet.disease_start_time > 30:
+                if praxan.diseased and current_time - praxan.disease_start_time > 30:
                     # Check if in house or good health
-                    in_house = any(b.occupants.count(thronglet) > 0 for b in buildings if b.building_type == 'house')
-                    if in_house and thronglet.needs['energy'] > 70:
+                    in_house = any(b.occupants.count(praxan) > 0 for b in buildings if b.building_type == 'house')
+                    if in_house and praxan.needs['energy'] > 70:
                         recovery_mod = advisor.game_modifiers.get_modifier('disease_recovery_rate')
-                        immune_strength = getattr(thronglet, "genetics", {}).get("immune_strength", 1.0)
+                        immune_strength = getattr(praxan, "genetics", {}).get("immune_strength", 1.0)
                         recovery_chance = 0.1 * recovery_mod * immune_strength * delta_time
                         if random.random() < recovery_chance:
-                            thronglet.diseased = False
-                            thronglet.disease_start_time = 0
-                            print("Thronglet recovered from disease!")
+                            praxan.diseased = False
+                            praxan.disease_start_time = 0
+                            print("Praxan recovered from disease!")
             
             # Check for NPC interactions
             for npc in world_map.npcs:
                 if npc.visible:
-                    for thronglet in thronglets:
-                        distance = math.sqrt((npc.x - thronglet.x)**2 + (npc.y - thronglet.y)**2)
+                    for praxan in praxans:
+                        distance = math.sqrt((npc.x - praxan.x)**2 + (npc.y - praxan.y)**2)
                         if distance < 30:  # Within interaction range (adjusted for smaller sprites)
                             # Start or continue interaction
-                            if thronglet.interacting_npc == npc:
+                            if praxan.interacting_npc == npc:
                                 # Continue interacting
-                                if current_time - thronglet.interaction_start_time >= thronglet.interaction_duration:
+                                if current_time - praxan.interaction_start_time >= praxan.interaction_duration:
                                     # Interaction complete! Process based on NPC type
-                                    thronglet.interacting_npc = None
+                                    praxan.interacting_npc = None
                                     
                                     if npc.npc_type == 'trader':
                                         # Multiple trade options
                                         trades_available = []
-                                        if thronglet.inventory['food'] >= 2 and npc.inventory.get('wood', 0) >= 1:
+                                        if praxan.inventory['food'] >= 2 and npc.inventory.get('wood', 0) >= 1:
                                             trades_available.append(('food_for_wood', 'food', 2, 'wood', 1))
-                                        if thronglet.inventory['wood'] >= 2 and npc.inventory.get('stone', 0) >= 1:
+                                        if praxan.inventory['wood'] >= 2 and npc.inventory.get('stone', 0) >= 1:
                                             trades_available.append(('wood_for_stone', 'wood', 2, 'stone', 1))
-                                        if thronglet.inventory['wood'] >= 1 and npc.inventory.get('food', 0) >= 2:
+                                        if praxan.inventory['wood'] >= 1 and npc.inventory.get('food', 0) >= 2:
                                             trades_available.append(('wood_for_food', 'wood', 1, 'food', 2))
                                         
                                         if trades_available:
                                             trade = random.choice(trades_available)
                                             trade_name, give_res, give_amt, get_res, get_amt = trade
-                                            thronglet.inventory[give_res] -= give_amt
+                                            praxan.inventory[give_res] -= give_amt
                                             npc.inventory[give_res] = npc.inventory.get(give_res, 0) + give_amt
-                                            thronglet.inventory[get_res] += get_amt
+                                            praxan.inventory[get_res] += get_amt
                                             npc.inventory[get_res] = npc.inventory.get(get_res, 0) - get_amt
                                             narrative_panel.add_message(f"Trade: {give_amt} {give_res} -> {get_amt} {get_res}", 'Achievement')
                                     elif npc.npc_type == 'rival_tribe':
                                         # Hostile encounter
                                         if random.random() < 0.5:  # 50% chance of negative encounter
-                                            thronglet.take_damage(15, 'cut')
-                                            narrative_panel.add_message("Thronglet encountered hostile tribe! -15 health", 'Crisis')
+                                            praxan.take_damage(15, 'cut')
+                                            narrative_panel.add_message("Praxan encountered hostile tribe! -15 health", 'Crisis')
                                     elif npc.npc_type == 'wildlife_herd':
                                         # Friendly encounter, chance to gain food
                                         if random.random() < 0.3:  # 30% chance
-                                            thronglet.inventory['food'] += 1
+                                            praxan.inventory['food'] += 1
                                             narrative_panel.add_message("Wildlife shared food! +1 food", 'Achievement')
                             else:
                                 # Start new interaction
-                                thronglet.interacting_npc = npc
-                                thronglet.interaction_start_time = current_time
+                                praxan.interacting_npc = npc
+                                praxan.interaction_start_time = current_time
                         else:
                             # Too far away, cancel interaction
-                            if thronglet.interacting_npc == npc:
-                                thronglet.interacting_npc = None
+                            if praxan.interacting_npc == npc:
+                                praxan.interacting_npc = None
             
             # Process active challenges
             for challenge in advisor.active_challenges[:]:
@@ -5922,9 +5922,9 @@ def main(runtime_config=RUNTIME_CONFIG):
                                 building.challenge_disabled = True
                     elif challenge['type'] == 'plague':
                         # Increase disease chance
-                        for thronglet in thronglets:
+                        for praxan in praxans:
                             disease_chance = DISEASE_CHANCE_BASE * 5
-                            thronglet.contract_disease(disease_chance)
+                            praxan.contract_disease(disease_chance)
             
             # Reset well disabled status if no drought challenge
             drought_active = any(c['type'] == 'drought' for c in advisor.active_challenges)
@@ -5942,70 +5942,70 @@ def main(runtime_config=RUNTIME_CONFIG):
             # Apply terrain hazards with difficulty scaling
             for hazard in world_map.hazards:
                 if hazard.active:
-                    for thronglet in thronglets:
+                    for praxan in praxans:
                         # Scale damage by difficulty for hazards that deal damage
-                        old_health = thronglet.health
-                        hazard.check_affect(thronglet)
+                        old_health = praxan.health
+                        hazard.check_affect(praxan)
                         # Check if health changed, apply difficulty scaling
-                        if thronglet.health < old_health and advisor.challenge_difficulty > 1.0:
+                        if praxan.health < old_health and advisor.challenge_difficulty > 1.0:
                             damage_scale = advisor.challenge_difficulty
-                            additional_damage = (old_health - thronglet.health) * (damage_scale - 1.0)
-                            thronglet.take_damage(additional_damage, 'difficulty')
+                            additional_damage = (old_health - praxan.health) * (damage_scale - 1.0)
+                            praxan.take_damage(additional_damage, 'difficulty')
             
             # Check for reproduction opportunities
-            if len(thronglets) < MAX_POPULATION:
-                for i in range(len(thronglets)):
-                    for j in range(i + 1, len(thronglets)):
-                        thronglet1 = thronglets[i]
-                        thronglet2 = thronglets[j]
+            if len(praxans) < MAX_POPULATION:
+                for i in range(len(praxans)):
+                    for j in range(i + 1, len(praxans)):
+                        praxan1 = praxans[i]
+                        praxan2 = praxans[j]
                         
                         # Check if both can reproduce
-                        if not thronglet1.can_reproduce() or not thronglet2.can_reproduce():
+                        if not praxan1.can_reproduce() or not praxan2.can_reproduce():
                             continue
                         
                         # Check proximity
-                        distance = math.sqrt((thronglet1.x - thronglet2.x)**2 + (thronglet1.y - thronglet2.y)**2)
+                        distance = math.sqrt((praxan1.x - praxan2.x)**2 + (praxan1.y - praxan2.y)**2)
                         if distance > REPRODUCTION_PROXIMITY:
                             continue
                         
                         # Reproduction successful!
                         # Create offspring near the parents
-                        mid_x = (thronglet1.x + thronglet2.x) / 2
-                        mid_y = (thronglet1.y + thronglet2.y) / 2
+                        mid_x = (praxan1.x + praxan2.x) / 2
+                        mid_y = (praxan1.y + praxan2.y) / 2
                         offset_x = random.uniform(-20, 20)
                         offset_y = random.uniform(-20, 20)
-                        child = Thronglet.create_offspring(
-                            thronglet1,
-                            thronglet2,
+                        child = Praxan.create_offspring(
+                            praxan1,
+                            praxan2,
                             max(20, min(world_width - 20, mid_x + offset_x)),
                             max(20, min(world_height - 20, mid_y + offset_y)),
                         )
-                        thronglets.append(child)
+                        praxans.append(child)
                         
                         # Share knowledge between parents
-                        thronglet1.share_knowledge(thronglet2)
-                        thronglet2.share_knowledge(thronglet1)
+                        praxan1.share_knowledge(praxan2)
+                        praxan2.share_knowledge(praxan1)
                         # Create knowledge particle effect
                         if random.random() < 0.3:  # 30% chance per reproduction
                             particle_system.create_particles(mid_x, mid_y, 'knowledge', 5)
                         
                         # Update cooldowns
-                        thronglet1.last_reproduction_time = current_time
-                        thronglet2.last_reproduction_time = current_time
+                        praxan1.last_reproduction_time = current_time
+                        praxan2.last_reproduction_time = current_time
                         
                         # Visual feedback
-                        thronglet1.reproduction_message = "♥"
-                        thronglet1.reproduction_message_time = current_time
-                        thronglet2.reproduction_message = "♥"
-                        thronglet2.reproduction_message_time = current_time
+                        praxan1.reproduction_message = "♥"
+                        praxan1.reproduction_message_time = current_time
+                        praxan2.reproduction_message = "♥"
+                        praxan2.reproduction_message_time = current_time
                         
                         # Create particle effects (hearts)
-                        particle_system.create_particles(thronglet1.x, thronglet1.y, 'heart', 15)
-                        particle_system.create_particles(thronglet2.x, thronglet2.y, 'heart', 15)
+                        particle_system.create_particles(praxan1.x, praxan1.y, 'heart', 15)
+                        particle_system.create_particles(praxan2.x, praxan2.y, 'heart', 15)
                         
                         # Add narrative message
                         narrative_panel.add_message(
-                            f"New thronglet born: Gen {child.generation} from L{child.lineage_id}. Population: {len(thronglets)}",
+                            f"New praxan born: Gen {child.generation} from L{child.lineage_id}. Population: {len(praxans)}",
                             'Achievement',
                         )
                         
@@ -6014,7 +6014,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                             current_time,
                             "birth",
                             f"Birth: #{child.id} joins lineage {child.lineage_id}",
-                            f"Population now {len(thronglets)}.",
+                            f"Population now {len(praxans)}.",
                         )
                         advisor.session_stats['births_total'] = advisor.session_stats.get('births_total', 0) + 1
                         append_bounded_history(
@@ -6023,20 +6023,20 @@ def main(runtime_config=RUNTIME_CONFIG):
                                 "time": current_time,
                                 "label": (
                                     f"Birth: #{child.id} G{child.generation} L{child.lineage_id} "
-                                    f"from {thronglet1.id}/{thronglet2.id} mut {child.mutation_count}"
+                                    f"from {praxan1.id}/{praxan2.id} mut {child.mutation_count}"
                                 ),
                             },
                             16,
                         )
-                        record_population_evolution_sample(advisor, thronglets, current_time, game_start_time, force=True)
+                        record_population_evolution_sample(advisor, praxans, current_time, game_start_time, force=True)
                         
-                        print(f"New thronglet born! Population: {len(thronglets)}")
+                        print(f"New praxan born! Population: {len(praxans)}")
                         break
                     else:
                         continue
                         break
                 
-                record_population_evolution_sample(advisor, thronglets, current_time, game_start_time, force=False)
+                record_population_evolution_sample(advisor, praxans, current_time, game_start_time, force=False)
 
                 render_frame = build_render_frame(
                     world_map=world_map,
@@ -6057,7 +6057,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     world_size=(world_width, world_height),
                     buildings=buildings,
                     resources=resources,
-                    thronglets=thronglets,
+                    praxans=praxans,
                     encounters=world_map.encounters,
                     hazards=world_map.hazards,
                     npcs=world_map.npcs,
@@ -6070,7 +6070,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 scene_renderer.render(screen, render_frame)
             
             current_summary = dict(advisor.session_stats.get("current_run_summary", {}) or {})
-            evolution_summary = advisor.session_stats.get("current_evolution_summary") or summarize_population_evolution(thronglets)
+            evolution_summary = advisor.session_stats.get("current_evolution_summary") or summarize_population_evolution(praxans)
             llm_status = advisor.get_llm_status_label(
                 selected_model
                 or ("Disabled" if runtime_config.disable_llm or not LLM_ENABLED else PREFERRED_OLLAMA_MODEL)
@@ -6080,10 +6080,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             doctrine_label = str(doctrine.get("focus") or doctrine.get("stance") or "Autonomous").replace("_", " ").title()
             phase_label = current_summary.get("current_phase", {}).get("label", "Founding")
             observer_score = int(current_summary.get("end_state", {}).get("score", 0) or 0)
-            if thronglets:
+            if praxans:
                 colony_center = (
-                    sum(thronglet.x for thronglet in thronglets) / len(thronglets),
-                    sum(thronglet.y for thronglet in thronglets) / len(thronglets),
+                    sum(praxan.x for praxan in praxans) / len(praxans),
+                    sum(praxan.y for praxan in praxans) / len(praxans),
                 )
             else:
                 colony_center = None
@@ -6132,7 +6132,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 "camera": camera,
                 "city_planner": city_planner,
                 "faction_manager": faction_manager,
-                "thronglets": thronglets,
+                "praxans": praxans,
                 "buildings": buildings,
                 "fog_of_war": fog_of_war,
                 "camera_bookmarks": camera_director.to_payload(),
@@ -6293,12 +6293,12 @@ def main(runtime_config=RUNTIME_CONFIG):
             archive_file = None
             next_runtime_config = None
             local_names = locals()
-            required_snapshot_names = ("thronglets", "buildings", "resources", "advisor", "season", "weather_system", "game_start_time")
+            required_snapshot_names = ("praxans", "buildings", "resources", "advisor", "season", "weather_system", "game_start_time")
             if all(name in local_names for name in required_snapshot_names):
                 camera_bookmarks = camera_director.to_payload() if "camera_director" in local_names else []
                 scene_thumbnail_key = os.path.basename(thumbnail_path) if thumbnail_path else None
                 run_summary = build_run_summary(
-                    thronglets=thronglets,
+                    praxans=praxans,
                     buildings=buildings,
                     advisor=advisor,
                     current_time=time.time(),
@@ -6316,7 +6316,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 )
                 advisor.session_stats["current_run_summary"] = run_summary
                 archive_payload = build_run_archive(
-                    thronglets=thronglets,
+                    praxans=praxans,
                     buildings=buildings,
                     advisor=advisor,
                     current_time=time.time(),
@@ -6334,7 +6334,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 )
                 archive_file = write_run_archive(game_logger.log_dir, game_logger.session_id, archive_payload)
                 snapshot = build_run_snapshot(
-                    thronglets,
+                    praxans,
                     buildings,
                     resources,
                     advisor,
@@ -6359,7 +6359,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {
-                'population': len(thronglets),
+                'population': len(praxans),
                 'buildings': len(buildings),
                 'duration': time.time() - game_start_time
             }

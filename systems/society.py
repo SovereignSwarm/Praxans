@@ -2,19 +2,19 @@ import time
 import logging
 import copy
 from collections import defaultdict, deque
-from thronglets_game import *
+from praxans_game import *
 from society_dynamics import compute_faction_metrics
 import random
 
 class Faction:
-    """Represents a group of thronglets with strong bonds"""
+    """Represents a group of praxans with strong bonds"""
     _next_id = 0
     
     def __init__(self, member_ids):
         self.id = Faction._next_id
         Faction._next_id += 1
-        self.member_ids = list(member_ids)  # List of thronglet IDs
-        self.leader_id = None  # Will be set to highest skill thronglet
+        self.member_ids = list(member_ids)  # List of praxan IDs
+        self.leader_id = None  # Will be set to highest skill praxan
         self.shared_goals = []  # Goals assigned by LLM
         self.formed_time = time.time()
         self.ideology = {axis: 0.0 for axis in FACTION_IDEOLOGY_AXES}
@@ -34,42 +34,42 @@ class Faction:
         self.last_doctrine_goal_time = 0.0
         self.golden_age = False
     
-    def add_member(self, thronglet_id):
+    def add_member(self, praxan_id):
         """Add a member to this faction"""
-        if thronglet_id not in self.member_ids:
-            self.member_ids.append(thronglet_id)
+        if praxan_id not in self.member_ids:
+            self.member_ids.append(praxan_id)
     
-    def remove_member(self, thronglet_id):
+    def remove_member(self, praxan_id):
         """Remove a member from this faction"""
-        if thronglet_id in self.member_ids:
-            self.member_ids.remove(thronglet_id)
+        if praxan_id in self.member_ids:
+            self.member_ids.remove(praxan_id)
     
-    def update_leader(self, thronglets):
-        """Update leader to highest skill thronglet"""
+    def update_leader(self, praxans):
+        """Update leader to highest skill praxan"""
         best_skill = -1.0
         best_id = None
         
-        for thronglet_id in self.member_ids:
-            thronglet = next((t for t in thronglets if t.id == thronglet_id), None)
-            if thronglet:
+        for praxan_id in self.member_ids:
+            praxan = next((t for t in praxans if t.id == praxan_id), None)
+            if praxan:
                 total_skill = 0.0
-                skill_key = get_role_skill_key(thronglet.role)
-                if skill_key and skill_key in thronglet.skills:
-                    total_skill = float(thronglet.skills[skill_key]['level']) * 12.0
-                total_skill += float(getattr(thronglet, "health", 100.0)) * 0.08
-                total_skill += float(getattr(thronglet, "happiness", 70.0)) * 0.06
-                total_skill += float(getattr(thronglet, "morale", 65.0)) * 0.07
-                total_skill += float(getattr(thronglet, "genetics", {}).get("social_cohesion", 1.0)) * 7.5
-                if thronglet.id == self.leader_id:
+                skill_key = get_role_skill_key(praxan.role)
+                if skill_key and skill_key in praxan.skills:
+                    total_skill = float(praxan.skills[skill_key]['level']) * 12.0
+                total_skill += float(getattr(praxan, "health", 100.0)) * 0.08
+                total_skill += float(getattr(praxan, "happiness", 70.0)) * 0.06
+                total_skill += float(getattr(praxan, "morale", 65.0)) * 0.07
+                total_skill += float(getattr(praxan, "genetics", {}).get("social_cohesion", 1.0)) * 7.5
+                if praxan.id == self.leader_id:
                     total_skill += 5.0
                 
                 if total_skill > best_skill:
                     best_skill = total_skill
-                    best_id = thronglet_id
+                    best_id = praxan_id
         
         self.leader_id = best_id if best_id else (self.member_ids[0] if self.member_ids else None)
     
-    def get_bond_strength(self, thronglets):
+    def get_bond_strength(self, praxans):
         """Get average bond strength within faction"""
         if len(self.member_ids) < 2:
             return 0.0
@@ -77,32 +77,32 @@ class Faction:
         total_bonds = 0.0
         bond_count = 0
         
-        for thronglet in thronglets:
-            if thronglet.id in self.member_ids:
+        for praxan in praxans:
+            if praxan.id in self.member_ids:
                 for other_id in self.member_ids:
-                    if other_id != thronglet.id and other_id in thronglet.bonds:
-                        total_bonds += thronglet.bonds[other_id]
+                    if other_id != praxan.id and other_id in praxan.bonds:
+                        total_bonds += praxan.bonds[other_id]
                         bond_count += 1
         
         return total_bonds / bond_count if bond_count > 0 else 0.0
 
-    def get_members(self, thronglets):
-        return [thronglet for thronglet in thronglets if thronglet.id in self.member_ids]
+    def get_members(self, praxans):
+        return [praxan for praxan in praxans if praxan.id in self.member_ids]
 
-    def get_centroid(self, thronglets):
-        members = self.get_members(thronglets)
+    def get_centroid(self, praxans):
+        members = self.get_members(praxans)
         if not members:
             return None
         avg_x = sum(member.x for member in members) / len(members)
         avg_y = sum(member.y for member in members) / len(members)
         return (avg_x, avg_y)
 
-    def refresh_identity(self, thronglets):
-        members = self.get_members(thronglets)
+    def refresh_identity(self, praxans):
+        members = self.get_members(praxans)
         if not members:
             return
 
-        avg_bond = self.get_bond_strength(thronglets)
+        avg_bond = self.get_bond_strength(praxans)
         member_snapshots = []
         for member in members:
             member_snapshots.append(
@@ -163,7 +163,7 @@ class FactionManager:
         self.last_update = 0
         self.update_interval = 10.0  # Update every 10 seconds
     
-    def update_factions(self, thronglets, advisor=None):
+    def update_factions(self, praxans, advisor=None):
         """Auto-form and update factions based on bonds > 70"""
         current_time = time.time()
         
@@ -173,17 +173,17 @@ class FactionManager:
         
         self.last_update = current_time
         
-        # Find groups of thronglets with mutual bonds > 70
+        # Find groups of praxans with mutual bonds > 70
         bond_groups = []
         processed = set()
         
-        for thronglet in thronglets:
-            if thronglet.id in processed:
+        for praxan in praxans:
+            if praxan.id in processed:
                 continue
             
-            # Find all thronglets with bonds > 70 to this one
-            group = {thronglet.id}
-            queue = [thronglet]
+            # Find all praxans with bonds > 70 to this one
+            group = {praxan.id}
+            queue = [praxan]
             
             while queue:
                 current = queue.pop(0)
@@ -191,7 +191,7 @@ class FactionManager:
                     continue
                 processed.add(current.id)
                 
-                for other in thronglets:
+                for other in praxans:
                     if other.id in processed or other.id == current.id:
                         continue
                     
@@ -204,7 +204,7 @@ class FactionManager:
                         queue.append(other)
             
             # Only create faction if min(3, population/4) members (scales with population)
-            min_faction_size = min(3, max(2, len(thronglets) // 4))
+            min_faction_size = min(3, max(2, len(praxans) // 4))
             if len(group) >= min_faction_size:
                 bond_groups.append(group)
         
@@ -226,17 +226,17 @@ class FactionManager:
                 # Update existing faction
                 previous_leader_id = faction.leader_id
                 faction.member_ids = list(best_match)
-                faction.update_leader(thronglets)
-                faction.refresh_identity(thronglets)
+                faction.update_leader(praxans)
+                faction.refresh_identity(praxans)
                 self._register_leadership_change(faction, previous_leader_id, advisor, current_time)
                 used_groups.add(id(best_match))
             else:
                 # Faction dissolved (not enough bonds), remove it
                 dissolved_size = len(faction.member_ids)
                 del self.factions[faction_id]
-                for thronglet in thronglets:
-                    if thronglet.faction_id == faction_id:
-                        thronglet.faction_id = None
+                for praxan in praxans:
+                    if praxan.faction_id == faction_id:
+                        praxan.faction_id = None
                 if advisor is not None:
                     advisor.session_stats["factions_dissolved"] = advisor.session_stats.get("factions_dissolved", 0) + 1
                     self._record_faction_history(
@@ -252,14 +252,14 @@ class FactionManager:
         for group in bond_groups:
             if id(group) not in used_groups:
                 new_faction = Faction(group)
-                new_faction.update_leader(thronglets)
-                new_faction.refresh_identity(thronglets)
+                new_faction.update_leader(praxans)
+                new_faction.refresh_identity(praxans)
                 self.factions[new_faction.id] = new_faction
                 
                 # Assign faction_id to members
-                for thronglet in thronglets:
-                    if thronglet.id in group:
-                        thronglet.faction_id = new_faction.id
+                for praxan in praxans:
+                    if praxan.id in group:
+                        praxan.faction_id = new_faction.id
                 if advisor is not None:
                     advisor.session_stats["factions_formed"] = advisor.session_stats.get("factions_formed", 0) + 1
                     self._record_faction_history(
@@ -286,7 +286,7 @@ class FactionManager:
             )
 
         for faction in self.factions.values():
-            faction.refresh_identity(thronglets)
+            faction.refresh_identity(praxans)
             
             if faction.cohesion >= 95.0 and faction.stability >= 90.0 and not getattr(faction, "golden_age", False):
                 faction.golden_age = True
@@ -301,7 +301,7 @@ class FactionManager:
                     advisor.session_stats["golden_ages"] = advisor.session_stats.get("golden_ages", 0) + 1
 
         self._update_rivalries()
-        self._evaluate_schisms(thronglets, advisor, current_time)
+        self._evaluate_schisms(praxans, advisor, current_time)
         self._update_rivalries()
 
     def _update_rivalries(self):
@@ -367,7 +367,7 @@ class FactionManager:
                 if member.id in other.bonds:
                     other.bonds[member.id] = min(other.bonds[member.id], 42.0)
 
-    def _evaluate_schisms(self, thronglets, advisor, current_time):
+    def _evaluate_schisms(self, praxans, advisor, current_time):
         for faction in list(self.factions.values()):
             if len(faction.member_ids) < max(4, FACTION_DYNAMICS["minimum_schism_size"] * 2):
                 continue
@@ -378,7 +378,7 @@ class FactionManager:
             if current_time - getattr(faction, "last_schism_time", 0.0) < FACTION_DYNAMICS["schism_cooldown_seconds"]:
                 continue
 
-            members = faction.get_members(thronglets)
+            members = faction.get_members(praxans)
             if len(members) < 4:
                 continue
             member_snapshots = [
@@ -419,10 +419,10 @@ class FactionManager:
                 member.faction_id = faction.id
 
             self._soften_cross_faction_bonds(split_members, remaining_members)
-            faction.update_leader(thronglets)
-            faction.refresh_identity(thronglets)
-            new_faction.update_leader(thronglets)
-            new_faction.refresh_identity(thronglets)
+            faction.update_leader(praxans)
+            faction.refresh_identity(praxans)
+            new_faction.update_leader(praxans)
+            new_faction.refresh_identity(praxans)
             new_goal = AUTONOMOUS_DOCTRINE_GOALS.get(new_faction.primary_doctrine)
             if new_goal:
                 new_faction.assign_shared_goal(new_goal, "Emergent post-schism doctrine", new_faction.primary_doctrine)
@@ -449,9 +449,9 @@ class FactionManager:
                     f"{len(split_members)} members broke away under doctrine {new_faction.primary_doctrine}.",
                 )
 
-    def apply_autonomous_pressure(self, thronglets, advisor, world_map, world_width, world_height, current_time):
+    def apply_autonomous_pressure(self, praxans, advisor, world_map, world_width, world_height, current_time):
         for faction in self.factions.values():
-            members = faction.get_members(thronglets)
+            members = faction.get_members(praxans)
             if len(members) < 2:
                 continue
 
@@ -476,7 +476,7 @@ class FactionManager:
                 for member in members
             ]
             target = choose_migration_target(
-                faction.get_centroid(thronglets),
+                faction.get_centroid(praxans),
                 member_snapshots,
                 faction.primary_doctrine,
                 world_width,
@@ -539,10 +539,10 @@ class FactionManager:
         """Get faction by ID"""
         return self.factions.get(faction_id)
     
-    def get_faction_for_thronglet(self, thronglet_id):
-        """Get faction containing this thronglet"""
+    def get_faction_for_praxan(self, praxan_id):
+        """Get faction containing this praxan"""
         for faction in self.factions.values():
-            if thronglet_id in faction.member_ids:
+            if praxan_id in faction.member_ids:
                 return faction
         return None
 
@@ -559,7 +559,7 @@ class TradeSystem:
         self.trade_log = []  # [{time, from_faction, to_faction, resource, amount}]
         self.max_log = 20
 
-    def update(self, faction_manager, thronglets, current_time):
+    def update(self, faction_manager, praxans, current_time):
         """Run a trade round if enough time has passed."""
         if current_time - self.last_trade_time < self.TRADE_INTERVAL:
             return
@@ -570,7 +570,7 @@ class TradeSystem:
         # Build per-faction aggregate inventory
         faction_inventories = {}
         for faction_id, faction in faction_manager.factions.items():
-            members = faction.get_members(thronglets)
+            members = faction.get_members(praxans)
             agg = {}
             for m in members:
                 for res, qty in getattr(m, 'inventory', {}).items():
@@ -590,9 +590,9 @@ class TradeSystem:
                 if fid_a in set(getattr(fb, 'rival_faction_ids', []) or []):
                     continue
                 inv_b = faction_inventories.get(fid_b, {})
-                self._try_trade(fa, fb, inv_a, inv_b, thronglets, current_time)
+                self._try_trade(fa, fb, inv_a, inv_b, praxans, current_time)
 
-    def _try_trade(self, fa, fb, inv_a, inv_b, thronglets, current_time):
+    def _try_trade(self, fa, fb, inv_a, inv_b, praxans, current_time):
         """Attempt a single resource exchange between two factions."""
         # A has surplus, B has deficit
         for res, qty_a in inv_a.items():
@@ -603,8 +603,8 @@ class TradeSystem:
                 continue
             # Transfer 1 unit: take from a random member of A, give to random member of B
             amount = 1
-            donors = [m for m in fa.get_members(thronglets) if getattr(m, 'inventory', {}).get(res, 0) > 0]
-            recipients = fb.get_members(thronglets)
+            donors = [m for m in fa.get_members(praxans) if getattr(m, 'inventory', {}).get(res, 0) > 0]
+            recipients = fb.get_members(praxans)
             if donors and recipients:
                 donor = random.choice(donors)
                 recipient = random.choice(recipients)
@@ -621,7 +621,7 @@ class TradeSystem:
                     del self.trade_log[:-self.max_log]
                 return  # One trade per pair per round
 
-    def get_trade_opportunities(self, faction_manager, thronglets):
+    def get_trade_opportunities(self, faction_manager, praxans):
         """Return human-readable trade opportunity descriptions for LLM state view."""
         if faction_manager is None:
             return []
@@ -629,7 +629,7 @@ class TradeSystem:
         faction_ids = list(faction_manager.factions.keys())
         for i, fid_a in enumerate(faction_ids):
             fa = faction_manager.factions[fid_a]
-            members_a = fa.get_members(thronglets)
+            members_a = fa.get_members(praxans)
             inv_a = {}
             for m in members_a:
                 for res, qty in getattr(m, 'inventory', {}).items():
@@ -644,7 +644,7 @@ class TradeSystem:
                         )
         return opportunities[:4]
 
-    def get_territory_overlaps(self, faction_manager, thronglets, territory_manager=None):
+    def get_territory_overlaps(self, faction_manager, praxans, territory_manager=None):
         """Return descriptions of territory overlaps between factions."""
         if faction_manager is None:
             return []
@@ -652,12 +652,12 @@ class TradeSystem:
         faction_ids = list(faction_manager.factions.keys())
         for i, fid_a in enumerate(faction_ids):
             fa = faction_manager.factions[fid_a]
-            centroid_a = fa.get_centroid(thronglets)
+            centroid_a = fa.get_centroid(praxans)
             if centroid_a is None:
                 continue
             for fid_b in faction_ids[i + 1:]:
                 fb = faction_manager.factions[fid_b]
-                centroid_b = fb.get_centroid(thronglets)
+                centroid_b = fb.get_centroid(praxans)
                 if centroid_b is None:
                     continue
                 dist = math.sqrt(

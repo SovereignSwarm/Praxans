@@ -1,4 +1,4 @@
-# Thronglets LLM & AI Enhancement - Diagnostic Report
+# Praxans LLM & AI Enhancement - Diagnostic Report
 
 **Date:** 2025-01-06  
 **Status:** Implementation Complete - Diagnostic Phase
@@ -12,7 +12,7 @@
 #### 1.1 LLM Directive Enhancement
 - ✅ **Enhanced JSON Prompt**: Added comprehensive JSON format with few-shot examples
 - ✅ **JSON Parser**: `parse_json_directives()` extracts individual/communal/conditional directives
-- ✅ **Directive Distribution**: Individual directives assigned to thronglet IDs
+- ✅ **Directive Distribution**: Individual directives assigned to praxan IDs
 - ✅ **Feasibility Validation**: `validate_directive()` checks resource availability, population requirements
 - ✅ **Conditional Evaluation**: `evaluate_condition()` parses and evaluates game state conditions
 
@@ -26,7 +26,7 @@
 #### 1.3 Pathfinding & Navigation
 - ✅ **A* Pathfinding**: `calculate_path()` with 32x32 grid, obstacle avoidance
 - ✅ **Path Following**: Waypoint navigation with automatic progression
-- ✅ **Obstacle Avoidance**: `avoid_obstacles()` with separation forces for buildings/thronglets
+- ✅ **Obstacle Avoidance**: `avoid_obstacles()` with separation forces for buildings/praxans
 - ✅ **Integration**: Pathfinding used when target > 50 pixels away
 
 #### 1.4 Smart Decision-Making
@@ -65,17 +65,17 @@
    - ✅ `process_communal_tasks()` called after LLM query
    - ✅ `validate_directive()` integrated into parsing flow
 
-2. **Thronglet Integration**
+2. **Praxan Integration**
    - ✅ State machine variables initialized in `__init__`
    - ✅ `decide_action()` signature updated with new parameters
-   - ✅ `update_position()` signature updated with buildings/other_thronglets
+   - ✅ `update_position()` signature updated with buildings/other_praxans
    - ✅ Path following integrated into `update_position()`
    - ✅ Obstacle avoidance integrated into `update_position()`
 
 3. **Main Loop Integration**
    - ✅ Conditional behaviors evaluated each frame
    - ✅ Group task assignment processed
-   - ✅ Individual directives distributed to thronglets
+   - ✅ Individual directives distributed to praxans
    - ✅ Combined directives passed to `decide_action()`
 
 ---
@@ -171,7 +171,7 @@
 - ✅ Main loop processes group tasks
 - ✅ Main loop distributes individual directives
 - ✅ `decide_action()` receives combined directives
-- ✅ `update_position()` called with buildings/thronglets
+- ✅ `update_position()` called with buildings/praxans
 
 ---
 
@@ -205,7 +205,7 @@
 ### Immediate Actions:
 1. ✅ **Run Game**: Test basic functionality
 2. ✅ **Monitor Logs**: Check for JSON parsing errors
-3. ✅ **Verify State Transitions**: Confirm thronglets transition correctly
+3. ✅ **Verify State Transitions**: Confirm praxans transition correctly
 4. ✅ **Test Pathfinding**: Build some buildings and watch navigation
 
 ### Future Enhancements:
@@ -231,7 +231,7 @@ All planned features have been implemented:
 The code compiles without errors and all integration points are verified. The system should now support autonomous, emergent simulation with the LLM acting as an observer-only strategic advisor.
 
 **Next Steps:**
-1. Run the game and observe thronglet behavior
+1. Run the game and observe praxan behavior
 2. Monitor console output for directive parsing
 3. Test JSON directive generation from LLM
 4. Verify state transitions and pathfinding
@@ -245,10 +245,10 @@ The code compiles without errors and all integration points are verified. The sy
 1. **Every Frame:**
    - Evaluate conditional behaviors (`get_conditional_behaviors()`)
    - Process group task assignments
-   - Distribute individual directives to thronglets
+   - Distribute individual directives to praxans
    - Combine directives (legacy + individual + conditional + group)
    - Call `decide_action()` with combined directives
-   - Call `update_position()` with buildings/thronglets for obstacle avoidance
+   - Call `update_position()` with buildings/praxans for obstacle avoidance
 
 2. **Every 30 Seconds:**
    - Query LLM via `query_llm()`
@@ -264,7 +264,7 @@ The code compiles without errors and all integration points are verified. The sy
 
 ### Pathfinding Integration:
 - Triggered when target distance > 50 pixels
-- Path stored in `thronglet.path`
+- Path stored in `praxan.path`
 - Waypoints followed in `update_position()`
 - Obstacle avoidance blends with path direction
 

@@ -49,7 +49,7 @@ def _draw_home(
     latest_snapshot_path: str | None,
 ) -> None:
     draw_panel(surface, layout.hero, theme, fill=(27, 33, 35), alpha=242, radius=theme.radius_large)
-    title = theme.fonts.display.render("THRONGLETS", True, theme.palette.parchment)
+    title = theme.fonts.display.render("PRAXANS", True, theme.palette.parchment)
     surface.blit(title, (layout.hero.x + 22, layout.hero.y + 20))
     strap = theme.fonts.heading.render("Living Atlas Observer Interface", True, theme.palette.frost)
     surface.blit(strap, (layout.hero.x + 24, layout.hero.y + 78))

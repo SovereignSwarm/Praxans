@@ -61,32 +61,32 @@ def build_inspect_view_model(
             sections=sections,
         )
 
-    if selected_type == "thronglet":
-        thronglet = selected_entity
+    if selected_type == "praxan":
+        praxan = selected_entity
         tabs = [("overview", "Overview"), ("traits", "Traits"), ("social", "Social")]
         active_tab = active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview"
-        subtitle = f"#{thronglet.id}  |  {str(getattr(thronglet, 'role', 'unassigned')).replace('_', ' ').title()}"
+        subtitle = f"#{praxan.id}  |  {str(getattr(praxan, 'role', 'unassigned')).replace('_', ' ').title()}"
         if active_tab == "traits":
             sections = [
                 _section(
                     "Genetics",
                     *[
                         f"{str(trait_name).replace('_', ' ').title()}  {float(trait_value):.2f}x"
-                        for trait_name, trait_value in list(getattr(thronglet, "genetics", {}).items())[:8]
+                        for trait_name, trait_value in list(getattr(praxan, "genetics", {}).items())[:8]
                     ],
                 ),
                 _section(
                     "Skills",
                     *[
                         f"{str(skill_name).replace('_', ' ').title()}  L{int(skill_data.get('level', 1) or 1)}"
-                        for skill_name, skill_data in getattr(thronglet, "skills", {}).items()
+                        for skill_name, skill_data in getattr(praxan, "skills", {}).items()
                         if isinstance(skill_data, dict)
                     ],
                 ),
             ]
         elif active_tab == "social":
             faction_lines = []
-            faction_id = getattr(thronglet, "faction_id", None)
+            faction_id = getattr(praxan, "faction_id", None)
             if faction_manager is not None and faction_id is not None:
                 faction = getattr(faction_manager, "factions", {}).get(faction_id)
                 if faction is not None:
@@ -102,10 +102,10 @@ def build_inspect_view_model(
             sections = [
                 _section(
                     "Lineage",
-                    f"Generation  {int(getattr(thronglet, 'generation', 0) or 0)}",
-                    f"Lineage  L{int(getattr(thronglet, 'lineage_id', getattr(thronglet, 'id', 0)))}",
-                    f"Parents  {', '.join(str(parent_id) for parent_id in getattr(thronglet, 'parent_ids', [])[:2]) or 'Founder'}",
-                    f"Mutations  {int(getattr(thronglet, 'mutation_count', 0) or 0)}",
+                    f"Generation  {int(getattr(praxan, 'generation', 0) or 0)}",
+                    f"Lineage  L{int(getattr(praxan, 'lineage_id', getattr(praxan, 'id', 0)))}",
+                    f"Parents  {', '.join(str(parent_id) for parent_id in getattr(praxan, 'parent_ids', [])[:2]) or 'Founder'}",
+                    f"Mutations  {int(getattr(praxan, 'mutation_count', 0) or 0)}",
                 ),
                 _section("Faction", *faction_lines) if faction_lines else _section("Faction", "Unaffiliated"),
             ]
@@ -113,27 +113,27 @@ def build_inspect_view_model(
             sections = [
                 _section(
                     "Vitals",
-                    f"Health  {int(getattr(thronglet, 'health', 0) or 0)}/100",
-                    f"Hunger  {int(getattr(thronglet, 'hunger', 0) or 0)}/100",
-                    f"Energy  {int(getattr(thronglet, 'needs', {}).get('energy', 0) or 0)}/100",
-                    f"Thirst  {int(getattr(thronglet, 'needs', {}).get('thirst', 0) or 0)}/100",
-                    f"Happiness  {int(getattr(thronglet, 'happiness', 0) or 0)}/100",
-                    f"Morale  {int(getattr(thronglet, 'morale', 0) or 0)}/100",
-                    f"Inspiration  {int(getattr(thronglet, 'inspiration', 0) or 0)}/100",
+                    f"Health  {int(getattr(praxan, 'health', 0) or 0)}/100",
+                    f"Hunger  {int(getattr(praxan, 'hunger', 0) or 0)}/100",
+                    f"Energy  {int(getattr(praxan, 'needs', {}).get('energy', 0) or 0)}/100",
+                    f"Thirst  {int(getattr(praxan, 'needs', {}).get('thirst', 0) or 0)}/100",
+                    f"Happiness  {int(getattr(praxan, 'happiness', 0) or 0)}/100",
+                    f"Morale  {int(getattr(praxan, 'morale', 0) or 0)}/100",
+                    f"Inspiration  {int(getattr(praxan, 'inspiration', 0) or 0)}/100",
                 ),
                 _section(
                     "Activity",
-                    f"Current Task  {str(getattr(thronglet, 'current_action', 'idle')).replace('_', ' ').title()}",
-                    f"Favorite Biome  {str(getattr(thronglet, 'favorite_biome', 'plains')).title()}",
-                    f"Diseased  {'Yes' if bool(getattr(thronglet, 'diseased', False)) else 'No'}",
-                    f"Can Reproduce  {'Yes' if hasattr(thronglet, 'can_reproduce') and thronglet.can_reproduce() else 'No'}",
-                    f"Age  {int(max(0.0, current_time - float(getattr(thronglet, 'birth_time', current_time) or current_time)))}s",
+                    f"Current Task  {str(getattr(praxan, 'current_action', 'idle')).replace('_', ' ').title()}",
+                    f"Favorite Biome  {str(getattr(praxan, 'favorite_biome', 'plains')).title()}",
+                    f"Diseased  {'Yes' if bool(getattr(praxan, 'diseased', False)) else 'No'}",
+                    f"Can Reproduce  {'Yes' if hasattr(praxan, 'can_reproduce') and praxan.can_reproduce() else 'No'}",
+                    f"Age  {int(max(0.0, current_time - float(getattr(praxan, 'birth_time', current_time) or current_time)))}s",
                 ),
             ]
         return InspectViewModel(
-            title="Thronglet",
+            title="Praxan",
             subtitle=subtitle,
-            entity_type="thronglet",
+            entity_type="praxan",
             accent=(187, 147, 88),
             tabs=tabs,
             active_tab=active_tab,

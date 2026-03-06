@@ -1,4 +1,4 @@
-"""Publish-subscribe event bus for the Thonglets narrative engine.
+"""Publish-subscribe event bus for the Praxans narrative engine.
 
 All game subsystems publish typed events.  Subscribers (historian, narrative
 panel, cinematic director, archive) react to events with cascading rules.
@@ -70,7 +70,7 @@ class GameEvent:
     detail: str = ""
     location: tuple[float, float] | None = None  # world (x, y) for camera
     faction_id: int | None = None
-    thronglet_id: int | None = None
+    praxan_id: int | None = None
     timestamp: float = field(default_factory=time.time)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -90,7 +90,7 @@ class GameEvent:
             "detail": self.detail,
             "location": list(self.location) if self.location else None,
             "faction_id": self.faction_id,
-            "thronglet_id": self.thronglet_id,
+            "praxan_id": self.praxan_id,
             "timestamp": self.timestamp,
             "drama": self.drama,
             "metadata": dict(self.metadata),

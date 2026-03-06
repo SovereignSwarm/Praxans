@@ -75,7 +75,7 @@ class EntityRenderer:
         for faction in getattr(faction_manager, "factions", {}).values():
             if not getattr(faction, "migration_target", None):
                 continue
-            centroid = faction.get_centroid([state.entity for state in frame.thronglets])
+            centroid = faction.get_centroid([state.entity for state in frame.praxans])
             if not centroid:
                 continue
             start_x, start_y = self._screen_point(frame, centroid[0], centroid[1])
@@ -103,19 +103,19 @@ class EntityRenderer:
             if entity_state.selected:
                 self._draw_selection_ring(surface, frame, entity_state, max(11, int(12 * zoom)))
 
-    def _draw_thronglets(self, surface: pygame.Surface, frame) -> None:
+    def _draw_praxans(self, surface: pygame.Surface, frame) -> None:
         factions = getattr(frame.world.faction_manager, "factions", {}) if frame.world.faction_manager is not None else {}
         zoom = self._zoom_band(frame)
-        for entity_state in frame.thronglets:
+        for entity_state in frame.praxans:
             if not self._is_visible(frame, entity_state):
                 continue
-            thronglet = entity_state.entity
-            faction = factions.get(getattr(thronglet, "faction_id", None))
+            praxan = entity_state.entity
+            faction = factions.get(getattr(praxan, "faction_id", None))
             doctrine = getattr(faction, "primary_doctrine", None) if faction is not None else None
             frame_index = self._frame_index(frame, entity_state.animation_state)
 
             # Genetic size variation: scale ±15% based on genetics
-            genetics = getattr(thronglet, "genetics", {})
+            genetics = getattr(praxan, "genetics", {})
             size_mod = 1.0
             if isinstance(genetics, dict):
                 # Use metabolism_efficiency as a proxy for body size
@@ -125,29 +125,29 @@ class EntityRenderer:
             base_w = max(16, int(32 * zoom * size_mod))
             base_h = max(24, int(48 * zoom * size_mod))
 
-            sprite = self.sprite_library.get_thronglet_sprite(
-                role=getattr(thronglet, "role", None),
+            sprite = self.sprite_library.get_praxan_sprite(
+                role=getattr(praxan, "role", None),
                 animation_state=entity_state.animation_state,
                 facing=entity_state.facing,
                 doctrine=doctrine,
                 variant_id=entity_state.variant_id,
                 health_state=entity_state.health_state,
-                mutated=bool(getattr(thronglet, "mutation_count", 0) > 0),
+                mutated=bool(getattr(praxan, "mutation_count", 0) > 0),
                 target_size=(base_w, base_h),
                 frame_index=frame_index,
             )
-            screen_x, screen_y = self._screen_point(frame, thronglet.x, thronglet.y)
+            screen_x, screen_y = self._screen_point(frame, praxan.x, praxan.y)
             blit_x = screen_x - sprite.get_width() // 2
             blit_y = screen_y - sprite.get_height() + int(10 * zoom)
             surface.blit(sprite, (blit_x, blit_y))
 
             # --- Mutation shimmer ---
-            if getattr(thronglet, "mutation_count", 0) > 0 and zoom >= 0.5:
-                shimmer_offset = (frame.world.frame_count + getattr(thronglet, "id", 0)) % 8
+            if getattr(praxan, "mutation_count", 0) > 0 and zoom >= 0.5:
+                shimmer_offset = (frame.world.frame_count + getattr(praxan, "id", 0)) % 8
                 shimmer_x = blit_x + sprite.get_width() // 2 + (shimmer_offset % 3) * 2 - 2
                 shimmer_y = blit_y + (shimmer_offset % 4) * 2
                 shimmer_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
-                pulse_alpha = 120 + int(80 * abs(math.sin(frame.world.current_time * 4 + getattr(thronglet, "id", 0))))
+                pulse_alpha = 120 + int(80 * abs(math.sin(frame.world.current_time * 4 + getattr(praxan, "id", 0))))
                 pygame.draw.circle(shimmer_surf, (198, 149, 230, pulse_alpha), (3, 3), 2)
                 surface.blit(shimmer_surf, (shimmer_x, shimmer_y))
 
@@ -158,11 +158,11 @@ class EntityRenderer:
                 indicator_size = max(3, int(5 * zoom))
                 indicator_surf = pygame.Surface((indicator_size * 2, indicator_size * 2), pygame.SRCALPHA)
 
-                health = float(getattr(thronglet, "health", 100.0) or 100.0)
-                hunger = float(getattr(thronglet, "hunger", 0.0) or 0.0)
-                happiness = float(getattr(thronglet, "happiness", 50.0) or 50.0)
-                morale = float(getattr(thronglet, "morale", 50.0) or 50.0)
-                diseased = bool(getattr(thronglet, "diseased", False))
+                health = float(getattr(praxan, "health", 100.0) or 100.0)
+                hunger = float(getattr(praxan, "hunger", 0.0) or 0.0)
+                happiness = float(getattr(praxan, "happiness", 50.0) or 50.0)
+                morale = float(getattr(praxan, "morale", 50.0) or 50.0)
+                diseased = bool(getattr(praxan, "diseased", False))
 
                 if diseased:
                     # Green squiggle for disease
@@ -192,10 +192,10 @@ class EntityRenderer:
             if entity_state.selected:
                 self._draw_selection_ring(surface, frame, entity_state, max(12, int(14 * zoom)))
             if entity_state.selected and self.config.show_role_pennants:
-                pennant = self.sprite_library.get_role_pennant(getattr(thronglet, "role", ""), doctrine, size=max(10, int(12 * zoom)))
+                pennant = self.sprite_library.get_role_pennant(getattr(praxan, "role", ""), doctrine, size=max(10, int(12 * zoom)))
                 surface.blit(pennant, (screen_x + int(10 * zoom), screen_y - sprite.get_height() // 2))
             if entity_state.selected and self.config.show_action_badges:
-                badge = self.sprite_library.get_action_marker(str(getattr(thronglet, "current_action", "")), size=max(14, int(18 * zoom)))
+                badge = self.sprite_library.get_action_marker(str(getattr(praxan, "current_action", "")), size=max(14, int(18 * zoom)))
                 surface.blit(badge, (screen_x - badge.get_width() // 2, screen_y - sprite.get_height() - max(8, int(6 * zoom))))
 
     def _draw_encounters(self, surface: pygame.Surface, frame) -> None:
@@ -257,7 +257,7 @@ class EntityRenderer:
         self._draw_buildings(surface, frame)
         self._draw_migration_vectors(surface, frame)
         self._draw_resources(surface, frame)
-        self._draw_thronglets(surface, frame)
+        self._draw_praxans(surface, frame)
         self._draw_encounters(surface, frame)
         self._draw_hazards(surface, frame)
         self._draw_npcs(surface, frame)

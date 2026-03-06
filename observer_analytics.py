@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 
-def _count_lineages(thronglets) -> dict[int, int]:
+def _count_lineages(praxans) -> dict[int, int]:
     lineage_counts: dict[int, int] = {}
-    for thronglet in thronglets:
-        lineage_id = int(getattr(thronglet, "lineage_id", getattr(thronglet, "id", 0)))
+    for praxan in praxans:
+        lineage_id = int(getattr(praxan, "lineage_id", getattr(praxan, "id", 0)))
         lineage_counts[lineage_id] = lineage_counts.get(lineage_id, 0) + 1
     return lineage_counts
 
@@ -15,19 +15,19 @@ def _format_cause_label(cause_name: str) -> str:
     return cause_name.replace("_", " ").strip().title() or "Unknown"
 
 
-def _build_faction_snapshots(thronglets, faction_manager) -> list[dict[str, Any]]:
+def _build_faction_snapshots(praxans, faction_manager) -> list[dict[str, Any]]:
     if faction_manager is None:
         return []
 
-    thronglet_lookup = {
-        int(getattr(thronglet, "id", -1)): thronglet
-        for thronglet in thronglets
-        if hasattr(thronglet, "id")
+    praxan_lookup = {
+        int(getattr(praxan, "id", -1)): praxan
+        for praxan in praxans
+        if hasattr(praxan, "id")
     }
     faction_snapshots = []
     for faction_id, faction in getattr(faction_manager, "factions", {}).items():
         member_ids = [int(member_id) for member_id in getattr(faction, "member_ids", [])]
-        members = [thronglet_lookup[member_id] for member_id in member_ids if member_id in thronglet_lookup]
+        members = [praxan_lookup[member_id] for member_id in member_ids if member_id in praxan_lookup]
         avg_generation = (
             round(sum(getattr(member, "generation", 0) for member in members) / len(members), 2)
             if members
@@ -85,11 +85,11 @@ def _build_timeline(session_stats: dict[str, Any], advisor_events) -> list[dict[
     return timeline_events[-8:]
 
 
-def build_observer_report(thronglets, advisor, faction_manager=None) -> dict[str, Any]:
+def build_observer_report(praxans, advisor, faction_manager=None) -> dict[str, Any]:
     session_stats = dict(getattr(advisor, "session_stats", {}) or {})
     summary = dict(session_stats.get("current_evolution_summary", {}) or {})
-    lineage_counts = dict(summary.get("lineage_counts", {}) or _count_lineages(thronglets))
-    population = max(0, len(thronglets))
+    lineage_counts = dict(summary.get("lineage_counts", {}) or _count_lineages(praxans))
+    population = max(0, len(praxans))
 
     top_lineages = []
     for lineage_id, count in sorted(lineage_counts.items(), key=lambda item: (-item[1], item[0]))[:5]:
@@ -131,7 +131,7 @@ def build_observer_report(thronglets, advisor, faction_manager=None) -> dict[str
         )
     trait_outliers.sort(key=lambda item: (abs(item["delta_pct"]), item["trait_name"]), reverse=True)
 
-    faction_snapshots = _build_faction_snapshots(thronglets, faction_manager)
+    faction_snapshots = _build_faction_snapshots(praxans, faction_manager)
 
     return {
         "population": population,

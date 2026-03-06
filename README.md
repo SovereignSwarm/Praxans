@@ -1,6 +1,6 @@
-# Thronglets
+# Praxans
 
-Thronglets is an autonomous Pygame civilization sandbox where small AI-driven creatures gather resources, build settlements, and react to changing biome, weather, and social conditions while you watch in observer mode.
+Praxans is an autonomous Pygame civilization sandbox where small AI-driven creatures gather resources, build settlements, and react to changing biome, weather, and social conditions while you watch in observer mode.
 
 ## What changed in this upgrade
 
@@ -16,7 +16,7 @@ Thronglets is an autonomous Pygame civilization sandbox where small AI-driven cr
 - Added structured end-of-session state snapshots to `logs/snapshot_*.json` and resume support from those snapshots.
 - Moved advisor and goal-generation Ollama work off the main loop so the game keeps rendering while Qwen is busy or unavailable.
 - Removed live player steering from the runtime flow so the simulation stays observer-first.
-- Added heritable thronglet traits, lineage tracking, mutation drift, and a dedicated evolution observer panel.
+- Added heritable praxan traits, lineage tracking, mutation drift, and a dedicated evolution observer panel.
 - Expanded snapshot fidelity so resumed runs keep lineage state, observer camera state, and festival timing.
 - Expanded snapshot fidelity again so resumed runs now keep fog-of-war discovery, territory claim memory, faction/group coordination, and world encounters/hazards/NPC state.
 - Added observer scenario presets so autonomous runs can start from distinct ecological and evolutionary conditions without introducing player control.
@@ -46,7 +46,7 @@ pip install -r requirements.txt
 Interactive run:
 
 ```bash
-python thronglets_game.py
+python praxans_game.py
 ```
 
 The interactive build now opens into a Living Atlas command center with `Start New Run`, `Resume Latest`, `Scenarios`, `Archives`, and `Settings`.
@@ -72,50 +72,50 @@ Observer interface layers:
 
 - Top ribbon: scenario, phase, doctrine, LLM state, sim speed, follow mode, and crisis badge
 - Left rail: curated field notes from major births, faction shifts, migration, crises, and other key moments
-- Right drawer: scrollable inspect view for settlements, thronglets, buildings, and other world entities
+- Right drawer: scrollable inspect view for settlements, praxans, buildings, and other world entities
 - Modal workbooks: research, evolution, analytics, and archive review
 - End-of-run summary: score, dominant lineage/faction, key moments, archive review, compare, resume, and new-run actions
 
 Explicitly target the preferred Qwen model:
 
 ```bash
-python thronglets_game.py --model qwen3.5:9b
+python praxans_game.py --model qwen3.5:9b
 ```
 
 Disable LLM features:
 
 ```bash
-python thronglets_game.py --disable-llm
+python praxans_game.py --disable-llm
 ```
 
 Headless smoke run:
 
 ```bash
-python thronglets_game.py --headless --disable-llm --max-frames 2 --seed 1
+python praxans_game.py --headless --disable-llm --max-frames 2 --seed 1
 ```
 
 Run a preset observer scenario:
 
 ```bash
-python thronglets_game.py --scenario high_mutation
+python praxans_game.py --scenario high_mutation
 ```
 
 Scenario smoke run:
 
 ```bash
-python thronglets_game.py --headless --disable-llm --scenario plague_start --max-frames 2 --seed 1
+python praxans_game.py --headless --disable-llm --scenario plague_start --max-frames 2 --seed 1
 ```
 
 Resume the newest snapshot:
 
 ```bash
-python thronglets_game.py --load-latest-snapshot
+python praxans_game.py --load-latest-snapshot
 ```
 
 Resume a specific snapshot:
 
 ```bash
-python thronglets_game.py --snapshot-file logs\snapshot_20260306_180259.json
+python praxans_game.py --snapshot-file logs\snapshot_20260306_180259.json
 ```
 
 Windows launchers:
@@ -168,7 +168,7 @@ Windows launchers:
 Compile check:
 
 ```bash
-python -m py_compile thronglets_game.py runtime_config.py
+python -m py_compile praxans_game.py runtime_config.py
 ```
 
 Test suite:

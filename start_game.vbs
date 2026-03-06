@@ -1,4 +1,4 @@
-' Thronglets launcher without an extra visible batch window.
+' Praxans launcher without an extra visible batch window.
 Set objShell = CreateObject("WScript.Shell")
 Set objFSO = CreateObject("Scripting.FileSystemObject")
 

@@ -3,7 +3,7 @@ import math
 from collections import Counter
 import copy
 from statistics import mean
-from thronglets_game import *
+from praxans_game import *
 import llm.contracts as llm_contracts
 import llm.memory as llm_memory
 from llm.scheduler import LLMScheduler
@@ -22,7 +22,7 @@ class CivilizationAdvisor:
         
         # Enhanced directive system
         self.json_directives = {
-            'individual': {},  # {thronglet_id: instruction}
+            'individual': {},  # {praxan_id: instruction}
             'communal': '',    # Group task description
             'conditions': {}   # {condition: behavior}
         }
@@ -115,23 +115,23 @@ class CivilizationAdvisor:
             CHANNEL_MEMORY: 0.0,
         }
     
-    def _generate_state_summary(self, thronglets, resources, buildings, territory_manager, world_map):
+    def _generate_state_summary(self, praxans, resources, buildings, territory_manager, world_map):
         """Generate concise state summary with health indicators"""
         
         # Population metrics
-        pop_status = "stable" if len(thronglets) >= self.last_pop_count * 0.9 else "declining"
-        pop_summary = f"Pop: {len(thronglets)} ({pop_status})"
+        pop_status = "stable" if len(praxans) >= self.last_pop_count * 0.9 else "declining"
+        pop_summary = f"Pop: {len(praxans)} ({pop_status})"
         
         # Resource availability (% metric)
-        total_food = sum(t.inventory['food'] for t in thronglets) + sum(b.stored_resources.get('food', 0) for b in buildings if b.building_type in ['storage', 'farm'])
-        food_per_capita = total_food / max(1, len(thronglets))
+        total_food = sum(t.inventory['food'] for t in praxans) + sum(b.stored_resources.get('food', 0) for b in buildings if b.building_type in ['storage', 'farm'])
+        food_per_capita = total_food / max(1, len(praxans))
         food_status = "abundant" if food_per_capita > 3 else "adequate" if food_per_capita > 1.5 else "scarce"
         food_pct = min(100, int(food_per_capita / 3 * 100))
         resource_summary = f"Resources: Food {food_pct}% ({food_status})"
         
         # Need satisfaction
-        avg_hunger = sum(t.needs['hunger'] for t in thronglets) / max(1, len(thronglets))
-        avg_energy = sum(t.needs['energy'] for t in thronglets) / max(1, len(thronglets))
+        avg_hunger = sum(t.needs['hunger'] for t in praxans) / max(1, len(praxans))
+        avg_energy = sum(t.needs['energy'] for t in praxans) / max(1, len(praxans))
         needs_status = "healthy" if avg_hunger > 70 and avg_energy > 70 else "stressed"
         needs_summary = f"Needs: Hunger {avg_hunger:.0f}%, Energy {avg_energy:.0f}% ({needs_status})"
         
@@ -150,9 +150,9 @@ class CivilizationAdvisor:
         wells = sum(1 for b in buildings if b.building_type == 'well')
         shrines = sum(1 for b in buildings if b.building_type == 'shrine')
         workshops = sum(1 for b in buildings if b.building_type == 'workshop')
-        avg_happiness = sum(t.happiness for t in thronglets) / max(1, len(thronglets))
-        avg_morale = sum(getattr(t, 'morale', 65) for t in thronglets) / max(1, len(thronglets))
-        infrastructure_status = "adequate" if houses >= len(thronglets) // 2 and farms >= len(thronglets) // 3 else "insufficient"
+        avg_happiness = sum(t.happiness for t in praxans) / max(1, len(praxans))
+        avg_morale = sum(getattr(t, 'morale', 65) for t in praxans) / max(1, len(praxans))
+        infrastructure_status = "adequate" if houses >= len(praxans) // 2 and farms >= len(praxans) // 3 else "insufficient"
         infrastructure_summary = f"Infrastructure: {houses} houses, {farms} farms, {wells} wells, {workshops} workshops ({infrastructure_status})"
         culture_summary = f"Culture: Happiness {avg_happiness:.0f}%, Morale {avg_morale:.0f}%, Shrines {shrines}"
         
@@ -160,7 +160,7 @@ class CivilizationAdvisor:
         crisis_flags = []
         if avg_hunger < 50:
             crisis_flags.append("HUNGER_CRISIS")
-        if len(thronglets) < 3:
+        if len(praxans) < 3:
             crisis_flags.append("POPULATION_CRITICAL")
         if food_pct < 30:
             crisis_flags.append("FOOD_SHORTAGE")
@@ -174,7 +174,7 @@ class CivilizationAdvisor:
             'crisis_flags': crisis_flags,
             'metrics': {
                 'colony_wealth': self.session_stats.get('colony_wealth', 0),
-                'population': len(thronglets),
+                'population': len(praxans),
                 'food_pct': food_pct,
                 'avg_hunger': avg_hunger,
                 'avg_energy': avg_energy,
@@ -195,7 +195,7 @@ class CivilizationAdvisor:
         if not hasattr(self, 'achieved_milestones'):
             self.achieved_milestones = set()
         
-        # Population milestones (every 5 thronglets)
+        # Population milestones (every 5 praxans)
         if metrics['population'] > 0 and metrics['population'] % 5 == 0:
             pop_milestone = (metrics['population'] // 5) * 5
             pop_key = f"pop_{pop_milestone}"
@@ -259,19 +259,19 @@ class CivilizationAdvisor:
         
         return True, "routine", []
     
-    def query_llm(self, thronglets, resources, buildings, narrative_panel=None, player_suggestion=None, territory_manager=None, city_planner=None, world_map=None, hazards=None, state_summary=None, intervention_reason=None, faction_manager=None):
+    def query_llm(self, praxans, resources, buildings, narrative_panel=None, player_suggestion=None, territory_manager=None, city_planner=None, world_map=None, hazards=None, state_summary=None, intervention_reason=None, faction_manager=None):
         """Query LLM for strategic guidance"""
         # Calculate civilization statistics
-        num_thronglets = len(thronglets)
+        num_praxans = len(praxans)
         num_resources = sum(1 for r in resources if not r.collected)
         num_food = sum(1 for r in resources if r.resource_type == 'food' and not r.collected)
         num_wood = sum(1 for r in resources if r.resource_type == 'wood' and not r.collected)
         num_stone = sum(1 for r in resources if r.resource_type == 'stone' and not r.collected)
-        total_food_inv = sum(t.inventory['food'] for t in thronglets)
-        total_wood_inv = sum(t.inventory['wood'] for t in thronglets)
-        total_stone_inv = sum(t.inventory['stone'] for t in thronglets)
-        avg_hunger = sum(t.needs['hunger'] for t in thronglets) / len(thronglets) if thronglets else 0
-        avg_energy = sum(t.needs['energy'] for t in thronglets) / len(thronglets) if thronglets else 0
+        total_food_inv = sum(t.inventory['food'] for t in praxans)
+        total_wood_inv = sum(t.inventory['wood'] for t in praxans)
+        total_stone_inv = sum(t.inventory['stone'] for t in praxans)
+        avg_hunger = sum(t.needs['hunger'] for t in praxans) / len(praxans) if praxans else 0
+        avg_energy = sum(t.needs['energy'] for t in praxans) / len(praxans) if praxans else 0
         
         # Count buildings by type and aggregate storage/production
         building_counts = {'house': 0, 'storage': 0, 'farm': 0, 'workshop': 0, 'shrine': 0, 'well': 0}
@@ -289,16 +289,16 @@ class CivilizationAdvisor:
             elif building.building_type == 'farm':
                 total_food_in_farms += building.stored_resources['food']
         
-        # Thronglet behavioral analysis
+        # Praxan behavioral analysis
         role_distribution = {'gatherer': 0, 'builder': 0, 'explorer': 0}
-        hungry_count = sum(1 for t in thronglets if t.needs['hunger'] < 50)
-        energy_low_count = sum(1 for t in thronglets if t.needs['energy'] < 50)
-        can_reproduce_count = sum(1 for t in thronglets if t.can_reproduce())
+        hungry_count = sum(1 for t in praxans if t.needs['hunger'] < 50)
+        energy_low_count = sum(1 for t in praxans if t.needs['energy'] < 50)
+        can_reproduce_count = sum(1 for t in praxans if t.can_reproduce())
         
         # New metrics: Health, skills, social, disease
-        avg_health = sum(t.health for t in thronglets) / len(thronglets) if thronglets else 100
-        avg_happiness = sum(t.happiness for t in thronglets) / len(thronglets) if thronglets else 100
-        diseased_count = sum(1 for t in thronglets if t.diseased)
+        avg_health = sum(t.health for t in praxans) / len(praxans) if praxans else 100
+        avg_happiness = sum(t.happiness for t in praxans) / len(praxans) if praxans else 100
+        diseased_count = sum(1 for t in praxans if t.diseased)
         
         # Faction analysis
         faction_info = ""
@@ -307,30 +307,30 @@ class CivilizationAdvisor:
             num_factions = len(faction_manager.factions)
             faction_details = []
             for faction_id, faction in faction_manager.factions.items():
-                avg_bond = faction.get_bond_strength(thronglets) if len(faction.member_ids) >= 2 else 0
+                avg_bond = faction.get_bond_strength(praxans) if len(faction.member_ids) >= 2 else 0
                 faction_details.append(f"Faction {faction_id}: {len(faction.member_ids)} members, avg bond {avg_bond:.0f}")
             faction_info = f"\n- Active Factions: {num_factions}\n" + "\n".join([f"  {fd}" for fd in faction_details[:5]])  # Limit to 5 for brevity
         
         # Social bonds analysis
-        avg_bonds_per_thronglet = sum(len(t.bonds) for t in thronglets) / len(thronglets) if thronglets else 0
-        strong_bonds = sum(1 for t in thronglets for bond_val in t.bonds.values() if bond_val > 70)
+        avg_bonds_per_praxan = sum(len(t.bonds) for t in praxans) / len(praxans) if praxans else 0
+        strong_bonds = sum(1 for t in praxans for bond_val in t.bonds.values() if bond_val > 70)
         
         # AI Learning metrics (Q-learning success tracking)
         q_learning_stats = ""
-        if thronglets:
-            total_q_entries = sum(len(t.q_table) for t in thronglets)
-            avg_q_entries = total_q_entries / len(thronglets)
+        if praxans:
+            total_q_entries = sum(len(t.q_table) for t in praxans)
+            avg_q_entries = total_q_entries / len(praxans)
             if avg_q_entries > 0:
                 # Calculate success rates
-                successful_actions = sum(sum(t.success_memory.values()) for t in thronglets if hasattr(t, 'success_memory'))
-                failed_actions = sum(sum(t.failure_memory.values()) for t in thronglets if hasattr(t, 'failure_memory'))
+                successful_actions = sum(sum(t.success_memory.values()) for t in praxans if hasattr(t, 'success_memory'))
+                failed_actions = sum(sum(t.failure_memory.values()) for t in praxans if hasattr(t, 'failure_memory'))
                 total_actions = successful_actions + failed_actions
                 success_rate = (successful_actions / total_actions * 100) if total_actions > 0 else 0
-                q_learning_stats = f"\n- AI Learning: {avg_q_entries:.0f} learned actions per thronglet, {success_rate:.0f}% success rate"
+                q_learning_stats = f"\n- AI Learning: {avg_q_entries:.0f} learned actions per praxan, {success_rate:.0f}% success rate"
         
         # Skill distribution
         skill_levels = {'novice': 0, 'intermediate': 0, 'expert': 0}
-        for t in thronglets:
+        for t in praxans:
             skill_key = get_role_skill_key(t.role)
             if t.role and skill_key and skill_key in t.skills:
                 # Count role
@@ -384,7 +384,7 @@ Settlement Identity:
 - Landmark tier: {settlement.get('landmark_level', 1)}
 - Festival active: {'yes' if settlement.get('festival_active') else 'no'}"""
         
-        prompt = f"""You are a strategic advisor for a civilization of {num_thronglets} thronglets.
+        prompt = f"""You are a strategic advisor for a civilization of {num_praxans} praxans.
 
 === RESPONSE CONTRACT ===
 - Primary Ollama model target: {PREFERRED_OLLAMA_MODEL}
@@ -394,9 +394,9 @@ Settlement Identity:
 
 === GAME SCALE & LIMITS ===
 - World Size: 2048x1536 pixels (64x48 tiles)
-- Population Cap: {MAX_POPULATION} thronglets (soft limit for performance)
-- Initial Population: {INITIAL_POPULATION} thronglets
-- Territory System: Voronoi-based, expands dynamically from thronglet/building positions
+- Population Cap: {MAX_POPULATION} praxans (soft limit for performance)
+- Initial Population: {INITIAL_POPULATION} praxans
+- Territory System: Voronoi-based, expands dynamically from praxan/building positions
 - Movement Speed: 0.75 px/frame (slow, deliberate expansion)
 - Resource Spawn: Food respawns every 30s, wood/stone are finite (biome-specific)
 
@@ -405,41 +405,41 @@ Buildings:
 {chr(10).join(format_building_prompt_lines())}
 - Buildings level up automatically when clustered into stronger districts.
 
-Thronglet Behavior:
+Praxan Behavior:
 - Hunger decreases over time and increases when eating food
 - Energy decreases over time, faster at night (0.042 vs 0.021)
 - Thirst decreases over time, must drink from wells to survive
 - Health decreases from unmet needs, age, and disease
-- Thronglets can die from old age (7 minute lifespan) or health failure
-- Thronglets gain skills and level up with experience
-- Social bonds form between thronglets working together (bonds >70 form factions)
+- Praxans can die from old age (7 minute lifespan) or health failure
+- Praxans gain skills and level up with experience
+- Social bonds form between praxans working together (bonds >70 form factions)
 - Disease outbreaks occur based on population density and hygiene
-- Thronglets automatically eat food when near resources/farms
-- Thronglets rest in houses when energy < 30
-- Thronglets can reproduce when needs met, with a 45s cooldown
+- Praxans automatically eat food when near resources/farms
+- Praxans rest in houses when energy < 30
+- Praxans can reproduce when needs met, with a 45s cooldown
 - Morale, inspiration, favorite biome, and settlement prosperity all influence output
 
 AI Decision Systems:
-- Behavior Trees: Thronglets use hierarchical decision trees that prioritize survival, then directives, then group tasks
-- Q-Learning: Thronglets learn from success/failure, adapting actions over time (30% exploration rate)
-- Factions: Groups of 2-3+ thronglets with bonds >70 can work together on coordinated tasks
-- Boids Clustering: Thronglets naturally cluster when working on same tasks (cohesion/separation forces)
-- Territory: Voronoi-based dynamic territory expansion from thronglet/building positions
+- Behavior Trees: Praxans use hierarchical decision trees that prioritize survival, then directives, then group tasks
+- Q-Learning: Praxans learn from success/failure, adapting actions over time (30% exploration rate)
+- Factions: Groups of 2-3+ praxans with bonds >70 can work together on coordinated tasks
+- Boids Clustering: Praxans naturally cluster when working on same tasks (cohesion/separation forces)
+- Territory: Voronoi-based dynamic territory expansion from praxan/building positions
 
 Building Efficiency Guidelines:
-- Build 1 storage per 5 thronglets MAX (avoid overbuilding)
-- Build houses to support population (1 house per 2 thronglets)
+- Build 1 storage per 5 praxans MAX (avoid overbuilding)
+- Build houses to support population (1 house per 2 praxans)
 - Farms should roughly match population for sustainable food
 - Wells are CRITICAL for thirst needs and disease prevention (aim for 1 well per 10 population)
 
 === CURRENT CIVILIZATION STATUS ===
-Population: {num_thronglets} thronglets
+Population: {num_praxans} praxans
 - Roles: {role_distribution['gatherer']} gatherers, {role_distribution['builder']} builders, {role_distribution['explorer']} explorers
 - Skills: {skill_levels['novice']} novice, {skill_levels['intermediate']} intermediate, {skill_levels['expert']} expert
 - Needs: {hungry_count} hungry (<50), {energy_low_count} low energy (<50), {can_reproduce_count} ready to reproduce
-- Health: {diseased_count} diseased thronglets, avg health: {avg_health:.1f}/100
+- Health: {diseased_count} diseased praxans, avg health: {avg_health:.1f}/100
 - Wealth: {self.session_stats.get('colony_wealth', 0):.0f} total colony value (higher wealth draws stronger threats)
-- Social Bonds: {avg_bonds_per_thronglet:.1f} bonds per thronglet, {strong_bonds} strong bonds (>70){faction_info}{q_learning_stats}
+- Social Bonds: {avg_bonds_per_praxan:.1f} bonds per praxan, {strong_bonds} strong bonds (>70){faction_info}{q_learning_stats}
 
 Resources:
 - On map: {num_food} wild food, {num_wood} wild wood, {num_stone} stone
@@ -448,8 +448,8 @@ Resources:
 - In farms: {total_food_in_farms} ready-to-harvest food
 
 Building Infrastructure:
-- {building_counts['house']} houses (capacity: {building_counts['house'] * 2} thronglets)
-- {building_counts['storage']} storage (recommended: {max(1, num_thronglets // 5)})
+- {building_counts['house']} houses (capacity: {building_counts['house'] * 2} praxans)
+- {building_counts['storage']} storage (recommended: {max(1, num_praxans // 5)})
 - {building_counts['farm']} farms (producing ~{building_counts['farm'] / 10:.1f} food/sec)
 - {building_counts['workshop']} workshops, {building_counts['shrine']} shrines, {building_counts['well']} wells
 {settlement_summary_text}"""
@@ -468,7 +468,7 @@ Territory Status (Voronoi-based dynamic expansion):
 - Claimed tiles: {territory_tiles} (~{territory_tiles * 0.4:.1f} tiles²)
 - Average claim strength: {avg_claim_strength:.1f}%
 - Territory center: ({bounds['center_x']:.0f}, {bounds['center_y']:.0f})
-- Active territory seeds: {voronoi_seeds} (thronglets + buildings)"""
+- Active territory seeds: {voronoi_seeds} (praxans + buildings)"""
         
         # Get city plan summary
         city_plan_text = ""
@@ -499,7 +499,7 @@ Civilization Health:
 - Average health: {avg_health:.1f}/100
 - Average happiness: {avg_happiness:.1f}/100
 - Total deaths: {self.total_deaths}
-- Population cap: {MAX_POPULATION} (current: {num_thronglets}/{MAX_POPULATION})
+- Population cap: {MAX_POPULATION} (current: {num_praxans}/{MAX_POPULATION})
 {previous_strategy_text}
 {recent_events_text}
 
@@ -521,7 +521,7 @@ You can issue EVOLUTION COMMANDS:
 4. CHALLENGE|type|reasoning - Spawn challenge for bonus points
 
 Available mechanics to evolve temporarily:
-- farm_production_rate, house_capacity, thronglet_speed
+- farm_production_rate, house_capacity, praxan_speed
 - reproduction_cooldown, skill_xp_gain, happiness_modifier
 - gather_efficiency, build_speed, disease_resistance
 
@@ -588,7 +588,7 @@ CURRENT FOCUS AREA: {focus_guidance.get(self.current_focus, '')}
 
 EXAMPLE 1 - Stable Civilization:
 State: Pop 12 (stable) | Food 85% (abundant) | Needs: Hunger 78%, Energy 82% (healthy) | Territory: 65% claimed
-Assessment: "Civilization thriving. Thronglets managing resources autonomously. No intervention required."
+Assessment: "Civilization thriving. Praxans managing resources autonomously. No intervention required."
 Output: 'No changes'
 
 EXAMPLE 2 - Mild Concern:
@@ -612,7 +612,7 @@ Output:
 }}
 
 === YOUR STRATEGIC MISSION ===
-Provide strategic directives in JSON format for autonomous thronglet AI. You can issue both individual instructions (for specific thronglets) and communal tasks (for groups).
+Provide strategic directives in JSON format for autonomous praxan AI. You can issue both individual instructions (for specific praxans) and communal tasks (for groups).
 
 **REQUIRED JSON FORMAT:**
 {{
@@ -635,7 +635,7 @@ Provide strategic directives in JSON format for autonomous thronglet AI. You can
 }}
 
 **Field Definitions:**
-- "individual": Object mapping thronglet IDs (as strings) to specific instructions. Use IDs 0-{num_thronglets-1}.
+- "individual": Object mapping praxan IDs (as strings) to specific instructions. Use IDs 0-{num_praxans-1}.
 - "communal": String describing group tasks (e.g., "Form party of 3 for building", "Coordinate gathering party of 2")
 - "team_task": Object for faction-based coordinated tasks. Format: {{"faction_id": 0, "task": "build workshop", "count": 3, "reasoning": "reason"}}. Only use if factions exist ({num_factions} active). Faction IDs are 0-{num_factions-1}.
 - "conditions": Object mapping game state conditions to adaptive behaviors. Conditions use format: "metric<value" or "metric>value" (e.g., "hunger<50", "population>5")
@@ -655,7 +655,7 @@ Example 1 - Individual Focus:
 Example 2 - Communal Task:
 {{
   "individual": {{}},
-  "communal": "Form building party: assign 3 thronglets to construct farm together",
+  "communal": "Form building party: assign 3 praxans to construct farm together",
   "conditions": {{
     "population>5": "If pop>5, form exploration party of 2"
   }}
@@ -698,16 +698,16 @@ CRITICAL RULES:
 - Wells are essential for survival - prioritize when population > {building_counts['well'] * 10}
 - Build farms when average hunger < 70
 - Workshops boost nearby gathering - consider strategic placement
-- Individual directives override default behavior for specific thronglets
+- Individual directives override default behavior for specific praxans
 - Communal tasks automatically form coordinated groups
 - Team tasks assign to specific factions (factions form from bonds >70, {num_factions} active now)
 - Conditions adapt behavior based on current game state
-- Thronglets learn from experience (Q-learning) - repeated failures indicate need for intervention
+- Praxans learn from experience (Q-learning) - repeated failures indicate need for intervention
 - Behavior trees prioritize survival over directives - don't issue directives during critical needs
 
 STRATEGIC CITY PLANNING:
-- Territory grows via Voronoi diagram from thronglet/building positions. Dynamic expansion.
-- Thronglets cluster naturally via Boids algorithm when working together - leverage this
+- Territory grows via Voronoi diagram from praxan/building positions. Dynamic expansion.
+- Praxans cluster naturally via Boids algorithm when working together - leverage this
 - Cluster related buildings: farms->storage, houses->wells, workshops->civic buildings
 - Consider biomes: farms in plains/forest, houses avoid swamps/deserts
 - Avoid hazards and difficult terrain (mountains, swamps)
@@ -747,7 +747,7 @@ Directives:"""
         
         try:
             print("\n[Civilization Advisor] Querying LLM for strategic guidance...")
-            print(f"[Civilization Advisor] Population: {num_thronglets}, Resources: {num_resources}, Buildings: {sum(building_counts.values())}")
+            print(f"[Civilization Advisor] Population: {num_praxans}, Resources: {num_resources}, Buildings: {sum(building_counts.values())}")
 
             response_text, model_used = generate_ollama_text(prompt, purpose="advisor")
             print(f"[Civilization Advisor] Successfully queried {model_used}")
@@ -771,14 +771,14 @@ Directives:"""
                 self.directives = []
                 
                 # Validate individual directives
-                for thronglet_id, instruction in list(json_parsed.get('individual', {}).items()):
+                for praxan_id, instruction in list(json_parsed.get('individual', {}).items()):
                     directive = {'action': instruction, 'priority': 8}
-                    is_valid, errors = self.validate_directive(directive, thronglets, buildings, resources)
+                    is_valid, errors = self.validate_directive(directive, praxans, buildings, resources)
                     if not is_valid:
-                        print(f"[Directive Validation] Invalid directive for thronglet {thronglet_id}: {', '.join(errors)}")
+                        print(f"[Directive Validation] Invalid directive for praxan {praxan_id}: {', '.join(errors)}")
                         # Remove invalid directive
-                        if thronglet_id in self.json_directives['individual']:
-                            del self.json_directives['individual'][thronglet_id]
+                        if praxan_id in self.json_directives['individual']:
+                            del self.json_directives['individual'][praxan_id]
             else:
                 # Fall back to legacy parse_directives
                 parsed_data = self.parse_directives(response_text)
@@ -787,7 +787,7 @@ Directives:"""
                 # Validate legacy directives
                 validated_directives = []
                 for directive in self.directives:
-                    is_valid, errors = self.validate_directive(directive, thronglets, buildings, resources)
+                    is_valid, errors = self.validate_directive(directive, praxans, buildings, resources)
                     if is_valid:
                         validated_directives.append(directive)
                     else:
@@ -811,7 +811,7 @@ Directives:"""
             
             # Parse evolution commands if narrative panel available
             if narrative_panel:
-                self.parse_evolution_commands(response_text, narrative_panel, thronglets, resources, buildings)
+                self.parse_evolution_commands(response_text, narrative_panel, praxans, resources, buildings)
             
             # Store in history (keep last 5)
             history_entry = {
@@ -828,11 +828,11 @@ Directives:"""
             print(f"[Civilization Advisor] Make sure Ollama is running: 'ollama serve'")
             print(f"[Civilization Advisor] Install a model: 'ollama pull {PREFERRED_OLLAMA_MODEL}'")
             # Fallback to smart directive based on game state
-            if len(thronglets) < 3:
+            if len(praxans) < 3:
                 fallback_action = "gather food and wood to build first house"
-            elif building_counts.get('well', 0) < len(thronglets) // 10:
+            elif building_counts.get('well', 0) < len(praxans) // 10:
                 fallback_action = "build 1 well immediately"
-            elif building_counts.get('farm', 0) < len(thronglets) / 2:
+            elif building_counts.get('farm', 0) < len(praxans) / 2:
                 fallback_action = "build farms for food production"
             else:
                 fallback_action = "continue gathering resources"
@@ -867,7 +867,7 @@ Directives:"""
     def ensure_scheduler(self):
         """Create the LLM scheduler lazily (requires OllamaClient)."""
         if self.llm_scheduler is None and LLM_ENABLED:
-            from thronglets_game import _get_llm_client
+            from praxans_game import _get_llm_client
             client = _get_llm_client()
             self.llm_scheduler = LLMScheduler(
                 client, max_concurrent=2, default_backoff=LLM_BACKOFF_SECONDS
@@ -877,7 +877,7 @@ Directives:"""
     def queue_channel_reviews(
         self,
         current_time,
-        thronglets,
+        praxans,
         resources,
         buildings,
         state_summary,
@@ -895,7 +895,7 @@ Directives:"""
             should, reason, flags = self._should_intervene(state_summary, current_time)
             if should:
                 view = build_council_view(
-                    population=len(thronglets),
+                    population=len(praxans),
                     buildings={b.building_type: sum(1 for x in buildings if x.building_type == b.building_type) for b in buildings},
                     resources_on_map={
                         "food": sum(1 for r in resources if r.resource_type == "food" and not r.collected),
@@ -903,17 +903,17 @@ Directives:"""
                         "stone": sum(1 for r in resources if r.resource_type == "stone" and not r.collected),
                     },
                     resources_carried={
-                        "food": sum(t.inventory["food"] for t in thronglets),
-                        "wood": sum(t.inventory["wood"] for t in thronglets),
-                        "stone": sum(t.inventory["stone"] for t in thronglets),
+                        "food": sum(t.inventory["food"] for t in praxans),
+                        "wood": sum(t.inventory["wood"] for t in praxans),
+                        "stone": sum(t.inventory["stone"] for t in praxans),
                     },
                     avg_needs={
-                        "hunger": sum(t.needs["hunger"] for t in thronglets) / max(1, len(thronglets)),
-                        "energy": sum(t.needs["energy"] for t in thronglets) / max(1, len(thronglets)),
-                        "health": sum(t.health for t in thronglets) / max(1, len(thronglets)),
-                        "morale": sum(getattr(t, "morale", 65) for t in thronglets) / max(1, len(thronglets)),
+                        "hunger": sum(t.needs["hunger"] for t in praxans) / max(1, len(praxans)),
+                        "energy": sum(t.needs["energy"] for t in praxans) / max(1, len(praxans)),
+                        "health": sum(t.health for t in praxans) / max(1, len(praxans)),
+                        "morale": sum(getattr(t, "morale", 65) for t in praxans) / max(1, len(praxans)),
                     },
-                    diseased_count=sum(1 for t in thronglets if t.diseased),
+                    diseased_count=sum(1 for t in praxans if t.diseased),
                     settlement=settlement,
                     faction_summaries=[
                         {
@@ -925,7 +925,7 @@ Directives:"""
                         }
                         for f in list((faction_manager.factions if faction_manager else {}).values())[:4]
                     ],
-                    thronglet_snapshot=[
+                    praxan_snapshot=[
                         {
                             "id": t.id,
                             "role": t.role or "unassigned",
@@ -934,7 +934,7 @@ Directives:"""
                             "health": t.health,
                             "morale": getattr(t, "morale", 65),
                         }
-                        for t in thronglets[:8]
+                        for t in praxans[:8]
                     ],
                     crisis_flags=state_summary.get("crisis_flags", []),
                     summary_text=state_summary.get("summary_text", ""),
@@ -971,7 +971,7 @@ Directives:"""
                     preferred_biome=getattr(faction, "preferred_biome", "plains"),
                     recent_events=self.llm_memory.factions.recent_text(faction.id),
                     faction_digest=self.llm_memory.factions.digest_text(faction.id),
-                    colony_population=len(thronglets),
+                    colony_population=len(praxans),
                     colony_prosperity=settlement.get("prosperity_score", 0),
                 )
                 prompt = build_faction_prompt(view, PREFERRED_OLLAMA_MODEL)
@@ -987,7 +987,7 @@ Directives:"""
             if recent:
                 view = build_historian_view(
                     recent_events=recent,
-                    population=len(thronglets),
+                    population=len(praxans),
                     settlement_summary=settlement.get("district_identity", "homestead"),
                     faction_count=len(faction_manager.factions) if faction_manager else 0,
                     memory_civ_digest=self.llm_memory.civilization.digest_text(),
@@ -1013,7 +1013,7 @@ Directives:"""
             if sched.submit(CHANNEL_MEMORY, prompt, priority=2, stale_key=f"mem_{int(current_time)}"):
                 self._channel_last_fire[CHANNEL_MEMORY] = current_time
 
-    def poll_llm_channels(self, thronglets, resources, buildings, narrative_panel=None, faction_manager=None):
+    def poll_llm_channels(self, praxans, resources, buildings, narrative_panel=None, faction_manager=None):
         """Process completed multi-channel LLM jobs."""
         if not self.llm_scheduler:
             return
@@ -1053,7 +1053,7 @@ Directives:"""
                     self.intervention_stats["total_queries"] += 1
                     if result.get("intervened"):
                         self.intervention_stats["interventions"] += 1
-                    self.process_communal_tasks(thronglets, buildings, resources, faction_manager)
+                    self.process_communal_tasks(praxans, buildings, resources, faction_manager)
                     if payload.get("event_framing") and narrative_panel:
                         narrative_panel.add_message(payload["event_framing"], "Strategy")
                     # Record in memory
@@ -1089,7 +1089,7 @@ Directives:"""
 
     def _build_compact_strategy_request(
         self,
-        thronglets,
+        praxans,
         resources,
         buildings,
         state_summary=None,
@@ -1101,24 +1101,24 @@ Directives:"""
             building_counts[building.building_type] = building_counts.get(building.building_type, 0) + 1
 
         settlement = self.current_settlement_state or {}
-        avg_hunger = sum(t.needs["hunger"] for t in thronglets) / max(1, len(thronglets))
-        avg_energy = sum(t.needs["energy"] for t in thronglets) / max(1, len(thronglets))
-        avg_health = sum(t.health for t in thronglets) / max(1, len(thronglets)) if thronglets else 100
-        avg_happiness = sum(t.happiness for t in thronglets) / max(1, len(thronglets)) if thronglets else 100
-        avg_morale = sum(getattr(t, "morale", 65) for t in thronglets) / max(1, len(thronglets)) if thronglets else 65
-        diseased_count = sum(1 for t in thronglets if t.diseased)
-        total_food_inv = sum(t.inventory["food"] for t in thronglets)
-        total_wood_inv = sum(t.inventory["wood"] for t in thronglets)
-        total_stone_inv = sum(t.inventory["stone"] for t in thronglets)
+        avg_hunger = sum(t.needs["hunger"] for t in praxans) / max(1, len(praxans))
+        avg_energy = sum(t.needs["energy"] for t in praxans) / max(1, len(praxans))
+        avg_health = sum(t.health for t in praxans) / max(1, len(praxans)) if praxans else 100
+        avg_happiness = sum(t.happiness for t in praxans) / max(1, len(praxans)) if praxans else 100
+        avg_morale = sum(getattr(t, "morale", 65) for t in praxans) / max(1, len(praxans)) if praxans else 65
+        diseased_count = sum(1 for t in praxans if t.diseased)
+        total_food_inv = sum(t.inventory["food"] for t in praxans)
+        total_wood_inv = sum(t.inventory["wood"] for t in praxans)
+        total_stone_inv = sum(t.inventory["stone"] for t in praxans)
         map_food = sum(1 for r in resources if r.resource_type == "food" and not r.collected)
         map_wood = sum(1 for r in resources if r.resource_type == "wood" and not r.collected)
         map_stone = sum(1 for r in resources if r.resource_type == "stone" and not r.collected)
         faction_count = len(getattr(faction_manager, "factions", {})) if faction_manager else 0
 
-        thronglet_lines = "\n".join(
+        praxan_lines = "\n".join(
             [
                 f"- {t.id}: role={t.role or 'unassigned'}, hunger={int(t.needs['hunger'])}, energy={int(t.needs['energy'])}, health={int(t.health)}, morale={int(getattr(t, 'morale', 65))}, carrying={t.inventory}"
-                for t in thronglets[:8]
+                for t in praxans[:8]
             ]
         ) or "- none"
         crisis_flags = ", ".join(state_summary.get("crisis_flags", [])) if state_summary else "none"
@@ -1153,13 +1153,13 @@ Crisis flags: {crisis_flags}
 Current focus: {self.current_focus}
 
 Colony:
-- Population: {len(thronglets)}
+- Population: {len(praxans)}
 - Buildings: {available_buildings}
 - Resources on map: food={map_food}, wood={map_wood}, stone={map_stone}
 - Carrying: food={total_food_inv}, wood={total_wood_inv}, stone={total_stone_inv}
 - Avg needs: hunger={avg_hunger:.0f}, energy={avg_energy:.0f}, health={avg_health:.0f}, happiness={avg_happiness:.0f}, morale={avg_morale:.0f}
 - Colony Wealth: {self.session_stats.get('colony_wealth', 0):.0f} (higher wealth = deadlier threats)
-- Diseased thronglets: {diseased_count}
+- Diseased praxans: {diseased_count}
 - District: {settlement.get('district_identity', 'homestead')}
 - Prosperity: {int(settlement.get('prosperity_score', 0.0) * 100)}%
 - Culture: {int(settlement.get('culture_score', 0.0) * 100)}%
@@ -1169,8 +1169,8 @@ Colony:
 Faction snapshot:
 {faction_text}
 
-Thronglet snapshot:
-{thronglet_lines}
+Praxan snapshot:
+{praxan_lines}
 
 Building rules:
 {chr(10).join(format_building_prompt_lines())}
@@ -1207,14 +1207,14 @@ JSON schema:
         return {
             "prompt": prompt,
             "reason": intervention_reason or "routine",
-            "population": len(thronglets),
+            "population": len(praxans),
             "resource_count": sum(1 for resource in resources if not resource.collected),
             "building_count": len(buildings),
         }
 
     def queue_strategy_query(
         self,
-        thronglets,
+        praxans,
         resources,
         buildings,
         state_summary=None,
@@ -1225,7 +1225,7 @@ JSON schema:
             return False
 
         request = self._build_compact_strategy_request(
-            thronglets,
+            praxans,
             resources,
             buildings,
             state_summary=state_summary,
@@ -1234,7 +1234,7 @@ JSON schema:
         )
         self.pending_strategy_job = start_async_llm_job(request["prompt"], "advisor", request)
         self.last_query_time = time.time()
-        self.last_pop_count = len(thronglets)
+        self.last_pop_count = len(praxans)
         self.last_llm_error = None
         print(
             f"[Advisor] Queued async strategy review: pop={request['population']}, resources={request['resource_count']}, buildings={request['building_count']}"
@@ -1285,7 +1285,7 @@ JSON schema:
         self.session_stats["current_doctrine"] = doctrine
         self.session_stats["current_advisory_priorities"] = list(self.council_state.get("strategic_priorities", []))
 
-    def _apply_strategy_response(self, response_text, model_used, thronglets, resources, buildings, narrative_panel=None, faction_manager=None):
+    def _apply_strategy_response(self, response_text, model_used, praxans, resources, buildings, narrative_panel=None, faction_manager=None):
         self.last_model_used = model_used or self.last_model_used
         self.last_llm_error = None
 
@@ -1301,13 +1301,13 @@ JSON schema:
         else:
             self._apply_bounded_advisory_payload(advisory_payload, faction_manager=faction_manager)
             validated_individual = {}
-            for thronglet_id, instruction in list(self.json_directives.get("individual", {}).items()):
+            for praxan_id, instruction in list(self.json_directives.get("individual", {}).items()):
                 directive = {"action": instruction, "priority": 8}
-                is_valid, errors = self.validate_directive(directive, thronglets, buildings, resources)
+                is_valid, errors = self.validate_directive(directive, praxans, buildings, resources)
                 if is_valid:
-                    validated_individual[thronglet_id] = instruction
+                    validated_individual[praxan_id] = instruction
                 else:
-                    print(f"[Directive Validation] Invalid directive for thronglet {thronglet_id}: {', '.join(errors)}")
+                    print(f"[Directive Validation] Invalid directive for praxan {praxan_id}: {', '.join(errors)}")
             self.json_directives["individual"] = validated_individual
             self.directives = [
                 {
@@ -1352,7 +1352,7 @@ JSON schema:
 
         return {"intervened": intervened}
 
-    def _apply_strategy_failure(self, error, thronglets, buildings):
+    def _apply_strategy_failure(self, error, praxans, buildings):
         self.last_llm_error = str(error)
         print(f"[Civilization Advisor] Async query failed: {error}")
         print(f"[Civilization Advisor] Make sure Ollama is running: 'ollama serve'")
@@ -1362,11 +1362,11 @@ JSON schema:
         for building in buildings:
             building_counts[building.building_type] = building_counts.get(building.building_type, 0) + 1
 
-        if len(thronglets) < 3:
+        if len(praxans) < 3:
             fallback_action = "gather food and wood to build first house"
-        elif building_counts.get("well", 0) < len(thronglets) // 10:
+        elif building_counts.get("well", 0) < len(praxans) // 10:
             fallback_action = "build 1 well immediately"
-        elif building_counts.get("farm", 0) < len(thronglets) / 2:
+        elif building_counts.get("farm", 0) < len(praxans) / 2:
             fallback_action = "build farms for food production"
         else:
             fallback_action = "continue gathering resources"
@@ -1378,22 +1378,22 @@ JSON schema:
         ]
         return {"intervened": True}
 
-    def _build_goal_assignment_request(self, thronglets, buildings):
+    def _build_goal_assignment_request(self, praxans, buildings):
         settlement = self.current_settlement_state or {}
-        avg_hunger = sum(t.needs["hunger"] for t in thronglets) / max(1, len(thronglets))
-        thronglet_snapshot = "\n".join(
+        avg_hunger = sum(t.needs["hunger"] for t in praxans) / max(1, len(praxans))
+        praxan_snapshot = "\n".join(
             [
                 f"- {t.id}: role={t.role or 'unassigned'}, hunger={int(t.needs['hunger'])}, energy={int(t.needs['energy'])}, morale={int(getattr(t, 'morale', 65))}, biome={t.favorite_biome}"
-                for t in thronglets[:8]
+                for t in praxans[:8]
             ]
         ) or "- none"
 
-        prompt = f"""Assign at most 3 personal goals to specific thronglets.
+        prompt = f"""Assign at most 3 personal goals to specific praxans.
 Respond with plain lines only.
 No markdown. No JSON. No <think> tags.
 
 Colony:
-- Population: {len(thronglets)}
+- Population: {len(praxans)}
 - Buildings: {len(buildings)}
 - Avg hunger: {avg_hunger:.0f}
 - Research points: {self.research_points}
@@ -1401,11 +1401,11 @@ Colony:
 - Prosperity: {int(settlement.get('prosperity_score', 0.0) * 100)}%
 - Culture: {int(settlement.get('culture_score', 0.0) * 100)}%
 
-Thronglets:
-{thronglet_snapshot}
+Praxans:
+{praxan_snapshot}
 
 Format:
-thronglet_id|goal_type|target|reasoning
+praxan_id|goal_type|target|reasoning
 
 Goal types:
 {chr(10).join(format_goal_type_lines())}
@@ -1413,7 +1413,7 @@ Goal types:
 Directives:"""
         return {"prompt": prompt, "assigned_at": time.time()}
 
-    def _apply_goal_assignments(self, response_text, thronglets, assigned_at):
+    def _apply_goal_assignments(self, response_text, praxans, assigned_at):
         assignments = 0
         for line in sanitize_llm_response(response_text).split("\n"):
             line = line.strip()
@@ -1423,23 +1423,23 @@ Directives:"""
             if len(parts) < 3:
                 continue
             try:
-                thronglet_id = int(parts[0].strip())
+                praxan_id = int(parts[0].strip())
             except ValueError:
                 continue
 
             goal_type = parts[1].strip()
             target = parts[2].strip() if len(parts) > 2 else "auto"
             reason = parts[3].strip() if len(parts) > 3 else "LLM assigned"
-            for thronglet in thronglets:
-                if thronglet.id == thronglet_id:
-                    thronglet.personal_goal = {"type": goal_type, "target": target, "reason": reason}
-                    thronglet.goal_assigned_time = assigned_at
+            for praxan in praxans:
+                if praxan.id == praxan_id:
+                    praxan.personal_goal = {"type": goal_type, "target": target, "reason": reason}
+                    praxan.goal_assigned_time = assigned_at
                     assignments += 1
-                    print(f"[Goal] Thronglet {thronglet_id} assigned: {goal_type}")
+                    print(f"[Goal] Praxan {praxan_id} assigned: {goal_type}")
                     break
         return assignments
 
-    def poll_async_jobs(self, thronglets, resources, buildings, narrative_panel=None, faction_manager=None):
+    def poll_async_jobs(self, praxans, resources, buildings, narrative_panel=None, faction_manager=None):
         if self.pending_strategy_job and self.pending_strategy_job["done"].is_set():
             job = self.pending_strategy_job
             self.pending_strategy_job = None
@@ -1447,12 +1447,12 @@ Directives:"""
             self.intervention_stats["total_queries"] += 1
 
             if job.get("error") is not None:
-                result = self._apply_strategy_failure(job["error"], thronglets, buildings)
+                result = self._apply_strategy_failure(job["error"], praxans, buildings)
             else:
                 result = self._apply_strategy_response(
                     job.get("response_text", ""),
                     job.get("model_used"),
-                    thronglets,
+                    praxans,
                     resources,
                     buildings,
                     narrative_panel=narrative_panel,
@@ -1460,7 +1460,7 @@ Directives:"""
                 )
                 self.query_count += 1
 
-            self.process_communal_tasks(thronglets, buildings, resources, faction_manager)
+            self.process_communal_tasks(praxans, buildings, resources, faction_manager)
             if result.get("intervened"):
                 self.intervention_stats["interventions"] += 1
                 if job.get("metadata", {}).get("reason") == "crisis":
@@ -1483,7 +1483,7 @@ Directives:"""
                 self.last_llm_error = None
                 self._apply_goal_assignments(
                     job.get("response_text", ""),
-                    thronglets,
+                    praxans,
                     job.get("metadata", {}).get("assigned_at", time.time()),
                 )
     
@@ -1593,13 +1593,13 @@ Directives:"""
             
             # Extract individual directives
             if 'individual' in parsed and isinstance(parsed['individual'], dict):
-                for thronglet_id_str, instruction in parsed['individual'].items():
+                for praxan_id_str, instruction in parsed['individual'].items():
                     try:
-                        thronglet_id = int(thronglet_id_str)
-                        self.json_directives['individual'][thronglet_id] = str(instruction)
-                        print(f"[JSON Directive] Assigned to thronglet {thronglet_id}: {instruction}")
+                        praxan_id = int(praxan_id_str)
+                        self.json_directives['individual'][praxan_id] = str(instruction)
+                        print(f"[JSON Directive] Assigned to praxan {praxan_id}: {instruction}")
                     except (ValueError, TypeError):
-                        print(f"[JSON Directive] Warning: Invalid thronglet ID: {thronglet_id_str}")
+                        print(f"[JSON Directive] Warning: Invalid praxan ID: {praxan_id_str}")
             
             # Extract communal task
             if 'communal' in parsed and parsed['communal']:
@@ -1626,7 +1626,7 @@ Directives:"""
         
         return self.json_directives
     
-    def process_communal_tasks(self, thronglets, buildings, resources, faction_manager=None):
+    def process_communal_tasks(self, praxans, buildings, resources, faction_manager=None):
         """Process communal task descriptions and create GroupTask objects"""
         import re
         
@@ -1671,10 +1671,10 @@ Directives:"""
                     
                     # Pre-assign faction members to task
                     for member_id in faction.member_ids[:required_count]:  # Assign up to required_count
-                        new_task.add_thronglet(member_id)
+                        new_task.add_praxan(member_id)
                     
                     self.group_tasks.append(new_task)
-                    print(f"[Group Task] Created faction task: {task_type} for faction {faction_id} ({len(new_task.assigned_thronglets)}/{required_count} assigned)")
+                    print(f"[Group Task] Created faction task: {task_type} for faction {faction_id} ({len(new_task.assigned_praxans)}/{required_count} assigned)")
 
         if faction_manager:
             existing_signatures = {
@@ -1716,7 +1716,7 @@ Directives:"""
                 )
                 new_task.faction_id = faction.id
                 for member_id in faction.member_ids[: new_task.required_count]:
-                    new_task.add_thronglet(member_id)
+                    new_task.add_praxan(member_id)
                 self.group_tasks.append(new_task)
                 existing_signatures.add(signature)
                 print(f"[Group Task] Doctrine task: {task_type} for faction {faction.id}")
@@ -1767,7 +1767,7 @@ Directives:"""
         else:
             existing_task.required_count = max(existing_task.required_count, required_count)
     
-    def evaluate_condition(self, condition_str, thronglets, buildings, resources):
+    def evaluate_condition(self, condition_str, praxans, buildings, resources):
         """Evaluate a condition string (e.g., "hunger<50", "population>5")"""
         import re
         
@@ -1780,12 +1780,12 @@ Directives:"""
         operator = match.group(2)
         value = int(match.group(3))
         
-        num_thronglets = len(thronglets)
+        num_praxans = len(praxans)
         
         # Evaluate metrics
         if metric == 'hunger':
-            if thronglets:
-                avg_hunger = sum(t.needs['hunger'] for t in thronglets) / len(thronglets)
+            if praxans:
+                avg_hunger = sum(t.needs['hunger'] for t in praxans) / len(praxans)
                 if operator == '<':
                     return avg_hunger < value
                 elif operator == '<=':
@@ -1796,16 +1796,16 @@ Directives:"""
                     return avg_hunger >= value
         elif metric == 'population':
             if operator == '>':
-                return num_thronglets > value
+                return num_praxans > value
             elif operator == '>=':
-                return num_thronglets >= value
+                return num_praxans >= value
             elif operator == '<':
-                return num_thronglets < value
+                return num_praxans < value
             elif operator == '<=':
-                return num_thronglets <= value
+                return num_praxans <= value
         elif metric == 'energy':
-            if thronglets:
-                avg_energy = sum(t.needs['energy'] for t in thronglets) / len(thronglets)
+            if praxans:
+                avg_energy = sum(t.needs['energy'] for t in praxans) / len(praxans)
                 if operator == '<':
                     return avg_energy < value
                 elif operator == '<=':
@@ -1817,17 +1817,17 @@ Directives:"""
         
         return False
     
-    def get_individual_directive(self, thronglet_id):
-        """Get individual directive for a specific thronglet"""
-        return self.json_directives.get('individual', {}).get(thronglet_id, None)
+    def get_individual_directive(self, praxan_id):
+        """Get individual directive for a specific praxan"""
+        return self.json_directives.get('individual', {}).get(praxan_id, None)
     
-    def get_conditional_behaviors(self, thronglets, buildings, resources):
+    def get_conditional_behaviors(self, praxans, buildings, resources):
         """Evaluate conditions and return active behaviors"""
         active_behaviors = []
         conditions = self.json_directives.get('conditions', {})
         
         for condition, behavior in conditions.items():
-            if self.evaluate_condition(condition, thronglets, buildings, resources):
+            if self.evaluate_condition(condition, praxans, buildings, resources):
                 active_behaviors.append(behavior)
                 print(f"[Conditional] Active: {condition} -> {behavior}")
                 
@@ -1844,7 +1844,7 @@ Directives:"""
         
         return active_behaviors
     
-    def validate_directive(self, directive, thronglets, buildings, resources):
+    def validate_directive(self, directive, praxans, buildings, resources):
         """Validate if a directive is feasible given current game state"""
         action = directive.get('action', '').lower()
         errors = []
@@ -1883,9 +1883,9 @@ Directives:"""
                 
                 if not is_conditional:
                     # Only validate resource availability for non-conditional directives
-                    # Check if any thronglet has resources (using pooled resources)
-                    total_wood = sum(t.inventory['wood'] for t in thronglets)
-                    total_stone = sum(t.inventory['stone'] for t in thronglets)
+                    # Check if any praxan has resources (using pooled resources)
+                    total_wood = sum(t.inventory['wood'] for t in praxans)
+                    total_stone = sum(t.inventory['stone'] for t in praxans)
                     
                     if total_wood < required_wood:
                         errors.append(f"Insufficient wood: need {required_wood}, have {total_wood}")
@@ -1914,12 +1914,12 @@ Directives:"""
             party_match = re.search(r'(\d+)', action)
             if party_match:
                 required_pop = int(party_match.group(1))
-                if len(thronglets) < required_pop:
-                    errors.append(f"Insufficient population: need {required_pop}, have {len(thronglets)}")
+                if len(praxans) < required_pop:
+                    errors.append(f"Insufficient population: need {required_pop}, have {len(praxans)}")
         
         return len(errors) == 0, errors
     
-    def parse_evolution_commands(self, response_text, narrative_panel, thronglets, resources, buildings):
+    def parse_evolution_commands(self, response_text, narrative_panel, praxans, resources, buildings):
         """Parse and execute evolution commands from LLM"""
         lines = sanitize_llm_response(response_text).split('\n')
         
@@ -1977,9 +1977,9 @@ Directives:"""
                             
                             if ability.get('instant'):
                                 if ability_name == 'heal_wave':
-                                    for t in thronglets:
+                                    for t in praxans:
                                         t.health = min(100, t.health + 50)
-                                    narrative_panel.add_message("HEAL WAVE: All thronglets +50 health!", 'Achievement')
+                                    narrative_panel.add_message("HEAL WAVE: All praxans +50 health!", 'Achievement')
                                 elif ability_name == 'resource_blessing':
                                     for _ in range(5):
                                         x = random.randint(50, WINDOW_WIDTH - 50)
@@ -1999,10 +1999,10 @@ Directives:"""
                     parts = line.split('|')
                     if len(parts) >= 2:
                         challenge_type = parts[1].strip().lower()
-                        self.spawn_challenge(challenge_type, thronglets, resources, buildings, narrative_panel)
+                        self.spawn_challenge(challenge_type, praxans, resources, buildings, narrative_panel)
                         self.challenge_cooldown = time.time() + 180  # 3 min cooldown
     
-    def spawn_challenge(self, challenge_type, thronglets, resources, buildings, narrative_panel):
+    def spawn_challenge(self, challenge_type, praxans, resources, buildings, narrative_panel):
         """Spawn emergent challenges"""
         if challenge_type == 'drought':
             challenge = {
@@ -2042,7 +2042,7 @@ Directives:"""
             self.active_challenges.append(challenge)
             narrative_panel.add_message("CHALLENGE: Resource bounty! Collect 10 in 60s", 'Achievement')
     
-    def assign_individual_goals(self, thronglets, buildings, resources, world_map):
+    def assign_individual_goals(self, praxans, buildings, resources, world_map):
         """Queue personal goal generation without blocking the main loop."""
         current_time = time.time()
 
@@ -2056,8 +2056,8 @@ Directives:"""
         
         self.last_goal_assignment = current_time
         
-        # Skip if no thronglets
-        if not thronglets:
+        # Skip if no praxans
+        if not praxans:
             return
         
         # Skip quietly if LLM support is disabled or unavailable
@@ -2067,18 +2067,18 @@ Directives:"""
         if self.has_pending_llm_jobs():
             return
 
-        request = self._build_goal_assignment_request(thronglets, buildings)
+        request = self._build_goal_assignment_request(praxans, buildings)
         self.pending_goal_job = start_async_llm_job(request["prompt"], "goals", request)
         self.last_goal_assignment = current_time
         self.last_llm_error = None
-        print(f"[Goal Assignment] Queued async personal goals for {len(thronglets)} thronglets")
+        print(f"[Goal Assignment] Queued async personal goals for {len(praxans)} praxans")
     
-    def calculate_colony_wealth(self, thronglets, buildings, resources):
+    def calculate_colony_wealth(self, praxans, buildings, resources):
         """Calculate total colony wealth based on population, buildings, and stockpiles"""
         wealth = 0.0
         
         # 1. Population wealth (base value + skills)
-        for t in thronglets:
+        for t in praxans:
             wealth += 500  # Base value
             # Skills
             for skill_info in getattr(t, 'skills', {}).values():
@@ -2098,7 +2098,7 @@ Directives:"""
             wealth += base_value * getattr(b, 'level', 1)
             
         # 3. Resource Stockpiles
-        for t in thronglets:
+        for t in praxans:
             inv = getattr(t, 'inventory', {})
             wealth += inv.get('wood', 0) * 10
             wealth += inv.get('stone', 0) * 15
@@ -2106,12 +2106,12 @@ Directives:"""
             
         return wealth
 
-    def calculate_difficulty(self, thronglets, buildings, resources=None):
+    def calculate_difficulty(self, praxans, buildings, resources=None):
         """Calculate challenge difficulty based on dynamic colony wealth"""
         if resources is None:
             resources = []
             
-        wealth = self.calculate_colony_wealth(thronglets, buildings, resources)
+        wealth = self.calculate_colony_wealth(praxans, buildings, resources)
         self.session_stats['colony_wealth'] = wealth
         
         # Scale: 

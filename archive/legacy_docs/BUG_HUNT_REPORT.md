@@ -1,4 +1,4 @@
-# Bug Hunt Report - Thronglets Game
+# Bug Hunt Report - Praxans Game
 Generated: 2025-11-03
 
 ## Critical Bugs Fixed

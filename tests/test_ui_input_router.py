@@ -48,13 +48,13 @@ class UIInputRouterTests(unittest.TestCase):
         npc = SimpleNamespace(x=0.0, y=0.0, visible=True)
         base_args = {
             "screen_pos": (130, 100),
-            "thronglets": [],
+            "praxans": [],
             "buildings": [],
             "resources": [],
             "encounters": [],
             "hazards": [],
             "npcs": [npc],
-            "thronglet_radius": 10.0,
+            "praxan_radius": 10.0,
             "building_size": 16.0,
             "resource_radii": {"food": 8.0, "wood": 10.0, "stone": 10.0},
         }

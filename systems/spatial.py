@@ -3,17 +3,17 @@ import pygame.gfxdraw
 import math
 import random
 from datetime import datetime
-from thronglets_game import *
+from praxans_game import *
 
 class FogOfWar:
     """Manages fog of war - areas not yet explored are hidden"""
     def __init__(self, world_width, world_height):
         self.fog_grid = {}  # {(tile_x, tile_y): visibility_level (0-255)}
-        self.visibility_radius = 60  # Pixels around each thronglet (much smaller)
+        self.visibility_radius = 60  # Pixels around each praxan (much smaller)
         self.world_width = world_width
         self.world_height = world_height
     
-    def update(self, thronglets, buildings=None, world_map=None):
+    def update(self, praxans, buildings=None, world_map=None):
         """Update fog using Line of Sight (Raycasting)"""
         # Precompute vision-blocking tiles from buildings securely
         blocking_tiles = set()
@@ -95,15 +95,15 @@ class FogOfWar:
                         err += dx
                         cy += sy
 
-        for thronglet in thronglets:
+        for praxan in praxans:
             # Apply exploration skill bonus to visibility radius
             radius = self.visibility_radius
-            if thronglet.role == 'explorer':
-                radius = int(self.visibility_radius * thronglet.get_exploration_bonus())
+            if praxan.role == 'explorer':
+                radius = int(self.visibility_radius * praxan.get_exploration_bonus())
             
             tile_radius = int(radius / TILE_SIZE) + 1
-            tile_center_x = int(thronglet.x // TILE_SIZE)
-            tile_center_y = int(thronglet.y // TILE_SIZE)
+            tile_center_x = int(praxan.x // TILE_SIZE)
+            tile_center_y = int(praxan.y // TILE_SIZE)
             
             _reveal_los(tile_center_x, tile_center_y, tile_radius)
             
@@ -160,7 +160,7 @@ class FogOfWar:
 
 
 class TerritoryManager:
-    """Manages territory claiming based on thronglet presence and buildings using Voronoi diagram"""
+    """Manages territory claiming based on praxan presence and buildings using Voronoi diagram"""
     def __init__(self, world_width, world_height):
         self.territory_grid = {}  # {(tile_x, tile_y): {'claim_strength': 0-100, 'claimed_time': timestamp, 'center_type': 'building'|'exploration'}}
         self.world_width = world_width
@@ -174,10 +174,10 @@ class TerritoryManager:
         self.voronoi_cache_valid = False
         self.VORONOI_RECALC_INTERVAL = 5.0  # Recalculate every 5 seconds max
     
-    def update(self, thronglets, buildings):
-        """Update territory based on thronglet positions and buildings using Voronoi diagram"""
+    def update(self, praxans, buildings):
+        """Update territory based on praxan positions and buildings using Voronoi diagram"""
         current_time = time.time()
-        current_population = len(thronglets) + len(buildings)
+        current_population = len(praxans) + len(buildings)
         
         # Check if we need to recalculate Voronoi diagram
         needs_recalculation = (
@@ -187,13 +187,13 @@ class TerritoryManager:
         )
         
         if needs_recalculation:
-            self._calculate_voronoi_cells(thronglets, buildings)
+            self._calculate_voronoi_cells(praxans, buildings)
             self.last_voronoi_calculation = current_time
             self.last_population_count = current_population
             self.voronoi_cache_valid = True
         
         # Update claim strength based on Voronoi assignment
-        self._update_claim_strength_from_voronoi(thronglets, buildings)
+        self._update_claim_strength_from_voronoi(praxans, buildings)
         
         # Decay unclaimed tiles
         to_remove = []
@@ -205,15 +205,15 @@ class TerritoryManager:
         for tile_pos in to_remove:
             del self.territory_grid[tile_pos]
     
-    def _calculate_voronoi_cells(self, thronglets, buildings):
-        """Calculate Voronoi diagram using thronglet positions and building centers as seeds"""
+    def _calculate_voronoi_cells(self, praxans, buildings):
+        """Calculate Voronoi diagram using praxan positions and building centers as seeds"""
         self.voronoi_seeds = []
         self.voronoi_cache = {}
         seed_id = 0
         
-        # Collect seeds from thronglets
-        for thronglet in thronglets:
-            self.voronoi_seeds.append((thronglet.x, thronglet.y, seed_id, 'exploration'))
+        # Collect seeds from praxans
+        for praxan in praxans:
+            self.voronoi_seeds.append((praxan.x, praxan.y, seed_id, 'exploration'))
             seed_id += 1
         
         # Collect seeds from buildings
@@ -292,15 +292,15 @@ class TerritoryManager:
                 if closest_seed_id is not None:
                     self.voronoi_cache[(tile_x, tile_y)] = (closest_seed_id, closest_center_type)
     
-    def _update_claim_strength_from_voronoi(self, thronglets, buildings):
+    def _update_claim_strength_from_voronoi(self, praxans, buildings):
         """Update claim strength based on Voronoi assignment and seed proximity"""
         current_time = time.time()
         
         # Build seed lookup by ID
         seed_lookup = {}
         seed_id = 0
-        for thronglet in thronglets:
-            seed_lookup[seed_id] = ('thronglet', thronglet.x, thronglet.y)
+        for praxan in praxans:
+            seed_lookup[seed_id] = ('praxan', praxan.x, praxan.y)
             seed_id += 1
         for building in buildings:
             seed_lookup[seed_id] = ('building', building.x, building.y, building.building_type)
@@ -446,7 +446,7 @@ class CityPlanner:
         self.building_priority = []  # LLM-recommended building types
         self.proposed_sites = []  # [(x, y, building_type)] for ghost markers
     
-    def update(self, thronglets, buildings, advisor, current_time):
+    def update(self, praxans, buildings, advisor, current_time):
         """Update city planner, check for plan updates"""
         # Generate zones if territory exists
         if self.territory_manager.territory_grid:
@@ -455,10 +455,10 @@ class CityPlanner:
                 self._generate_zones(bounds['center_x'], bounds['center_y'])
         
         # Check if we need a new city plan
-        num_thronglets = len(thronglets)
-        if (num_thronglets > 10 and not self.current_plan) or \
+        num_praxans = len(praxans)
+        if (num_praxans > 10 and not self.current_plan) or \
            (current_time - self.last_plan_update > self.plan_update_interval):
-            self._request_city_plan_from_llm(thronglets, buildings, advisor)
+            self._request_city_plan_from_llm(praxans, buildings, advisor)
             self.last_plan_update = current_time
     
     def _generate_zones(self, center_x, center_y):
@@ -504,13 +504,13 @@ class CityPlanner:
         tile_y = int(y // TILE_SIZE)
         return self.zones.get((tile_x, tile_y), 'mixed')
     
-    def score_building_location(self, x, y, building_type, buildings, hazards, world_map, thronglets=None):
+    def score_building_location(self, x, y, building_type, buildings, hazards, world_map, praxans=None):
         """Score a building location 0-100, checking strict grid footprints for collision."""
         score = 50  # Base score
         
         # Pull footprint sizes
         from graphics.content import BUILDING_FOOTPRINT_ART
-        from thronglets_game import TILE_SIZE
+        from praxans_game import TILE_SIZE
         # Default to 1x1 if unknown
         recipe = BUILDING_FOOTPRINT_ART.get(building_type)
         gw = recipe.grid_width if recipe else 1
@@ -525,23 +525,23 @@ class CityPlanner:
         else:
             score -= 15  # Soft penalty
         
-        # Boids clustering: Check nearby thronglet density (prefer areas with thronglets)
-        if thronglets:
-            nearby_thronglet_count = 0
+        # Boids clustering: Check nearby praxan density (prefer areas with praxans)
+        if praxans:
+            nearby_praxan_count = 0
             density_radius = 150  # Check within 150px
-            for thronglet in thronglets:
-                distance = math.sqrt((thronglet.x - x)**2 + (thronglet.y - y)**2)
+            for praxan in praxans:
+                distance = math.sqrt((praxan.x - x)**2 + (praxan.y - y)**2)
                 if distance < density_radius:
-                    nearby_thronglet_count += 1
+                    nearby_praxan_count += 1
             
-            # Bonus for clustering (2-4 thronglets nearby is ideal)
-            if 2 <= nearby_thronglet_count <= 4:
+            # Bonus for clustering (2-4 praxans nearby is ideal)
+            if 2 <= nearby_praxan_count <= 4:
                 score += 15  # Good clustering
-            elif nearby_thronglet_count >= 5:
+            elif nearby_praxan_count >= 5:
                 score += 10  # Still good but getting crowded
-            elif nearby_thronglet_count == 1:
+            elif nearby_praxan_count == 1:
                 score += 5  # Some activity
-            elif nearby_thronglet_count == 0:
+            elif nearby_praxan_count == 0:
                 score -= 5  # Isolated location (slight penalty)
         
         # Proximity and COLLISION bonuses/penalties
@@ -626,13 +626,13 @@ class CityPlanner:
         
         return max(0, min(100, score))  # Clamp 0-100
     
-    def find_best_location(self, building_type, buildings, hazards, search_center, search_radius=150, thronglets=None):
+    def find_best_location(self, building_type, buildings, hazards, search_center, search_radius=150, praxans=None):
         """Find best location for a building"""
         best_score = -1
         best_x, best_y = search_center
         
         # Sample 30 candidate positions
-        from thronglets_game import TILE_SIZE
+        from praxans_game import TILE_SIZE
         for _ in range(30):
             # Random offset within search radius
             angle = random.uniform(0, 2 * math.pi)
@@ -647,7 +647,7 @@ class CityPlanner:
             # Score this location
             score = self.score_building_location(
                 candidate_x, candidate_y, building_type, 
-                buildings, hazards, self.world_map, thronglets
+                buildings, hazards, self.world_map, praxans
             )
             
             if score > best_score:
@@ -656,7 +656,7 @@ class CityPlanner:
         
         return best_x, best_y, best_score
     
-    def _request_city_plan_from_llm(self, thronglets, buildings, advisor):
+    def _request_city_plan_from_llm(self, praxans, buildings, advisor):
         """Read the LLM council's building_priority and compute proposed sites."""
         # Pull building priority from the advisor's latest council output
         bp = list(getattr(advisor, 'session_stats', {}).get('building_priority', []))
@@ -673,7 +673,7 @@ class CityPlanner:
                 search_center = (bounds['center_x'], bounds['center_y'])
                 bx, by, bscore = self.find_best_location(
                     target_type, buildings, [], search_center,
-                    search_radius=200, thronglets=thronglets,
+                    search_radius=200, praxans=praxans,
                 )
                 if bscore > 40:
                     self.proposed_sites.append((bx, by, target_type))

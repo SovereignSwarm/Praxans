@@ -5,16 +5,16 @@ import math
 from datetime import datetime
 import random
 from collections import deque
-from thronglets_game import *
+from praxans_game import *
 from graphics.palette import *
 
-class Thronglet:
+class Praxan:
     """A cute AI-powered creature"""
     _next_id = 0  # Class variable to track unique IDs
     
     def __init__(self, x, y):
-        self.id = Thronglet._next_id
-        Thronglet._next_id += 1
+        self.id = Praxan._next_id
+        Praxan._next_id += 1
         self.x = x
         self.y = y
         self.vx = 0
@@ -98,8 +98,8 @@ class Thronglet:
         }
         
         # New: Social
-        self.bonds = {}  # {thronglet_id: bond_strength}
-        self.faction_id = None  # ID of faction this thronglet belongs to
+        self.bonds = {}  # {praxan_id: bond_strength}
+        self.faction_id = None  # ID of faction this praxan belongs to
         self.base_mood = random.uniform(40, 60)
         self.moodlets = []  # List of dicts: {'name': str, 'value': float, 'duration': float|None, 'start_time': float}
         self.happiness = self.base_mood  # Will be dynamically calculated from base_mood and moodlets
@@ -214,7 +214,7 @@ class Thronglet:
         self.current_action = f"Mental Break: {self.mental_state}"
         self.mental_break_cooldown = 300  # 5 minutes before another break
         self.add_moodlet("Catharsis", 30, 300, current_time)
-        print(f"[Mental Break] Thronglet {self.id} suffered a {severity} break: {self.mental_state}")
+        print(f"[Mental Break] Praxan {self.id} suffered a {severity} break: {self.mental_state}")
 
     def execute_mental_break(self, resources, buildings, delta_time, current_time):
         if self.mental_state == STATE_SAD_WANDER:
@@ -232,8 +232,8 @@ class Thronglet:
                         target.collected = True
                         self.needs['hunger'] = 100
                     elif dist > 0:
-                        self.vx = (dx/dist) * THRONGLET_SPEED
-                        self.vy = (dy/dist) * THRONGLET_SPEED
+                        self.vx = (dx/dist) * PRAXAN_SPEED
+                        self.vy = (dy/dist) * PRAXAN_SPEED
             self.current_action = "Binge eating"
         elif self.mental_state == STATE_TANTRUM:
             if buildings:
@@ -244,14 +244,14 @@ class Thronglet:
                     self.vx, self.vy = 0, 0
                     # Later: damage building
                 elif dist > 0:
-                    self.vx = (dx/dist) * THRONGLET_SPEED
-                    self.vy = (dy/dist) * THRONGLET_SPEED
+                    self.vx = (dx/dist) * PRAXAN_SPEED
+                    self.vy = (dy/dist) * PRAXAN_SPEED
             self.current_action = "Throwing a tantrum"
         elif self.mental_state == STATE_CATATONIC:
             self.vx, self.vy = 0, 0
             self.current_action = "Catatonic state"
         elif self.mental_state == STATE_GIVE_UP:
-            self.vx, self.vy = THRONGLET_SPEED, 0
+            self.vx, self.vy = PRAXAN_SPEED, 0
             self.current_action = "Giving up and leaving"
         
         return None
@@ -342,15 +342,15 @@ class Thronglet:
         self.inspiration = clamp(self.inspiration + inspiration_delta, 0.0, 100.0)
         self.settlement_prosperity = settlement_state.get("prosperity_score", 0.5)
 
-    def update_position(self, modifiers=None, world_map=None, world_width=None, world_height=None, buildings=None, other_thronglets=None):
-        """Move the thronglet and keep it within bounds with obstacle avoidance"""
+    def update_position(self, modifiers=None, world_map=None, world_width=None, world_height=None, buildings=None, other_praxans=None):
+        """Move the praxan and keep it within bounds with obstacle avoidance"""
         if self.downed:
             self.vx = 0
             self.vy = 0
             return
             
         # Disease and body parts slow movement
-        speed_mod = modifiers.get_modifier('thronglet_speed') if modifiers else 1.0
+        speed_mod = modifiers.get_modifier('praxan_speed') if modifiers else 1.0
         
         trait_speed_mult = 1.0
         for trait in getattr(self, 'traits', []):
@@ -391,12 +391,12 @@ class Thronglet:
             else:
                 # Move toward waypoint
                 if distance > 0:
-                    self.vx = (dx / distance) * THRONGLET_SPEED
-                    self.vy = (dy / distance) * THRONGLET_SPEED
+                    self.vx = (dx / distance) * PRAXAN_SPEED
+                    self.vy = (dy / distance) * PRAXAN_SPEED
         
         # Obstacle avoidance using steering behaviors
-        if buildings or other_thronglets:
-            avoidance_force_x, avoidance_force_y = self.avoid_obstacles(buildings or [], other_thronglets or [])
+        if buildings or other_praxans:
+            avoidance_force_x, avoidance_force_y = self.avoid_obstacles(buildings or [], other_praxans or [])
             self.vx += avoidance_force_x * 0.3  # Blend avoidance with desired direction
             self.vy += avoidance_force_y * 0.3
         
@@ -458,14 +458,14 @@ class Thronglet:
             return (1.0 + (level - 1) * SKILL_BONUS_PER_LEVEL) * self.get_morale_focus_bonus()
         return 1.0
     
-    def calculate_pooled_resources(self, other_thronglets):
-        """Calculate available resources from self + nearby thronglets within sharing radius"""
+    def calculate_pooled_resources(self, other_praxans):
+        """Calculate available resources from self + nearby praxans within sharing radius"""
         available_wood = self.inventory.get('wood', 0)
         available_stone = self.inventory.get('stone', 0)
         
-        if other_thronglets:
+        if other_praxans:
             try:
-                for other in other_thronglets:
+                for other in other_praxans:
                     if other is None or not hasattr(other, 'id') or not hasattr(other, 'x') or not hasattr(other, 'y'):
                         continue
                     if other.id == self.id:
@@ -483,11 +483,11 @@ class Thronglet:
         
         return available_wood, available_stone
     
-    def consume_pooled_resources(self, required_wood, required_stone, other_thronglets):
-        """Consume resources: take from self first, then borrow from nearby thronglets
+    def consume_pooled_resources(self, required_wood, required_stone, other_praxans):
+        """Consume resources: take from self first, then borrow from nearby praxans
         Returns True if successfully consumed, False if insufficient"""
         # First calculate if we have enough
-        available_wood, available_stone = self.calculate_pooled_resources(other_thronglets)
+        available_wood, available_stone = self.calculate_pooled_resources(other_praxans)
         
         if available_wood < required_wood or available_stone < required_stone:
             return False
@@ -505,13 +505,13 @@ class Thronglet:
         wood_needed = required_wood - wood_taken_from_self
         stone_needed = required_stone - stone_taken_from_self
         
-        # Borrow remaining from nearby thronglets (nearest first)
+        # Borrow remaining from nearby praxans (nearest first)
         if wood_needed > 0 or stone_needed > 0:
-            # Sort nearby thronglets by distance
-            nearby_thronglets = []
-            if other_thronglets:
+            # Sort nearby praxans by distance
+            nearby_praxans = []
+            if other_praxans:
                 try:
-                    for other in other_thronglets:
+                    for other in other_praxans:
                         if other is None or not hasattr(other, 'id') or not hasattr(other, 'x') or not hasattr(other, 'y'):
                             continue
                         if not hasattr(other, 'inventory'):
@@ -521,17 +521,17 @@ class Thronglet:
                         
                         distance = math.sqrt((other.x - self.x)**2 + (other.y - self.y)**2)
                         if distance < RESOURCE_SHARING_RADIUS:
-                            nearby_thronglets.append((distance, other))
+                            nearby_praxans.append((distance, other))
                 except (AttributeError, TypeError) as e:
-                    # If error finding nearby thronglets, just use self's resources
+                    # If error finding nearby praxans, just use self's resources
                     pass
             
             # Sort by distance (nearest first)
-            nearby_thronglets.sort(key=lambda x: x[0])
+            nearby_praxans.sort(key=lambda x: x[0])
             
-            # Borrow resources from nearest thronglets
+            # Borrow resources from nearest praxans
             # Double-check we don't include self and that objects are still valid
-            for distance, other in nearby_thronglets:
+            for distance, other in nearby_praxans:
                 # Safety check - make sure this isn't self and object is still valid
                 if other is None or other is self:
                     continue
@@ -553,7 +553,7 @@ class Thronglet:
                     if wood_needed <= 0 and stone_needed <= 0:
                         break
                 except (AttributeError, KeyError, TypeError) as e:
-                    # Skip this thronglet if there's an error accessing its inventory
+                    # Skip this praxan if there's an error accessing its inventory
                     continue
         
         return True
@@ -581,7 +581,7 @@ class Thronglet:
         
         return closest, min_distance if closest else None
     
-    def calculate_path(self, target_x, target_y, buildings, world_width, world_height, other_thronglets=None):
+    def calculate_path(self, target_x, target_y, buildings, world_width, world_height, other_praxans=None):
         """Simple A* pathfinding to target, avoiding buildings"""
         import heapq
         
@@ -671,9 +671,9 @@ class Thronglet:
         # No path found, return direct path
         path = [(target_x, target_y)]
         
-        # Apply Boids forces to path if other thronglets are nearby (for multi-waypoint paths)
-        if other_thronglets and len(path) > 1:
-            boids_cohesion, boids_separation = self.get_boids_forces(other_thronglets, cohesion_radius=100)
+        # Apply Boids forces to path if other praxans are nearby (for multi-waypoint paths)
+        if other_praxans and len(path) > 1:
+            boids_cohesion, boids_separation = self.get_boids_forces(other_praxans, cohesion_radius=100)
             if boids_cohesion[0] != 0 or boids_cohesion[1] != 0 or boids_separation[0] != 0 or boids_separation[1] != 0:
                 # Blend Boids forces into path (slight adjustment)
                 adjusted_path = []
@@ -689,7 +689,7 @@ class Thronglet:
         
         return path
     
-    def get_boids_forces(self, other_thronglets, cohesion_radius=100):
+    def get_boids_forces(self, other_praxans, cohesion_radius=100):
         """Calculate Boids forces (cohesion and separation) for group behavior"""
         cohesion_x = 0.0
         cohesion_y = 0.0
@@ -699,8 +699,8 @@ class Thronglet:
         nearby_count = 0
         separation_count = 0
         
-        # Spatial partition: only check thronglets within 200px for performance
-        for other in other_thronglets:
+        # Spatial partition: only check praxans within 200px for performance
+        for other in other_praxans:
             if other == self:
                 continue
             
@@ -709,20 +709,20 @@ class Thronglet:
             distance = math.sqrt(dx**2 + dy**2)
             
             if distance < 200:  # Performance optimization
-                # Cohesion: move toward center of nearby thronglets
+                # Cohesion: move toward center of nearby praxans
                 if distance < cohesion_radius and distance > 0:
                     cohesion_x += dx / distance
                     cohesion_y += dy / distance
                     nearby_count += 1
                 
                 # Separation: avoid crowding (enhanced existing avoid_obstacles logic)
-                if distance < THRONGLET_RADIUS * 4 and distance > 0:
-                    separation_strength = (THRONGLET_RADIUS * 4 - distance) / (THRONGLET_RADIUS * 4)
+                if distance < PRAXAN_RADIUS * 4 and distance > 0:
+                    separation_strength = (PRAXAN_RADIUS * 4 - distance) / (PRAXAN_RADIUS * 4)
                     separation_x -= (dx / distance) * separation_strength
                     separation_y -= (dy / distance) * separation_strength
                     separation_count += 1
         
-        # Normalize cohesion (average direction toward nearby thronglets)
+        # Normalize cohesion (average direction toward nearby praxans)
         if nearby_count > 0:
             cohesion_x /= nearby_count
             cohesion_y /= nearby_count
@@ -741,7 +741,7 @@ class Thronglet:
         
         return (cohesion_x, cohesion_y), (separation_x, separation_y)
     
-    def avoid_obstacles(self, buildings, other_thronglets):
+    def avoid_obstacles(self, buildings, other_praxans):
         """Calculate steering force to avoid obstacles"""
         avoidance_x = 0.0
         avoidance_y = 0.0
@@ -751,23 +751,23 @@ class Thronglet:
             dx = self.x - building.x
             dy = self.y - building.y
             distance = math.sqrt(dx**2 + dy**2)
-            if distance < BUILDING_SIZE + THRONGLET_RADIUS * 3:
+            if distance < BUILDING_SIZE + PRAXAN_RADIUS * 3:
                 # Separation force (stronger when closer)
                 if distance > 0:
-                    strength = (BUILDING_SIZE + THRONGLET_RADIUS * 3 - distance) / (BUILDING_SIZE + THRONGLET_RADIUS * 3)
+                    strength = (BUILDING_SIZE + PRAXAN_RADIUS * 3 - distance) / (BUILDING_SIZE + PRAXAN_RADIUS * 3)
                     avoidance_x += (dx / distance) * strength
                     avoidance_y += (dy / distance) * strength
         
-        # Avoid other thronglets
-        for other in other_thronglets:
+        # Avoid other praxans
+        for other in other_praxans:
             if other == self:
                 continue
             dx = self.x - other.x
             dy = self.y - other.y
             distance = math.sqrt(dx**2 + dy**2)
-            if distance < THRONGLET_RADIUS * 4 and distance > 0:
+            if distance < PRAXAN_RADIUS * 4 and distance > 0:
                 # Separation force
-                strength = (THRONGLET_RADIUS * 4 - distance) / (THRONGLET_RADIUS * 4)
+                strength = (PRAXAN_RADIUS * 4 - distance) / (PRAXAN_RADIUS * 4)
                 avoidance_x += (dx / distance) * strength * 0.5
                 avoidance_y += (dy / distance) * strength * 0.5
         
@@ -793,7 +793,7 @@ class Thronglet:
                 availability = 1.0 if not target.collected else 0.0
                 
                 # Predict energy/hunger depletion
-                travel_time = distance / THRONGLET_SPEED if THRONGLET_SPEED > 0 else 10
+                travel_time = distance / PRAXAN_SPEED if PRAXAN_SPEED > 0 else 10
                 predicted_energy = self.needs['energy'] - (0.021 * travel_time)
                 predicted_hunger = self.needs['hunger'] - (0.035 * travel_time)
                 
@@ -917,22 +917,22 @@ class Thronglet:
         
         return best_action if best_action else (possible_actions[0] if possible_actions else None)
     
-    def get_bonded_thronglets_on_directive(self, directive, other_thronglets):
-        """Get list of bonded thronglets working on the same directive"""
-        if not other_thronglets or not directive:
+    def get_bonded_praxans_on_directive(self, directive, other_praxans):
+        """Get list of bonded praxans working on the same directive"""
+        if not other_praxans or not directive:
             return []
         
         bonded_list = []
         directive_action = directive.get('action', '').lower()
         
-        for other in other_thronglets:
+        for other in other_praxans:
             if other == self:
                 continue
             
             # Check if bond > 50
             bond_strength = self.bonds.get(other.id, 0)
             if bond_strength > 50:
-                # Check if other thronglet is working on similar directive
+                # Check if other praxan is working on similar directive
                 other_action = other.current_action or ""
                 if (directive_action in other_action or 
                     any(keyword in other_action.lower() for keyword in directive_action.split() if len(keyword) > 3)):
@@ -967,9 +967,9 @@ class Thronglet:
             if len(self.state_history) > 10:
                 self.state_history.pop(0)
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {self.id}] State transition: {self.previous_state} -> {new_state}")
+                print(f"[Praxan {self.id}] State transition: {self.previous_state} -> {new_state}")
     
-    def decide_action(self, resources, buildings, delta_time, directives=None, is_night=False, other_thronglets=None, group_tasks=None, conditional_behaviors=None, territory_manager=None, city_planner=None, hazards=None, world_map=None):
+    def decide_action(self, resources, buildings, delta_time, directives=None, is_night=False, other_praxans=None, group_tasks=None, conditional_behaviors=None, territory_manager=None, city_planner=None, hazards=None, world_map=None):
         """Autonomous decision-making based on needs and personality using state machine and behavior tree"""
         current_time = time.time()
         self.update_mood(current_time, delta_time)
@@ -999,7 +999,7 @@ class Thronglet:
                 'group_tasks': group_tasks,
                 'resources': resources,
                 'buildings': buildings,
-                'other_thronglets': other_thronglets,
+                'other_praxans': other_praxans,
                 'is_night': is_night,
                 'delta_time': delta_time,
                 'territory_manager': territory_manager,
@@ -1013,12 +1013,12 @@ class Thronglet:
             except Exception as e:
                 # Graceful degradation on error
                 if VERBOSE_LOGGING:
-                    print(f"[Thronglet {self.id}] Behavior tree error: {e}")
+                    print(f"[Praxan {self.id}] Behavior tree error: {e}")
         
         # Check if we're gathering resources for a building directive and need to continue
         if self.building_resource_goal and self.state == STATE_EXECUTE_DIRECTIVE:
             # Check if we have enough resources now (including pooled)
-            available_wood, available_stone = self.calculate_pooled_resources(other_thronglets if other_thronglets else [])
+            available_wood, available_stone = self.calculate_pooled_resources(other_praxans if other_praxans else [])
             needed_wood = max(0, self.building_resource_goal['wood'] - available_wood)
             needed_stone = max(0, self.building_resource_goal['stone'] - available_stone)
             
@@ -1043,7 +1043,7 @@ class Thronglet:
                         distance = math.sqrt(dx**2 + dy**2)
                         if distance > 0:
                             if distance > 100:
-                                path = self.calculate_path(target_resource.x, target_resource.y, buildings if buildings else [], None, None, other_thronglets)
+                                path = self.calculate_path(target_resource.x, target_resource.y, buildings if buildings else [], None, None, other_praxans)
                                 if len(path) > 1:
                                     self.path = path
                                     self.current_waypoint_index = 1
@@ -1052,8 +1052,8 @@ class Thronglet:
                                     dy = waypoint[1] - self.y
                                     distance = math.sqrt(dx**2 + dy**2)
                             if distance > 0:
-                                self.vx = (dx / distance) * THRONGLET_SPEED
-                                self.vy = (dy / distance) * THRONGLET_SPEED
+                                self.vx = (dx / distance) * PRAXAN_SPEED
+                                self.vy = (dy / distance) * PRAXAN_SPEED
                                 self.current_action = f"directive: gathering {target_resource.resource_type} for building ({needed_wood} wood, {needed_stone} stone needed)"
                                 return None
             else:
@@ -1090,7 +1090,7 @@ class Thronglet:
             self.needs['hunger'] = min(100, self.needs['hunger'] + 30)
             self.current_action = "eating"
             if VERBOSE_LOGGING:
-                print(f"[Thronglet] Auto-ate food, hunger now: {self.needs['hunger']:.1f}")
+                print(f"[Praxan] Auto-ate food, hunger now: {self.needs['hunger']:.1f}")
         
         # State Machine Decision Logic - Priority Order: Needs > Directives > Traits > Wander
         # Check for critical needs first
@@ -1155,7 +1155,7 @@ class Thronglet:
                     if distance > 0:
                         # Use pathfinding if target is far
                         if distance > 50:
-                            path = self.calculate_path(target.x, target.y, buildings, None, None, other_thronglets)
+                            path = self.calculate_path(target.x, target.y, buildings, None, None, other_praxans)
                             if len(path) > 1:
                                 self.path = path
                                 self.current_waypoint_index = 1
@@ -1165,13 +1165,13 @@ class Thronglet:
                                 dy = waypoint[1] - self.y
                                 distance = math.sqrt(dx**2 + dy**2)
                                 if distance > 0:
-                                    self.vx = (dx / distance) * THRONGLET_SPEED
-                                    self.vy = (dy / distance) * THRONGLET_SPEED
+                                    self.vx = (dx / distance) * PRAXAN_SPEED
+                                    self.vy = (dy / distance) * PRAXAN_SPEED
                                     self.current_action = "seeking food (pathfinding)"
                                     return None
                         # Direct movement for close targets
-                        self.vx = (dx / distance) * THRONGLET_SPEED
-                        self.vy = (dy / distance) * THRONGLET_SPEED
+                        self.vx = (dx / distance) * PRAXAN_SPEED
+                        self.vy = (dy / distance) * PRAXAN_SPEED
                         self.current_action = "seeking food"
                         return None
             
@@ -1193,8 +1193,8 @@ class Thronglet:
                     dy = closest_house.y - self.y
                     distance = math.sqrt(dx**2 + dy**2)
                     if distance > 0:
-                        self.vx = (dx / distance) * THRONGLET_SPEED
-                        self.vy = (dy / distance) * THRONGLET_SPEED
+                        self.vx = (dx / distance) * PRAXAN_SPEED
+                        self.vy = (dy / distance) * PRAXAN_SPEED
                         self.current_action = "seeking shelter"
                         self.transition_to_state(STATE_REST)
                         return None
@@ -1220,8 +1220,8 @@ class Thronglet:
                     dy = closest_well.y - self.y
                     distance = math.sqrt(dx**2 + dy**2)
                     if distance > 0:
-                        self.vx = (dx / distance) * THRONGLET_SPEED
-                        self.vy = (dy / distance) * THRONGLET_SPEED
+                        self.vx = (dx / distance) * PRAXAN_SPEED
+                        self.vy = (dy / distance) * PRAXAN_SPEED
                         self.current_action = "seeking water"
                         return None
             
@@ -1290,7 +1290,7 @@ class Thronglet:
                     self.last_state = current_state
                     self.last_action = best_q_action
                     if VERBOSE_LOGGING:
-                        print(f"[Thronglet {self.id}] Q-learning selected: {best_q_action}")
+                        print(f"[Praxan {self.id}] Q-learning selected: {best_q_action}")
                     
                     # CRITICAL FIX: Apply Q-learning to directive priority
                     if directives:
@@ -1304,34 +1304,34 @@ class Thronglet:
             except Exception as e:
                 # Graceful degradation
                 if VERBOSE_LOGGING:
-                    print(f"[Thronglet {self.id}] Q-learning error: {e}")
+                    print(f"[Praxan {self.id}] Q-learning error: {e}")
         
         # Priority 2: Execute directives if needs are met
         if self.state == STATE_EXECUTE_DIRECTIVE:
             # Only execute directives when explicitly in this state
             if directives and self.needs['hunger'] > 50 and self.needs['energy'] > 50:
                 if VERBOSE_LOGGING and time.time() - getattr(self, '_last_directive_log', 0) > 2.0:
-                    print(f"[Thronglet {self.id}] In EXECUTE_DIRECTIVE state, processing {len(directives)} directives")
+                    print(f"[Praxan {self.id}] In EXECUTE_DIRECTIVE state, processing {len(directives)} directives")
                     self._last_directive_log = time.time()
                 # Choose role if we don't have one
                 if not self.role:
                     self.choose_role(directives)
                 
-                # Weight directives by bonds with other thronglets working on same task
+                # Weight directives by bonds with other praxans working on same task
                 weighted_directives = []
                 for directive in directives:
                     priority = directive['priority']
                     
-                    # Check for bonded thronglets working on this directive
-                    bonded_thronglets = self.get_bonded_thronglets_on_directive(directive, other_thronglets)
+                    # Check for bonded praxans working on this directive
+                    bonded_praxans = self.get_bonded_praxans_on_directive(directive, other_praxans)
                     bond_bonus = 0
                     
-                    if bonded_thronglets:
+                    if bonded_praxans:
                         # Calculate average bond strength
-                        avg_bond = sum(self.bonds.get(t.id, 0) for t in bonded_thronglets) / len(bonded_thronglets)
+                        avg_bond = sum(self.bonds.get(t.id, 0) for t in bonded_praxans) / len(bonded_praxans)
                         if avg_bond > 50:
-                            # Increase priority by 2 for each bonded thronglet (capped at +6)
-                            bond_bonus = min(6, len(bonded_thronglets) * 2)
+                            # Increase priority by 2 for each bonded praxan (capped at +6)
+                            bond_bonus = min(6, len(bonded_praxans) * 2)
                     
                     # Create weighted directive
                     weighted_directive = directive.copy()
@@ -1344,10 +1344,10 @@ class Thronglet:
                 # Try to follow highest priority directive
                 directive_executed = False
                 for directive in sorted_directives:
-                    # Apply morale/happiness bonus when working with bonded thronglets
-                    bonded_thronglets = self.get_bonded_thronglets_on_directive(directive, other_thronglets)
-                    if bonded_thronglets:
-                        # Cohesion bonus: working with bonded thronglets increases happiness
+                    # Apply morale/happiness bonus when working with bonded praxans
+                    bonded_praxans = self.get_bonded_praxans_on_directive(directive, other_praxans)
+                    if bonded_praxans:
+                        # Cohesion bonus: working with bonded praxans increases happiness
                         self.happiness = min(100, self.happiness + 0.5)  # Small happiness boost
                     action = directive['action'].lower()
                     priority = directive['priority']
@@ -1404,7 +1404,7 @@ class Thronglet:
                             if distance > 0:
                                 # Use pathfinding for distant resources, direct movement for close ones
                                 if distance > 100:
-                                    path = self.calculate_path(closest_resource.x, closest_resource.y, buildings if buildings else [], None, None, other_thronglets)
+                                    path = self.calculate_path(closest_resource.x, closest_resource.y, buildings if buildings else [], None, None, other_praxans)
                                     if len(path) > 1:
                                         self.path = path
                                         self.current_waypoint_index = 1
@@ -1413,15 +1413,15 @@ class Thronglet:
                                         dy = waypoint[1] - self.y
                                         distance = math.sqrt(dx**2 + dy**2)
                                         if distance > 0:
-                                            self.vx = (dx / distance) * THRONGLET_SPEED
-                                            self.vy = (dy / distance) * THRONGLET_SPEED
+                                            self.vx = (dx / distance) * PRAXAN_SPEED
+                                            self.vy = (dy / distance) * PRAXAN_SPEED
                                             resource_type_name = closest_resource.resource_type
                                             self.current_action = f"directive: moving to {resource_type_name}"
                                             directive_executed = True
                                             return None
                                 # Direct movement for close resources
-                                self.vx = (dx / distance) * THRONGLET_SPEED
-                                self.vy = (dy / distance) * THRONGLET_SPEED
+                                self.vx = (dx / distance) * PRAXAN_SPEED
+                                self.vy = (dy / distance) * PRAXAN_SPEED
                                 resource_type_name = closest_resource.resource_type if closest_resource else (desired_type if desired_type else 'resources')
                                 self.current_action = f"directive: gather {resource_type_name}"
                                 directive_executed = True
@@ -1471,13 +1471,13 @@ class Thronglet:
                                     required_stone = int(required_stone * 1.3)
                                 
                                 # Check if we have enough resources with potential penalty (using pooled resources)
-                                available_wood, available_stone = self.calculate_pooled_resources(other_thronglets)
+                                available_wood, available_stone = self.calculate_pooled_resources(other_praxans)
                                 if available_wood >= required_wood and available_stone >= required_stone:
                                     # Move to best location if not already there
                                     distance_to_location = math.sqrt((best_x - self.x)**2 + (best_y - self.y)**2)
                                     if distance_to_location > 10:
                                         # Pathfind to location
-                                        path = self.calculate_path(best_x, best_y, buildings, None, None, other_thronglets)
+                                        path = self.calculate_path(best_x, best_y, buildings, None, None, other_praxans)
                                         if len(path) > 1:
                                             self.path = path
                                             self.current_waypoint_index = 1
@@ -1488,7 +1488,7 @@ class Thronglet:
                                     self.vx = 0
                                     self.vy = 0
                                     self.current_action = "directive: build"
-                                    if self.consume_pooled_resources(required_wood, required_stone, other_thronglets):
+                                    if self.consume_pooled_resources(required_wood, required_stone, other_praxans):
                                         self.build_message = f"Built {building_type}! ({int(best_x)}, {int(best_y)})"
                                         self.build_message_time = time.time()
                                         self.next_build_location = (best_x, best_y)
@@ -1520,7 +1520,7 @@ class Thronglet:
                                             distance = math.sqrt(dx**2 + dy**2)
                                             if distance > 0:
                                                 if distance > 100:
-                                                    path = self.calculate_path(target_resource.x, target_resource.y, buildings if buildings else [], None, None, other_thronglets)
+                                                    path = self.calculate_path(target_resource.x, target_resource.y, buildings if buildings else [], None, None, other_praxans)
                                                     if len(path) > 1:
                                                         self.path = path
                                                         self.current_waypoint_index = 1
@@ -1529,24 +1529,24 @@ class Thronglet:
                                                         dy = waypoint[1] - self.y
                                                         distance = math.sqrt(dx**2 + dy**2)
                                                 if distance > 0:
-                                                    self.vx = (dx / distance) * THRONGLET_SPEED
-                                                    self.vy = (dy / distance) * THRONGLET_SPEED
+                                                    self.vx = (dx / distance) * PRAXAN_SPEED
+                                                    self.vy = (dy / distance) * PRAXAN_SPEED
                                                     self.current_action = f"directive: gathering {target_resource.resource_type} for building"
                                                     directive_executed = True
                                                     return None
                                     
                                     if VERBOSE_LOGGING:
-                                        print(f"[Thronglet {self.id}] Building directive (city planner) requires {required_wood} wood, {required_stone} stone. Available: {available_wood}, {available_stone}")
+                                        print(f"[Praxan {self.id}] Building directive (city planner) requires {required_wood} wood, {required_stone} stone. Available: {available_wood}, {available_stone}")
                             else:
                                 # No city planner, use old logic (build at current location)
                                 # Check pooled resources instead of individual inventory
-                                available_wood, available_stone = self.calculate_pooled_resources(other_thronglets)
+                                available_wood, available_stone = self.calculate_pooled_resources(other_praxans)
                                 if available_wood >= required_wood and available_stone >= required_stone:
                                     self.vx = 0
                                     self.vy = 0
                                     self.current_action = "directive: build"
                                     # Consume pooled resources (from self + nearby allies)
-                                    if self.consume_pooled_resources(required_wood, required_stone, other_thronglets):
+                                    if self.consume_pooled_resources(required_wood, required_stone, other_praxans):
                                         self.build_message = f"Built {building_type}! ({int(self.x)}, {int(self.y)})"
                                         self.build_message_time = time.time()
                                         # Clear building resource goal since we successfully built
@@ -1591,7 +1591,7 @@ class Thronglet:
                                             distance = math.sqrt(dx**2 + dy**2)
                                             if distance > 0:
                                                 if distance > 100:
-                                                    path = self.calculate_path(target_resource.x, target_resource.y, buildings if buildings else [], None, None, other_thronglets)
+                                                    path = self.calculate_path(target_resource.x, target_resource.y, buildings if buildings else [], None, None, other_praxans)
                                                     if len(path) > 1:
                                                         self.path = path
                                                         self.current_waypoint_index = 1
@@ -1600,14 +1600,14 @@ class Thronglet:
                                                         dy = waypoint[1] - self.y
                                                         distance = math.sqrt(dx**2 + dy**2)
                                                 if distance > 0:
-                                                    self.vx = (dx / distance) * THRONGLET_SPEED
-                                                    self.vy = (dy / distance) * THRONGLET_SPEED
+                                                    self.vx = (dx / distance) * PRAXAN_SPEED
+                                                    self.vy = (dy / distance) * PRAXAN_SPEED
                                                     self.current_action = f"directive: gathering {target_resource.resource_type} for building ({required_wood - available_wood} wood, {required_stone - available_stone} stone needed)"
                                                     directive_executed = True
                                                     return None
                                     
                                     if VERBOSE_LOGGING:
-                                        print(f"[Thronglet {self.id}] Building directive requires {required_wood} wood, {required_stone} stone. Available: {available_wood}, {available_stone}")
+                                        print(f"[Praxan {self.id}] Building directive requires {required_wood} wood, {required_stone} stone. Available: {available_wood}, {available_stone}")
                 
                     # Handle explore/scout directive
                     elif 'explore' in action or 'scout' in action:
@@ -1619,22 +1619,22 @@ class Thronglet:
                             if self.y < 100:
                                 # At north boundary, explore east/west instead
                                 direction = 'east' if random.random() > 0.5 else 'west'
-                                self.vx = THRONGLET_SPEED if direction == 'east' else -THRONGLET_SPEED
+                                self.vx = PRAXAN_SPEED if direction == 'east' else -PRAXAN_SPEED
                                 self.vy = 0
                             else:
-                                self.vy = -THRONGLET_SPEED
+                                self.vy = -PRAXAN_SPEED
                                 self.vx = 0
                         elif 'south' in action or 'down' in action:
                             direction = 'south'
-                            self.vy = THRONGLET_SPEED
+                            self.vy = PRAXAN_SPEED
                             self.vx = 0
                         elif 'east' in action or 'right' in action:
                             direction = 'east'
-                            self.vx = THRONGLET_SPEED
+                            self.vx = PRAXAN_SPEED
                             self.vy = 0
                         elif 'west' in action or 'left' in action:
                             direction = 'west'
-                            self.vx = -THRONGLET_SPEED
+                            self.vx = -PRAXAN_SPEED
                             self.vy = 0
                         else:
                             # No specific direction, use random exploration
@@ -1648,7 +1648,7 @@ class Thronglet:
                 # If no directive was executed, transition to idle
                 if not directive_executed:
                     if VERBOSE_LOGGING:
-                        print(f"[Thronglet {self.id}] No directive executed. Directives: {len(directives)}, Role: {self.role}")
+                        print(f"[Praxan {self.id}] No directive executed. Directives: {len(directives)}, Role: {self.role}")
                     self.transition_to_state(STATE_IDLE)
         
         # Priority 1.5: Follow personal goal if assigned (only if no directives)
@@ -1670,24 +1670,24 @@ class Thronglet:
                         self.personal_goal = None
                     elif distance > 0:
                         self.goal_progress = clamp(1.0 - (distance / 400.0), 0.0, 0.95)
-                        self.vx = (dx / distance) * THRONGLET_SPEED
-                        self.vy = (dy / distance) * THRONGLET_SPEED
+                        self.vx = (dx / distance) * PRAXAN_SPEED
+                        self.vy = (dy / distance) * PRAXAN_SPEED
                         self.current_action = "goal: migrating"
                         return None
             
             # Handle exploration goals
             if goal_type.startswith('explore_'):
                 if 'north' in goal_type:
-                    self.vy = -THRONGLET_SPEED
+                    self.vy = -PRAXAN_SPEED
                     self.current_action = "exploring north"
                 elif 'east' in goal_type:
-                    self.vx = THRONGLET_SPEED
+                    self.vx = PRAXAN_SPEED
                     self.current_action = "exploring east"
                 elif 'south' in goal_type:
-                    self.vy = THRONGLET_SPEED
+                    self.vy = PRAXAN_SPEED
                     self.current_action = "exploring south"
                 elif 'west' in goal_type:
-                    self.vx = -THRONGLET_SPEED
+                    self.vx = -PRAXAN_SPEED
                     self.current_action = "exploring west"
                 return None
             
@@ -1700,8 +1700,8 @@ class Thronglet:
                         dx = closest.x - self.x
                         dy = closest.y - self.y
                         if distance > 0:
-                            self.vx = (dx / distance) * THRONGLET_SPEED
-                            self.vy = (dy / distance) * THRONGLET_SPEED
+                            self.vx = (dx / distance) * PRAXAN_SPEED
+                            self.vy = (dy / distance) * PRAXAN_SPEED
                             self.current_action = f"goal: gathering {target_type}"
                             return None
             
@@ -1723,17 +1723,17 @@ class Thronglet:
                     dy = closest_house.y - self.y
                     distance = math.sqrt(dx**2 + dy**2)
                     if distance > 0:
-                        self.vx = (dx / distance) * THRONGLET_SPEED
-                        self.vy = (dy / distance) * THRONGLET_SPEED
+                        self.vx = (dx / distance) * PRAXAN_SPEED
+                        self.vy = (dy / distance) * PRAXAN_SPEED
                         self.current_action = "goal: resting"
                         return None
             
             # Handle reproduce goal (seeking mate)
-            elif goal_type == 'reproduce' and other_thronglets:
+            elif goal_type == 'reproduce' and other_praxans:
                 if self.can_reproduce():
                     closest_mate = None
                     closest_distance = float('inf')
-                    for other in other_thronglets:
+                    for other in other_praxans:
                         if other != self and other.can_reproduce():
                             distance = math.sqrt((other.x - self.x)**2 + (other.y - self.y)**2)
                             if distance < closest_distance:
@@ -1746,8 +1746,8 @@ class Thronglet:
                         if closest_distance > REPRODUCTION_PROXIMITY:
                             distance = math.sqrt(dx**2 + dy**2)
                             if distance > 0:
-                                self.vx = (dx / distance) * THRONGLET_SPEED
-                                self.vy = (dy / distance) * THRONGLET_SPEED
+                                self.vx = (dx / distance) * PRAXAN_SPEED
+                                self.vy = (dy / distance) * PRAXAN_SPEED
                                 self.current_action = "goal: seeking mate"
                                 return None
         # Priority 3: Claim tile state (low priority for explorers)
@@ -1781,11 +1781,11 @@ class Thronglet:
         # Priority 3.5: Socialize state
         if self.state == STATE_SOCIALIZE:
             if self.personality.get('sociability', 0) > 0.7 and len(self.bonds) < 3:
-                # Find nearby thronglets to socialize with
-                if other_thronglets:
+                # Find nearby praxans to socialize with
+                if other_praxans:
                     closest_friend = None
                     closest_distance = float('inf')
-                    for other in other_thronglets:
+                    for other in other_praxans:
                         if other != self:
                             distance = math.sqrt((other.x - self.x)**2 + (other.y - self.y)**2)
                             if distance < closest_distance and distance < 100:
@@ -1797,8 +1797,8 @@ class Thronglet:
                         dy = closest_friend.y - self.y
                         distance = math.sqrt(dx**2 + dy**2)
                         if distance > 0:
-                            self.vx = (dx / distance) * THRONGLET_SPEED * 0.5
-                            self.vy = (dy / distance) * THRONGLET_SPEED * 0.5
+                            self.vx = (dx / distance) * PRAXAN_SPEED * 0.5
+                            self.vy = (dy / distance) * PRAXAN_SPEED * 0.5
                             self.current_action = "socializing"
                             return None
                 # If no friends nearby, transition to idle
@@ -1811,7 +1811,7 @@ class Thronglet:
             # Check if we should transition to execute directive when directives are available
             if directives and self.needs['hunger'] > 50 and self.needs['energy'] > 50:
                 if VERBOSE_LOGGING:
-                    print(f"[Thronglet {self.id}] Transitioning to EXECUTE_DIRECTIVE from {self.state}, {len(directives)} directives available")
+                    print(f"[Praxan {self.id}] Transitioning to EXECUTE_DIRECTIVE from {self.state}, {len(directives)} directives available")
                 self.transition_to_state(STATE_EXECUTE_DIRECTIVE)
                 return None
         
@@ -1835,8 +1835,8 @@ class Thronglet:
                 dx = target.x - self.x
                 dy = target.y - self.y
                 if distance > 0:
-                    self.vx = (dx / distance) * THRONGLET_SPEED
-                    self.vy = (dy / distance) * THRONGLET_SPEED
+                    self.vx = (dx / distance) * PRAXAN_SPEED
+                    self.vy = (dy / distance) * PRAXAN_SPEED
                     self.current_action = f"moving toward {target.resource_type}"
                     self.last_action_time = time.time()
                     self.action_duration = random.uniform(1, 3)
@@ -1855,9 +1855,9 @@ class Thronglet:
         # Only apply when needs are met (don't interfere with critical survival)
         if (self.needs['hunger'] > 50 and self.needs['energy'] > 50) and \
            (not hasattr(self, 'path') or not self.path or len(self.path) <= 1) and \
-           other_thronglets:
+           other_praxans:
             try:
-                boids_cohesion, boids_separation = self.get_boids_forces(other_thronglets, cohesion_radius=100)
+                boids_cohesion, boids_separation = self.get_boids_forces(other_praxans, cohesion_radius=100)
                 # Apply as steering force (5% influence to avoid oversteering)
                 if abs(boids_cohesion[0]) > 0.1 or abs(boids_cohesion[1]) > 0.1 or \
                    abs(boids_separation[0]) > 0.1 or abs(boids_separation[1]) > 0.1:
@@ -1874,7 +1874,7 @@ class Thronglet:
             except Exception as e:
                 # Graceful degradation
                 if VERBOSE_LOGGING:
-                    print(f"[Thronglet {self.id}] Boids error: {e}")
+                    print(f"[Praxan {self.id}] Boids error: {e}")
         
         return None
     
@@ -1917,10 +1917,10 @@ class Thronglet:
         
         # Choose role with highest score
         self.role = max(scores, key=scores.get)
-        print(f"Thronglet {self.id} chose role: {self.role} (scores: {scores})")
+        print(f"Praxan {self.id} chose role: {self.role} (scores: {scores})")
     
     def can_reproduce(self):
-        """Check if this thronglet can reproduce"""
+        """Check if this praxan can reproduce"""
         # Check cooldown
         fertility_drive = getattr(self, "genetics", {}).get("fertility_drive", 1.0)
         effective_cooldown = REPRODUCTION_COOLDOWN / max(0.75, fertility_drive)
@@ -1929,18 +1929,18 @@ class Thronglet:
         # Check needs threshold
         if self.needs['hunger'] < REPRODUCTION_NEEDS_THRESHOLD or self.needs['energy'] < REPRODUCTION_NEEDS_THRESHOLD or self.needs['thirst'] < REPRODUCTION_NEEDS_THRESHOLD:
             return False
-        # Diseased thronglets can't reproduce
+        # Diseased praxans can't reproduce
         if self.diseased:
             return False
-        # Unhappy thronglets won't reproduce
+        # Unhappy praxans won't reproduce
         if self.happiness < 50:
             return False
         return True
     
     @staticmethod
     def create_offspring(parent1, parent2, x, y):
-        """Create a new thronglet with inherited traits from both parents"""
-        child = Thronglet(x, y)
+        """Create a new praxan with inherited traits from both parents"""
+        child = Praxan(x, y)
         
         # Inherit averaged personality traits with mutation
         child.personality = {
@@ -1969,11 +1969,11 @@ class Thronglet:
         return child
     
     def update_age_and_health(self, delta_time, modifiers=None):
-        """Age thronglet and decay health from unmet needs"""
+        """Age praxan and decay health from unmet needs"""
         self.age = time.time() - self.birth_time
         decay_scale = 1.0 / max(0.75, self.resilience)
         
-        if self.age >= THRONGLET_MAX_AGE:
+        if self.age >= PRAXAN_MAX_AGE:
             return False  # Should die
             
         damage_taken = 0.0
@@ -2049,27 +2049,27 @@ class Thronglet:
             if self.skills[skill_type]['xp'] >= SKILL_LEVEL_THRESHOLD * self.skills[skill_type]['level']:
                 self.skills[skill_type]['level'] += 1
                 self.skills[skill_type]['xp'] = 0
-                print(f"Thronglet leveled up {skill_type} to level {self.skills[skill_type]['level']}!")
+                print(f"Praxan leveled up {skill_type} to level {self.skills[skill_type]['level']}!")
     
-    def update_bonds(self, other_thronglets, delta_time, modifiers=None):
+    def update_bonds(self, other_praxans, delta_time, modifiers=None):
         """Build/decay relationships"""
-        # Create a set of alive thronglet IDs for reference checking
-        alive_ids = {t.id for t in other_thronglets}
+        # Create a set of alive praxan IDs for reference checking
+        alive_ids = {t.id for t in other_praxans}
         social_cohesion = getattr(self, "genetics", {}).get("social_cohesion", 1.0)
         
         # Decay all existing bonds
         bond_decay_mod = modifiers.get_modifier('bond_decay') if modifiers else 1.0
-        for thronglet_id in list(self.bonds.keys()):
-            # Remove bonds to dead thronglets
-            if thronglet_id not in alive_ids:
-                del self.bonds[thronglet_id]
+        for praxan_id in list(self.bonds.keys()):
+            # Remove bonds to dead praxans
+            if praxan_id not in alive_ids:
+                del self.bonds[praxan_id]
                 continue
-            self.bonds[thronglet_id] -= (BOND_DECAY_RATE * bond_decay_mod * delta_time) / max(0.75, social_cohesion)
-            if self.bonds[thronglet_id] <= 0:
-                del self.bonds[thronglet_id]
+            self.bonds[praxan_id] -= (BOND_DECAY_RATE * bond_decay_mod * delta_time) / max(0.75, social_cohesion)
+            if self.bonds[praxan_id] <= 0:
+                del self.bonds[praxan_id]
         
-        # Build bonds with nearby thronglets
-        for other in other_thronglets:
+        # Build bonds with nearby praxans
+        for other in other_praxans:
             if other == self:
                 continue
             
@@ -2082,7 +2082,7 @@ class Thronglet:
                 self.bonds[other.id] += bond_gain
                 self.bonds[other.id] = min(100, self.bonds[other.id])  # Cap at 100
     
-    def update_happiness(self, buildings, other_thronglets, modifiers=None, world_map=None):
+    def update_happiness(self, buildings, other_praxans, modifiers=None, world_map=None):
         """Calculate happiness based on various factors"""
         base_happiness = 40
         if modifiers:
@@ -2104,7 +2104,7 @@ class Thronglet:
             happiness += 10
         
         # Nearby friends boost happiness
-        alive_ids = {t.id for t in other_thronglets}
+        alive_ids = {t.id for t in other_praxans}
         friend_count = sum(1 for friend_id in self.bonds if friend_id in alive_ids and self.bonds[friend_id] > 50)
         happiness += friend_count * 5
         
@@ -2149,21 +2149,21 @@ class Thronglet:
         if not self.diseased and random.random() < (chance / max(0.65, immune_strength)):
             self.diseased = True
             self.disease_start_time = time.time()
-            print("Thronglet contracted disease!")
+            print("Praxan contracted disease!")
     
-    def share_knowledge(self, other_thronglet):
+    def share_knowledge(self, other_praxan):
         """Share discovered resources"""
         # Share resource knowledge
         for resource_pos in self.known_resources:
-            if resource_pos not in other_thronglet.known_resources:
-                other_thronglet.known_resources.append(resource_pos)
+            if resource_pos not in other_praxan.known_resources:
+                other_praxan.known_resources.append(resource_pos)
         
         # Territory system removed
     
-    def query_llm(self, num_resources, thronglet_id, num_buildings):
+    def query_llm(self, num_resources, praxan_id, num_buildings):
         """Query the LLM for decision making"""
         total_inv = self.inventory['food'] + self.inventory['wood'] + self.inventory['stone']
-        prompt = f"""You are controlling one thronglet in a local simulation.
+        prompt = f"""You are controlling one praxan in a local simulation.
 
 Respond with exactly one short action phrase only.
 Do not use markdown, quotes, JSON, or <think> tags.
@@ -2193,58 +2193,58 @@ Best next action:"""
         
         try:
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {thronglet_id}] Querying LLM at ({int(self.x)}, {int(self.y)}), inv={self.inventory}, resources={num_resources}")
-            action_text, _ = generate_ollama_text(prompt, purpose="thronglet")
+                print(f"[Praxan {praxan_id}] Querying LLM at ({int(self.x)}, {int(self.y)}), inv={self.inventory}, resources={num_resources}")
+            action_text, _ = generate_ollama_text(prompt, purpose="praxan")
             action_text = action_text.lower()
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {thronglet_id}] LLM raw response: {action_text[:100]}...")  # First 100 chars
-            return self.parse_llm_response(action_text, thronglet_id)
+                print(f"[Praxan {praxan_id}] LLM raw response: {action_text[:100]}...")  # First 100 chars
+            return self.parse_llm_response(action_text, praxan_id)
         except Exception as e:
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {thronglet_id}] LLM query error: {e}")
+                print(f"[Praxan {praxan_id}] LLM query error: {e}")
             # Fallback to random movement
             self.set_random_direction()
             return None
     
-    def parse_llm_response(self, response_text, thronglet_id):
+    def parse_llm_response(self, response_text, praxan_id):
         """Parse LLM response and determine action. Returns building_type if building."""
         response_lower = response_text.lower()
         
         # Check for movement directions
         if any(word in response_lower for word in ['left', 'west']):
-            self.vx = -THRONGLET_SPEED
+            self.vx = -PRAXAN_SPEED
             self.vy = 0
             self.current_action = "moving left"
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {thronglet_id}] -> Moving LEFT")
+                print(f"[Praxan {praxan_id}] -> Moving LEFT")
             return None
         elif any(word in response_lower for word in ['right', 'east']):
-            self.vx = THRONGLET_SPEED
+            self.vx = PRAXAN_SPEED
             self.vy = 0
             self.current_action = "moving right"
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {thronglet_id}] -> Moving RIGHT")
+                print(f"[Praxan {praxan_id}] -> Moving RIGHT")
             return None
         elif any(word in response_lower for word in ['up', 'north']):
             self.vx = 0
-            self.vy = -THRONGLET_SPEED
+            self.vy = -PRAXAN_SPEED
             self.current_action = "moving up"
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {thronglet_id}] -> Moving UP")
+                print(f"[Praxan {praxan_id}] -> Moving UP")
             return None
         elif any(word in response_lower for word in ['down', 'south']):
             self.vx = 0
-            self.vy = THRONGLET_SPEED
+            self.vy = PRAXAN_SPEED
             self.current_action = "moving down"
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {thronglet_id}] -> Moving DOWN")
+                print(f"[Praxan {praxan_id}] -> Moving DOWN")
             return None
         elif any(word in response_lower for word in ['gather', 'collect', 'pickup']):
             self.vx = 0
             self.vy = 0
             self.current_action = "gathering"
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {thronglet_id}] -> GATHERING resources")
+                print(f"[Praxan {praxan_id}] -> GATHERING resources")
             return None
         elif any(word in response_lower for word in ['build house', 'construct house']):
             wood_cost, stone_cost = get_building_cost('house')
@@ -2257,11 +2257,11 @@ Best next action:"""
                 building_type = 'house'
                 self.build_message = f"Built {building_type}! ({int(self.x)}, {int(self.y)})"
                 self.build_message_time = time.time()
-                print(f"[Thronglet {thronglet_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
+                print(f"[Praxan {praxan_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
                 return building_type
             else:
                 if VERBOSE_LOGGING:
-                    print(f"[Thronglet {thronglet_id}] -> Wanted to build but no resources, using random direction")
+                    print(f"[Praxan {praxan_id}] -> Wanted to build but no resources, using random direction")
                 self.set_random_direction()
                 return None
         elif any(word in response_lower for word in ['build storage', 'construct storage']):
@@ -2275,11 +2275,11 @@ Best next action:"""
                 building_type = 'storage'
                 self.build_message = f"Built {building_type}! ({int(self.x)}, {int(self.y)})"
                 self.build_message_time = time.time()
-                print(f"[Thronglet {thronglet_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
+                print(f"[Praxan {praxan_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
                 return building_type
             else:
                 if VERBOSE_LOGGING:
-                    print(f"[Thronglet {thronglet_id}] -> Wanted to build but no resources, using random direction")
+                    print(f"[Praxan {praxan_id}] -> Wanted to build but no resources, using random direction")
                 self.set_random_direction()
                 return None
         elif any(word in response_lower for word in ['build farm', 'construct farm']):
@@ -2293,11 +2293,11 @@ Best next action:"""
                 building_type = 'farm'
                 self.build_message = f"Built {building_type}! ({int(self.x)}, {int(self.y)})"
                 self.build_message_time = time.time()
-                print(f"[Thronglet {thronglet_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
+                print(f"[Praxan {praxan_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
                 return building_type
             else:
                 if VERBOSE_LOGGING:
-                    print(f"[Thronglet {thronglet_id}] -> Wanted to build but no resources, using random direction")
+                    print(f"[Praxan {praxan_id}] -> Wanted to build but no resources, using random direction")
                 self.set_random_direction()
                 return None
         elif any(word in response_lower for word in ['build workshop', 'construct workshop']):
@@ -2311,7 +2311,7 @@ Best next action:"""
                 building_type = 'workshop'
                 self.build_message = f"Built {building_type}! ({int(self.x)}, {int(self.y)})"
                 self.build_message_time = time.time()
-                print(f"[Thronglet {thronglet_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
+                print(f"[Praxan {praxan_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
                 return building_type
             self.set_random_direction()
             return None
@@ -2326,7 +2326,7 @@ Best next action:"""
                 building_type = 'shrine'
                 self.build_message = f"Built {building_type}! ({int(self.x)}, {int(self.y)})"
                 self.build_message_time = time.time()
-                print(f"[Thronglet {thronglet_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
+                print(f"[Praxan {praxan_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
                 return building_type
             self.set_random_direction()
             return None
@@ -2341,14 +2341,14 @@ Best next action:"""
                 building_type = 'well'
                 self.build_message = f"Built {building_type}! ({int(self.x)}, {int(self.y)})"
                 self.build_message_time = time.time()
-                print(f"[Thronglet {thronglet_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
+                print(f"[Praxan {praxan_id}] -> BUILDING {building_type}! Inventory now: {self.inventory}")
                 return building_type
             self.set_random_direction()
             return None
         else:
             # Unclear response, fallback to random movement
             if VERBOSE_LOGGING:
-                print(f"[Thronglet {thronglet_id}] -> Unclear response, using random direction")
+                print(f"[Praxan {praxan_id}] -> Unclear response, using random direction")
             self.set_random_direction()
             return None
     
@@ -2356,17 +2356,17 @@ Best next action:"""
         """Set a random direction"""
         direction = random.choice(['left', 'right', 'up', 'down'])
         if direction == 'left':
-            self.vx = -THRONGLET_SPEED
+            self.vx = -PRAXAN_SPEED
             self.vy = 0
         elif direction == 'right':
-            self.vx = THRONGLET_SPEED
+            self.vx = PRAXAN_SPEED
             self.vy = 0
         elif direction == 'up':
             self.vx = 0
-            self.vy = -THRONGLET_SPEED
+            self.vy = -PRAXAN_SPEED
         else:  # down
             self.vx = 0
-            self.vy = THRONGLET_SPEED
+            self.vy = PRAXAN_SPEED
         self.current_action = f"random {direction}"
 
     def calculate_capacities(self):
@@ -2406,7 +2406,7 @@ Best next action:"""
         
         if self.capacities['consciousness'] < 0.3 or self.capacities['moving'] < 0.15:
             self.downed = True
-            self.state = 'downed'  # Defined in thronglets_game.py as STATE_DOWNED
+            self.state = 'downed'  # Defined in praxans_game.py as STATE_DOWNED
             self.current_action = "Downed (incapacitated)"
         else:
             self.downed = False
@@ -2432,7 +2432,7 @@ Best next action:"""
             
         self.calculate_capacities()
         if VERBOSE_LOGGING:
-            print(f"[Anatomy] Thronglet {self.id} took {amount} {damage_type} damage to {target_part}. Health: {self.health:.1f}%")
+            print(f"[Anatomy] Praxan {self.id} took {amount} {damage_type} damage to {target_part}. Health: {self.health:.1f}%")
 
     def heal_damage(self, amount):
         if not self.alive: return

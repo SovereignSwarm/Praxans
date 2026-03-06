@@ -13,7 +13,7 @@ from graphics.content import (
     RESOURCE_ART,
     ROLE_PALETTES,
     SOURCE_RESOURCE_SIZE,
-    SOURCE_THRONGLET_SIZE,
+    SOURCE_PRAXAN_SIZE,
     SOURCE_TILE_SIZE,
     TILE_ATLASES,
     palette_for_biome_and_season,
@@ -111,7 +111,7 @@ class SpriteLibrary:
         self._cache[key] = surface
         return surface
 
-    def _apply_thronglet_state_overlays(self, sprite: pygame.Surface, *, doctrine, health_state: str, mutated: bool) -> pygame.Surface:
+    def _apply_praxan_state_overlays(self, sprite: pygame.Surface, *, doctrine, health_state: str, mutated: bool) -> pygame.Surface:
         overlayed = sprite.copy()
         accent, accent_shadow = doctrine_trim(doctrine)
         width, height = overlayed.get_size()
@@ -290,7 +290,7 @@ class SpriteLibrary:
         self._cache[cache_key] = _scale(source, (tile_size, tile_size))
         return self._cache[cache_key]
 
-    def _thronglet_source(self, role: str | None, animation_state: str, facing: str, doctrine, frame_index: int, health_state: str, mutated: bool) -> pygame.Surface:
+    def _praxan_source(self, role: str | None, animation_state: str, facing: str, doctrine, frame_index: int, health_state: str, mutated: bool) -> pygame.Surface:
         palette = ROLE_PALETTES.get(str(role or "").lower(), ROLE_PALETTES["default"])
         accent, accent_shadow = doctrine_trim(doctrine)
         skin = palette.skin
@@ -302,7 +302,7 @@ class SpriteLibrary:
         elif health_state == "sick":
             clothing = mix_color(clothing, (138, 154, 126), 0.16)
             skin = mix_color(skin, (170, 188, 164), 0.16)
-        source = _surface(SOURCE_THRONGLET_SIZE)
+        source = _surface(SOURCE_PRAXAN_SIZE)
         mid_x = 8
         bounce = 1 if animation_state in {"walk", "celebrate"} and frame_index % 2 == 0 else 0
         leg_shift = -1 if frame_index % 2 == 0 else 1
@@ -379,7 +379,7 @@ class SpriteLibrary:
 
         return source
 
-    def get_thronglet_sprite(
+    def get_praxan_sprite(
         self,
         *,
         role: str | None,
@@ -393,7 +393,7 @@ class SpriteLibrary:
         frame_index: int,
     ) -> pygame.Surface:
         cache_key = (
-            "thronglet",
+            "praxan",
             role,
             animation_state,
             facing,
@@ -407,18 +407,18 @@ class SpriteLibrary:
         if cache_key in self._cache:
             return self._cache[cache_key]
         file_surface = self._load_file_surface(
-            os.path.join("sprites", "thronglets", f"{str(role or 'default').lower()}_{animation_state}_{facing}_{frame_index}.png"),
+            os.path.join("sprites", "praxans", f"{str(role or 'default').lower()}_{animation_state}_{facing}_{frame_index}.png"),
             target_size,
         )
         if file_surface is not None:
-            self._cache[cache_key] = self._apply_thronglet_state_overlays(
+            self._cache[cache_key] = self._apply_praxan_state_overlays(
                 file_surface,
                 doctrine=doctrine,
                 health_state=health_state,
                 mutated=mutated,
             )
             return self._cache[cache_key]
-        source = self._thronglet_source(role, animation_state, facing, doctrine, frame_index, health_state, mutated)
+        source = self._praxan_source(role, animation_state, facing, doctrine, frame_index, health_state, mutated)
         shadowed = self._add_shadow(source, skew=0.3, alpha=80)
         self._cache[cache_key] = _scale(shadowed, target_size)
         return self._cache[cache_key]

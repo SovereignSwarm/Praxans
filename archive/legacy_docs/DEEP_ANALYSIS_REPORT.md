@@ -1,4 +1,4 @@
-# Deep Analysis Report - Thronglets Game Issue
+# Deep Analysis Report - Praxans Game Issue
 
 **Date:** 2025-12-01  
 **Analysis Type:** Comprehensive Code Review & Root Cause Analysis

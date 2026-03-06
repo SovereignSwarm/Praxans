@@ -1,8 +1,8 @@
-# Thronglets Logging Guide
+# Praxans Logging Guide
 
 ## Overview
 
-The Thronglets game has comprehensive logging that captures all output, errors, and crash information. All logs are saved in the `logs/` directory.
+The Praxans game has comprehensive logging that captures all output, errors, and crash information. All logs are saved in the `logs/` directory.
 
 ## Log Files
 
@@ -40,10 +40,10 @@ The Thronglets game has comprehensive logging that captures all output, errors, 
 
 ## Running with Full Logging
 
-### Option 1: Use `Thronglets.bat` (Recommended)
+### Option 1: Use `Praxans.bat` (Recommended)
 - Automatically captures all console output to `logs/batch_*.log`
 - Shows output on screen AND saves to file
-- Run by double-clicking `Thronglets.bat`
+- Run by double-clicking `Praxans.bat`
 
 ### Option 2: Use `start_game.bat`
 - Enhanced launcher with error handling
@@ -51,7 +51,7 @@ The Thronglets game has comprehensive logging that captures all output, errors, 
 
 ### Option 3: Run directly from Python
 ```bash
-python thronglets_game.py
+python praxans_game.py
 ```
 - Still creates session logs and crash logs
 - Does NOT create batch log (only batch files do this)

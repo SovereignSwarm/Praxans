@@ -7,9 +7,9 @@ set EXIT_CODE=%ERRORLEVEL%
 
 echo.
 if %EXIT_CODE% EQU 0 (
-    echo Thronglets finished successfully.
+    echo Praxans finished successfully.
 ) else (
-    echo Thronglets exited with code %EXIT_CODE%.
+    echo Praxans exited with code %EXIT_CODE%.
 )
 
 pause

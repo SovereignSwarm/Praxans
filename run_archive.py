@@ -236,7 +236,7 @@ def _scene_thumbnail_key(session_id: str | None, phase_id: str, end_state_id: st
 
 
 def build_run_summary(
-    thronglets,
+    praxans,
     buildings,
     advisor,
     current_time: float,
@@ -254,7 +254,7 @@ def build_run_summary(
 ) -> dict[str, Any]:
     settlement_state = dict(settlement_state or getattr(advisor, "current_settlement_state", {}) or {})
     session_stats = dict(getattr(advisor, "session_stats", {}) or {})
-    observer_report = build_observer_report(thronglets, advisor, faction_manager)
+    observer_report = build_observer_report(praxans, advisor, faction_manager)
     elapsed_seconds = max(0.0, current_time - game_start_time)
     phase_id = classify_run_phase(
         elapsed_seconds=elapsed_seconds,
@@ -338,7 +338,7 @@ def build_run_summary(
 
 
 def build_run_archive(
-    thronglets,
+    praxans,
     buildings,
     advisor,
     current_time: float,
@@ -355,7 +355,7 @@ def build_run_archive(
     scene_thumbnail_key: str | None = None,
 ) -> dict[str, Any]:
     archive = build_run_summary(
-        thronglets=thronglets,
+        praxans=praxans,
         buildings=buildings,
         advisor=advisor,
         current_time=current_time,

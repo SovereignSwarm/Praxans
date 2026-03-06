@@ -18,8 +18,8 @@ def _sanitize_json_value(value: Any) -> Any:
     return str(value)
 
 
-def _serialize_personality_traits(thronglet) -> dict[str, float]:
-    personality = getattr(thronglet, "personality", {})
+def _serialize_personality_traits(praxan) -> dict[str, float]:
+    personality = getattr(praxan, "personality", {})
     return {
         str(trait_name): round(float(trait_value), 4)
         for trait_name, trait_value in personality.items()
@@ -27,8 +27,8 @@ def _serialize_personality_traits(thronglet) -> dict[str, float]:
     }
 
 
-def _serialize_genetics(thronglet) -> dict[str, float]:
-    genetics = getattr(thronglet, "genetics", {})
+def _serialize_genetics(praxan) -> dict[str, float]:
+    genetics = getattr(praxan, "genetics", {})
     return {
         str(trait_name): round(float(trait_value), 4)
         for trait_name, trait_value in genetics.items()
@@ -36,9 +36,9 @@ def _serialize_genetics(thronglet) -> dict[str, float]:
     }
 
 
-def _serialize_skills(thronglet) -> dict[str, dict[str, float | int]]:
+def _serialize_skills(praxan) -> dict[str, dict[str, float | int]]:
     serialized: dict[str, dict[str, float | int]] = {}
-    skills = getattr(thronglet, "skills", {})
+    skills = getattr(praxan, "skills", {})
     for skill_name, skill_data in skills.items():
         if not isinstance(skill_data, dict):
             continue
@@ -49,8 +49,8 @@ def _serialize_skills(thronglet) -> dict[str, dict[str, float | int]]:
     return serialized
 
 
-def _serialize_bonds(thronglet) -> dict[str, float]:
-    bonds = getattr(thronglet, "bonds", {})
+def _serialize_bonds(praxan) -> dict[str, float]:
+    bonds = getattr(praxan, "bonds", {})
     return {
         str(other_id): round(max(0.0, float(strength)), 3)
         for other_id, strength in bonds.items()
@@ -58,9 +58,9 @@ def _serialize_bonds(thronglet) -> dict[str, float]:
     }
 
 
-def _serialize_known_resources(thronglet) -> list[dict[str, float]]:
+def _serialize_known_resources(praxan) -> list[dict[str, float]]:
     known_resources = []
-    for resource_pos in getattr(thronglet, "known_resources", []):
+    for resource_pos in getattr(praxan, "known_resources", []):
         if not isinstance(resource_pos, (list, tuple)) or len(resource_pos) != 2:
             continue
         known_resources.append(
@@ -130,10 +130,10 @@ def _serialize_group_tasks(advisor, current_time: float) -> list[dict[str, Any]]
                 "required_count": int(getattr(task, "required_count", 1)),
                 "target_location": _sanitize_json_value(getattr(task, "target_location", None)),
                 "target_building_type": getattr(task, "target_building_type", None),
-                "assigned_thronglets": [
-                    int(thronglet_id)
-                    for thronglet_id in getattr(task, "assigned_thronglets", [])
-                    if isinstance(thronglet_id, (int, float))
+                "assigned_praxans": [
+                    int(praxan_id)
+                    for praxan_id in getattr(task, "assigned_praxans", [])
+                    if isinstance(praxan_id, (int, float))
                 ],
                 "active": bool(getattr(task, "active", True)),
                 "faction_id": getattr(task, "faction_id", None),
@@ -358,7 +358,7 @@ def _serialize_temporary_modifiers(advisor, current_time: float) -> dict[str, di
 
 
 def build_run_snapshot(
-    thronglets,
+    praxans,
     buildings,
     resources,
     advisor,
@@ -396,7 +396,7 @@ def build_run_snapshot(
         "weather": getattr(weather_system, "current_weather", "clear"),
         "weather_next_event_in": round(max(0.0, getattr(weather_system, "next_event_time", current_time) - current_time), 3),
         "selected_model": selected_model,
-        "population": len(thronglets),
+        "population": len(praxans),
         "camera": _serialize_camera_state(camera),
         "celebration": _serialize_celebration_state(celebration_state, current_time),
         "fog_of_war": _serialize_fog_of_war(fog_of_war),
@@ -404,58 +404,58 @@ def build_run_snapshot(
         "factions": _serialize_factions(faction_manager, current_time),
         "city_planner": _serialize_city_planner(city_planner, current_time),
         "world": _serialize_world_state(world_map, current_time),
-        "thronglets": [
+        "praxans": [
             {
-                "id": thronglet.id,
-                "role": thronglet.role,
-                "x": round(thronglet.x, 2),
-                "y": round(thronglet.y, 2),
-                "health": round(thronglet.health, 2),
-                "happiness": round(getattr(thronglet, "happiness", 0.0), 2),
-                "morale": round(getattr(thronglet, "morale", 0.0), 2),
-                "inspiration": round(getattr(thronglet, "inspiration", 0.0), 2),
-                "favorite_biome": getattr(thronglet, "favorite_biome", None),
-                "age_seconds": round(getattr(thronglet, "age", 0.0), 2),
-                "diseased": bool(getattr(thronglet, "diseased", False)),
-                "resilience": round(getattr(thronglet, "resilience", 1.0), 3),
-                "settlement_prosperity": round(getattr(thronglet, "settlement_prosperity", 0.5), 3),
-                "inventory": dict(thronglet.inventory),
-                "needs": dict(thronglet.needs),
-                "state": getattr(thronglet, "state", None),
-                "current_action": getattr(thronglet, "current_action", None),
-                "personal_goal": _sanitize_json_value(getattr(thronglet, "personal_goal", None)),
-                "goal_progress": round(getattr(thronglet, "goal_progress", 0.0), 3),
-                "personality": _serialize_personality_traits(thronglet),
-                "genetics": _serialize_genetics(thronglet),
-                "generation": max(0, int(getattr(thronglet, "generation", 0))),
-                "parent_ids": [int(parent_id) for parent_id in getattr(thronglet, "parent_ids", []) if isinstance(parent_id, (int, float))],
-                "lineage_id": int(getattr(thronglet, "lineage_id", thronglet.id)),
-                "mutation_count": max(0, int(getattr(thronglet, "mutation_count", 0))),
-                "birth_origin": getattr(thronglet, "birth_origin", "founder"),
-                "skills": _serialize_skills(thronglet),
-                "bonds": _serialize_bonds(thronglet),
-                "faction_id": getattr(thronglet, "faction_id", None),
-                "known_resources": _serialize_known_resources(thronglet),
+                "id": praxan.id,
+                "role": praxan.role,
+                "x": round(praxan.x, 2),
+                "y": round(praxan.y, 2),
+                "health": round(praxan.health, 2),
+                "happiness": round(getattr(praxan, "happiness", 0.0), 2),
+                "morale": round(getattr(praxan, "morale", 0.0), 2),
+                "inspiration": round(getattr(praxan, "inspiration", 0.0), 2),
+                "favorite_biome": getattr(praxan, "favorite_biome", None),
+                "age_seconds": round(getattr(praxan, "age", 0.0), 2),
+                "diseased": bool(getattr(praxan, "diseased", False)),
+                "resilience": round(getattr(praxan, "resilience", 1.0), 3),
+                "settlement_prosperity": round(getattr(praxan, "settlement_prosperity", 0.5), 3),
+                "inventory": dict(praxan.inventory),
+                "needs": dict(praxan.needs),
+                "state": getattr(praxan, "state", None),
+                "current_action": getattr(praxan, "current_action", None),
+                "personal_goal": _sanitize_json_value(getattr(praxan, "personal_goal", None)),
+                "goal_progress": round(getattr(praxan, "goal_progress", 0.0), 3),
+                "personality": _serialize_personality_traits(praxan),
+                "genetics": _serialize_genetics(praxan),
+                "generation": max(0, int(getattr(praxan, "generation", 0))),
+                "parent_ids": [int(parent_id) for parent_id in getattr(praxan, "parent_ids", []) if isinstance(parent_id, (int, float))],
+                "lineage_id": int(getattr(praxan, "lineage_id", praxan.id)),
+                "mutation_count": max(0, int(getattr(praxan, "mutation_count", 0))),
+                "birth_origin": getattr(praxan, "birth_origin", "founder"),
+                "skills": _serialize_skills(praxan),
+                "bonds": _serialize_bonds(praxan),
+                "faction_id": getattr(praxan, "faction_id", None),
+                "known_resources": _serialize_known_resources(praxan),
                 "disease_elapsed": round(
-                    max(0.0, current_time - float(getattr(thronglet, "disease_start_time", 0.0)))
-                    if bool(getattr(thronglet, "diseased", False)) and getattr(thronglet, "disease_start_time", 0.0)
+                    max(0.0, current_time - float(getattr(praxan, "disease_start_time", 0.0)))
+                    if bool(getattr(praxan, "diseased", False)) and getattr(praxan, "disease_start_time", 0.0)
                     else 0.0,
                     3,
                 ),
                 "last_reproduction_elapsed": round(
-                    max(0.0, current_time - float(getattr(thronglet, "last_reproduction_time", 0.0)))
-                    if getattr(thronglet, "last_reproduction_time", 0.0)
+                    max(0.0, current_time - float(getattr(praxan, "last_reproduction_time", 0.0)))
+                    if getattr(praxan, "last_reproduction_time", 0.0)
                     else 0.0,
                     3,
                 ),
                 "goal_assigned_elapsed": round(
-                    max(0.0, current_time - float(getattr(thronglet, "goal_assigned_time", 0.0)))
-                    if getattr(thronglet, "goal_assigned_time", 0.0)
+                    max(0.0, current_time - float(getattr(praxan, "goal_assigned_time", 0.0)))
+                    if getattr(praxan, "goal_assigned_time", 0.0)
                     else 0.0,
                     3,
                 ),
             }
-            for thronglet in thronglets
+            for praxan in praxans
         ],
         "buildings": [
             {

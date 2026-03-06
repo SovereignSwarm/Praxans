@@ -1,5 +1,5 @@
 """
-Create a desktop shortcut for Thronglets game
+Create a desktop shortcut for Praxans game
 Double-click the shortcut to play!
 """
 import os
@@ -20,9 +20,9 @@ def create_shortcut():
     if HAS_PYWIN32:
         # Use pywin32 to create shortcut
         shell = Dispatch('WScript.Shell')
-        shortcut = shell.CreateShortCut(os.path.join(desktop, 'Thronglets.lnk'))
+        shortcut = shell.CreateShortCut(os.path.join(desktop, 'Praxans.lnk'))
         shortcut.Targetpath = 'cmd.exe'
-        shortcut.Arguments = '/k py thronglets_game.py'
+        shortcut.Arguments = '/k py praxans_game.py'
         shortcut.WorkingDirectory = script_dir
         shortcut.IconLocation = sys.executable
         shortcut.Description = "AI-Powered Civilization Simulator"
@@ -31,11 +31,11 @@ def create_shortcut():
         return True
     else:
         # Fallback: create a batch file on desktop
-        batch_file = os.path.join(desktop, 'Start Thronglets.bat')
+        batch_file = os.path.join(desktop, 'Start Praxans.bat')
         with open(batch_file, 'w') as f:
             f.write(f'''@echo off
 cd /d "{script_dir}"
-py thronglets_game.py
+py praxans_game.py
 pause
 ''')
         print("✓ Batch file created on Desktop!")
@@ -43,7 +43,7 @@ pause
         return True
 
 if __name__ == '__main__':
-    print("Creating Thronglets launcher...")
+    print("Creating Praxans launcher...")
     if create_shortcut():
         print("\nDone! You can now double-click to start the game.")
     else:

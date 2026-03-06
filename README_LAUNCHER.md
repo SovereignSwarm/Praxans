@@ -1,4 +1,4 @@
-# Thronglets Launcher Guide
+# Praxans Launcher Guide
 
 ## Recommended entrypoints
 
@@ -13,7 +13,7 @@
 
 ## Useful CLI flags
 
-These can be passed to `start_game.ps1`, `start_game.bat`, or directly to `thronglets_game.py`.
+These can be passed to `start_game.ps1`, `start_game.bat`, or directly to `praxans_game.py`.
 
 - `--disable-llm`
   Skip all Ollama-powered behavior.

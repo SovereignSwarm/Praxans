@@ -1,4 +1,4 @@
-# Thronglets - Full Project Diagnostic
+# Praxans - Full Project Diagnostic
 
 **Generated:** 2025-01-06  
 **Last Updated:** 2025-01-06 (Post-fix update)  
@@ -10,7 +10,7 @@
 
 ✅ **Project Status: EXCELLENT**
 
-The Thronglets AI Civilization Simulator is a well-implemented, feature-rich simulation game with 20 major systems, strong LLM integration, and polished UI/UX. The codebase is clean, well-structured, and ready for gameplay.
+The Praxans AI Civilization Simulator is a well-implemented, feature-rich simulation game with 20 major systems, strong LLM integration, and polished UI/UX. The codebase is clean, well-structured, and ready for gameplay.
 
 ### Overall Health Metrics
 
@@ -27,8 +27,8 @@ The Thronglets AI Civilization Simulator is a well-implemented, feature-rich sim
 ### File Structure ✅
 
 ```
-Thronglets/
-├── thronglets_game.py          (4,356 lines - Main game)
+Praxans/
+├── praxans_game.py          (4,356 lines - Main game)
 ├── requirements.txt            (5 dependencies)
 ├── README.md                   ✅ (Updated 2025-01-06)
 ├── README_LAUNCHER.md          ✅
@@ -36,7 +36,7 @@ Thronglets/
 ├── PROJECT_DIAGNOSTIC.md       ✅ (This file)
 ├── assets/                     ✅ (Empty but structured)
 ├── start_game.bat              ✅ Launcher
-├── Thronglets.bat              ✅ Launcher
+├── Praxans.bat              ✅ Launcher
 ├── start_game.ps1              ✅ PowerShell launcher
 └── start_game.vbs              ✅ Visual Basic launcher
 ```
@@ -61,7 +61,7 @@ requests        - HTTP client
 
 | Class | Lines | Status | Purpose |
 |-------|-------|--------|---------|
-| `Thronglet` | 1,200+ | ✅ Excellent | AI creatures with needs, traits, skills |
+| `Praxan` | 1,200+ | ✅ Excellent | AI creatures with needs, traits, skills |
 | `Building` | 400+ | ✅ Excellent | 6 building types with production |
 | `Resource` | 100+ | ✅ Good | Food, wood, stone with respawn |
 | `CivilizationAdvisor` | 800+ | ✅ Excellent | LLM integration, goals, evolution |
@@ -89,11 +89,11 @@ requests        - HTTP client
 ### ✅ Fully Implemented Features
 
 #### Core Gameplay
-- ✅ Thronglet AI with personality traits (curiosity, sociability, diligence)
+- ✅ Praxan AI with personality traits (curiosity, sociability, diligence)
 - ✅ Needs system (hunger, energy, thirst) with decay
 - ✅ Health & lifespan (420 seconds max age)
 - ✅ Skills progression (gathering, building, exploring)
-- ✅ Social bonds between thronglets
+- ✅ Social bonds between praxans
 - ✅ Disease system with recovery
 - ✅ Reproduction with genetics and inheritance
 - ✅ Memory & knowledge sharing
@@ -102,7 +102,7 @@ requests        - HTTP client
 - ✅ Food (respawns every 30 seconds)
 - ✅ Wood (max 20 on map)
 - ✅ Stone (max 10 on map)
-- ✅ Inventory system per thronglet
+- ✅ Inventory system per praxan
 - ✅ Resource gathering with XP
 - ✅ Seasonal resource modifiers
 
@@ -242,7 +242,7 @@ requests        - HTTP client
    - Fix: Add Kenney.nl or OpenGameArt tilesets
 
 5. **Territories System Unused**
-   - Territory tracking in Thronglet class
+   - Territory tracking in Praxan class
    - Never used for gameplay mechanics
    - Fix: Remove or implement territory control
 
@@ -263,7 +263,7 @@ requests        - HTTP client
    - LLM integration isolated in CivilizationAdvisor
 
 2. **Component-Based Entities**
-   - Thronglets have modular systems (needs, skills, bonds, disease)
+   - Praxans have modular systems (needs, skills, bonds, disease)
    - Buildings use unified update/render interface
    - Resources share base behavior with type-specific logic
 
@@ -292,7 +292,7 @@ requests        - HTTP client
 - ✅ Narrative storytelling integration
 
 **Personal Goals System:**
-- ✅ Per-thronglet goal assignment
+- ✅ Per-praxan goal assignment
 - ✅ 10 goal types (explore, gather, build, reproduce, rest)
 - ✅ LLM-driven goal distribution
 - ✅ Progress tracking
@@ -362,7 +362,7 @@ requests        - HTTP client
 | Inline Docs | ✅ Good | Docstrings present |
 
 **Gaps:**
-- README still describes old game (800x600, 5 thronglets)
+- README still describes old game (800x600, 5 praxans)
 - Missing feature list
 - No gameplay guide
 
@@ -449,7 +449,7 @@ requests        - HTTP client
 
 🎯 **PROJECT GRADE: A**
 
-The Thronglets AI Civilization Simulator is a **production-ready**, **well-architected** game that successfully combines AI-driven decision-making with engaging simulation mechanics. With minor documentation updates and a few missing implementations, this is an excellent proof-of-concept for AI integration in gaming.
+The Praxans AI Civilization Simulator is a **production-ready**, **well-architected** game that successfully combines AI-driven decision-making with engaging simulation mechanics. With minor documentation updates and a few missing implementations, this is an excellent proof-of-concept for AI integration in gaming.
 
 **Recommendation:** ✅ Ready for extended playtesting and feature expansion.
 
@@ -459,8 +459,8 @@ The Thronglets AI Civilization Simulator is a **production-ready**, **well-archi
 
 ### Key Constants
 ```python
-THRONGLET_SPEED = 0.75
-THRONGLET_MAX_AGE = 420.0
+PRAXAN_SPEED = 0.75
+PRAXAN_MAX_AGE = 420.0
 REPRODUCTION_COOLDOWN = 45.0
 MAX_POPULATION = 25
 INITIAL_POPULATION = 2
@@ -470,7 +470,7 @@ FPS = 30
 ```
 
 ### Main Systems
-- Thronglet AI (needs, skills, bonds, disease)
+- Praxan AI (needs, skills, bonds, disease)
 - Building System (6 types)
 - Resource Management (food, wood, stone)
 - Civilization Advisor (LLM-driven)

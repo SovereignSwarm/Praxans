@@ -36,13 +36,13 @@ All buildings have resource costs that are **properly enforced** in the code:
    - **Function:** Food production
    - **Details:** Produces 1 food every 10 seconds (line 3117-3123)
    - **Bonuses:** Affected by `farm_production_rate` modifier and drought weather
-   - **Mechanics:** Food accumulates in `stored_resources`, thronglets harvest when nearby
+   - **Mechanics:** Food accumulates in `stored_resources`, praxans harvest when nearby
    - **Visual:** Green field with crop rows and plant sprites
 
 3. **📦 Storage**
    - **Cost:** 1 wood
    - **Function:** Resource deposit
-   - **Details:** Unlimited capacity, thronglets deposit ALL resources when in range (line 3857-3873)
+   - **Details:** Unlimited capacity, praxans deposit ALL resources when in range (line 3857-3873)
    - **Visual:** Gray warehouse with inner detail box, shows F/W/S counts
 
 4. **⛲ Well**
@@ -74,7 +74,7 @@ All buildings have resource costs that are **properly enforced** in the code:
 ## Code Locations
 
 ### Building Construction
-- **Cost checking:** Line 1488 in `thronglets_game.py` (`decide_action` method)
+- **Cost checking:** Line 1488 in `praxans_game.py` (`decide_action` method)
 - **Resource consumption:** Lines 1493-1494
 - **Building creation:** Line 3767-3783
 
@@ -101,7 +101,7 @@ def get_workshop_bonus(self, buildings, modifiers):
 
 **Where it's calculated:** Line 3792
 ```python
-workshop_bonus = thronglet.get_workshop_bonus(buildings, advisor.game_modifiers)
+workshop_bonus = praxan.get_workshop_bonus(buildings, advisor.game_modifiers)
 ```
 
 **Where it should be applied:** Line 3794
@@ -120,7 +120,7 @@ resources_gained = workshop_bonus * gather_rate  # ✅ NOW FIXED
 ✅ **5 buildings fully functional**
 ✅ **1 building (workshop) working correctly** (bonus applied, just subtle)
 ✅ **All buildings have distinct visuals**
-✅ **Building interactions are automatic when thronglets approach**
+✅ **Building interactions are automatic when praxans approach**
 
 **The building system is COMPLETE and FUNCTIONAL!**
 

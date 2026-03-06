@@ -54,7 +54,7 @@ class UIRenderSmokeTests(unittest.TestCase):
             "camera": SimpleNamespace(x=0.0, y=0.0, zoom=1.0, world_width=1200.0, world_height=900.0),
             "city_planner": SimpleNamespace(zones={(1, 1): "residential"}),
             "faction_manager": SimpleNamespace(factions={}),
-            "thronglets": [],
+            "praxans": [],
             "buildings": [],
             "fog_of_war": SimpleNamespace(fog_grid={}),
             "camera_bookmarks": [{"x": 30.0, "y": 50.0, "label": "Cue", "category": "birth", "time": 100.0}],

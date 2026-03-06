@@ -74,16 +74,16 @@ Logs are printed to console in real-time, plus saved to files.
 
 ```
 2025-01-03 14:30:22,123 - INFO - Game session started: 20250103_143022
-2025-01-03 14:30:22,124 - INFO - Log file location: D:\Documents\PerseusXR\Thonglets\logs\session_20250103_143022.log
+2025-01-03 14:30:22,124 - INFO - Log file location: D:\Documents\PerseusXR\Praxans\logs\session_20250103_143022.log
 2025-01-03 14:30:23,456 - INFO - [system] Game starting
-2025-01-03 14:30:45,789 - ERROR - ERROR: Error updating thronglet 5: ...
+2025-01-03 14:30:45,789 - ERROR - ERROR: Error updating praxan 5: ...
 ```
 
 ## Key Log Events
 
 The game logs:
 - System events (startup, shutdown)
-- Thronglet updates and errors
+- Praxan updates and errors
 - Building construction
 - Resource gathering
 - LLM queries and responses

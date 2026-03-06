@@ -6,7 +6,7 @@ from observer_analytics import build_observer_report
 
 class ObserverAnalyticsTests(unittest.TestCase):
     def test_build_observer_report_summarizes_lineages_mortality_and_factions(self):
-        thronglets = [
+        praxans = [
             SimpleNamespace(id=1, lineage_id=1, generation=0),
             SimpleNamespace(id=2, lineage_id=1, generation=1),
             SimpleNamespace(id=3, lineage_id=2, generation=2),
@@ -58,7 +58,7 @@ class ObserverAnalyticsTests(unittest.TestCase):
             }
         )
 
-        report = build_observer_report(thronglets, advisor, faction_manager)
+        report = build_observer_report(praxans, advisor, faction_manager)
 
         self.assertEqual(report["population"], 3)
         self.assertEqual(report["max_population"], 5)
@@ -78,7 +78,7 @@ class ObserverAnalyticsTests(unittest.TestCase):
         self.assertEqual(report["faction_history"][0]["action"], "formed")
 
     def test_build_observer_report_falls_back_to_existing_events_when_timeline_is_missing(self):
-        thronglets = [SimpleNamespace(id=7, lineage_id=7, generation=0)]
+        praxans = [SimpleNamespace(id=7, lineage_id=7, generation=0)]
         advisor = SimpleNamespace(
             total_deaths=0,
             group_tasks=[],
@@ -92,7 +92,7 @@ class ObserverAnalyticsTests(unittest.TestCase):
             },
         )
 
-        report = build_observer_report(thronglets, advisor, faction_manager=None)
+        report = build_observer_report(praxans, advisor, faction_manager=None)
 
         self.assertEqual(len(report["timeline"]), 2)
         self.assertEqual(report["timeline"][0]["category"], "lineage")

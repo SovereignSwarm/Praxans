@@ -16,7 +16,7 @@ class HeadlessSmokeTests(unittest.TestCase):
         result = subprocess.run(
             [
                 sys.executable,
-                "thronglets_game.py",
+                "praxans_game.py",
                 "--headless",
                 "--disable-llm",
                 "--max-frames",

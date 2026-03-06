@@ -7,7 +7,7 @@ Set-Location $PSScriptRoot
 
 Write-Host ""
 Write-Host "===================================" -ForegroundColor Cyan
-Write-Host " Thronglets Game Launcher" -ForegroundColor Green
+Write-Host " Praxans Game Launcher" -ForegroundColor Green
 Write-Host "===================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -37,7 +37,7 @@ if (-not $pythonCmd) {
 
 $commandArgs = @()
 $commandArgs += $pythonArgs
-$commandArgs += "thronglets_game.py"
+$commandArgs += "praxans_game.py"
 $commandArgs += $GameArgs
 
 Write-Host "Using interpreter: $pythonCmd" -ForegroundColor Green

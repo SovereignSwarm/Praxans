@@ -121,8 +121,8 @@ def _draw_notes(surface: pygame.Surface, theme: UITheme, layout, registry, field
             break
 
 
-def _faction_centroid(faction, thronglets_by_id: dict[int, object]) -> tuple[float, float] | None:
-    members = [thronglets_by_id.get(int(member_id)) for member_id in getattr(faction, "member_ids", [])]
+def _faction_centroid(faction, praxans_by_id: dict[int, object]) -> tuple[float, float] | None:
+    members = [praxans_by_id.get(int(member_id)) for member_id in getattr(faction, "member_ids", [])]
     members = [member for member in members if member is not None]
     if not members:
         return None
@@ -253,9 +253,9 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
                 pygame.draw.lines(surface, theme.palette.copper, False, points, 2)
     elif overlay == "migration":
         faction_manager = context.get("faction_manager")
-        thronglets_by_id = {int(getattr(thronglet, "id", 0)): thronglet for thronglet in context.get("thronglets", [])}
+        praxans_by_id = {int(getattr(praxan, "id", 0)): praxan for praxan in context.get("praxans", [])}
         for faction in getattr(faction_manager, "factions", {}).values():
-            centroid = _faction_centroid(faction, thronglets_by_id)
+            centroid = _faction_centroid(faction, praxans_by_id)
             target = getattr(faction, "migration_target", None)
             if centroid is None or not isinstance(target, (tuple, list)) or len(target) != 2:
                 continue
@@ -281,9 +281,9 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
             by = int(map_y + float(bookmark.get("y", 0.0)) * scale_y)
             pygame.draw.circle(surface, theme.palette.frost, (bx, by), 4, 1)
 
-    for thronglet in context.get("thronglets", []):
-        mini_x = int(map_x + thronglet.x * scale_x)
-        mini_y = int(map_y + thronglet.y * scale_y)
+    for praxan in context.get("praxans", []):
+        mini_x = int(map_x + praxan.x * scale_x)
+        mini_y = int(map_y + praxan.y * scale_y)
         pygame.draw.circle(surface, theme.palette.parchment, (mini_x, mini_y), 2)
     for building in context.get("buildings", []):
         mini_x = int(map_x + building.x * scale_x)

@@ -68,7 +68,7 @@ class RunArchiveTests(unittest.TestCase):
         self.assertEqual(end_state_id, "thriving_civilization")
 
     def test_build_and_compare_archives(self):
-        thronglets = [
+        praxans = [
             SimpleNamespace(id=1, lineage_id=1, generation=2),
             SimpleNamespace(id=2, lineage_id=1, generation=1),
             SimpleNamespace(id=3, lineage_id=1, generation=2),
@@ -86,7 +86,7 @@ class RunArchiveTests(unittest.TestCase):
         )
 
         summary = build_run_summary(
-            thronglets=thronglets,
+            praxans=praxans,
             buildings=buildings,
             advisor=advisor,
             current_time=120.0,
@@ -114,7 +114,7 @@ class RunArchiveTests(unittest.TestCase):
         self.assertIn("focus_moments", summary)
 
         archive = build_run_archive(
-            thronglets=thronglets,
+            praxans=praxans,
             buildings=buildings,
             advisor=advisor,
             current_time=120.0,

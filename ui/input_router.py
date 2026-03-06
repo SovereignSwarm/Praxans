@@ -120,24 +120,24 @@ def _screen_distance(camera, pos: tuple[int, int], world_x: float, world_y: floa
 def pick_world_entity(
     screen_pos: tuple[int, int],
     camera,
-    thronglets,
+    praxans,
     buildings,
     resources,
     encounters,
     hazards,
     npcs,
     *,
-    thronglet_radius: float,
+    praxan_radius: float,
     building_size: float,
     resource_radii: dict[str, float],
 ) -> tuple[Any | None, str | None]:
     candidates: list[tuple[int, float, Any, str]] = []
 
-    for thronglet in thronglets:
-        distance = _screen_distance(camera, screen_pos, thronglet.x, thronglet.y)
-        threshold = max(14.0, float(thronglet_radius) + 6.0)
+    for praxan in praxans:
+        distance = _screen_distance(camera, screen_pos, praxan.x, praxan.y)
+        threshold = max(14.0, float(praxan_radius) + 6.0)
         if distance <= threshold:
-            candidates.append((0, distance, thronglet, "thronglet"))
+            candidates.append((0, distance, praxan, "praxan"))
 
     for building in buildings:
         distance = _screen_distance(camera, screen_pos, building.x, building.y)

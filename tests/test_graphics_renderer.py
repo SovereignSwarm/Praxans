@@ -72,11 +72,11 @@ class _DummyResource(_DummyEntity):
         self.resource_type = resource_type
         self.collected = collected
 
-    def draw(self, surface, _thronglets):
+    def draw(self, surface, _praxans):
         pygame.draw.circle(surface, (210, 90, 90), (int(self.x), int(self.y)), 5)
 
 
-class _DummyThronglet(_DummyEntity):
+class _DummyPraxan(_DummyEntity):
     def __init__(self, x, y):
         super().__init__(x, y)
         self.role = "gatherer"
@@ -123,10 +123,10 @@ class _DummyFaction:
         self.migration_target = (80.0, 70.0)
         self.primary_doctrine = "growth"
 
-    def get_centroid(self, thronglets):
-        if not thronglets:
+    def get_centroid(self, praxans):
+        if not praxans:
             return None
-        return (sum(t.x for t in thronglets) / len(thronglets), sum(t.y for t in thronglets) / len(thronglets))
+        return (sum(t.x for t in praxans) / len(praxans), sum(t.y for t in praxans) / len(praxans))
 
 
 class _DummyChunk:
@@ -165,7 +165,7 @@ class GraphicsRendererTests(unittest.TestCase):
             os.path.join(asset_root, "tilesets", "terrain", "plains_spring.png"),
             os.path.join(asset_root, "tilesets", "transitions", "forest_north_spring.png"),
             os.path.join(asset_root, "tilesets", "overlays", "residential_0.png"),
-            os.path.join(asset_root, "sprites", "thronglets", "gatherer_walk_down_0.png"),
+            os.path.join(asset_root, "sprites", "praxans", "gatherer_walk_down_0.png"),
             os.path.join(asset_root, "sprites", "buildings", "house.png"),
             os.path.join(asset_root, "sprites", "resources", "food.png"),
             os.path.join(asset_root, "sprites", "hazards", "predator_lair.png"),
@@ -180,7 +180,7 @@ class GraphicsRendererTests(unittest.TestCase):
         fog = _DummyFog()
         territory = _DummyTerritory()
         particles = _DummyParticleSystem()
-        thronglet = _DummyThronglet(40, 50)
+        praxan = _DummyPraxan(40, 50)
         frame = build_render_frame(
             world_map=SimpleNamespace(
                 chunks={(0, 0): _DummyChunk()},
@@ -207,11 +207,11 @@ class GraphicsRendererTests(unittest.TestCase):
             world_size=(320, 240),
             buildings=[_DummyBuilding(60, 70)],
             resources=[_DummyResource(100, 90)],
-            thronglets=[thronglet],
+            praxans=[praxan],
             encounters=[_DummyEncounter(130, 120)],
             hazards=[_DummyHazard(170, 120)],
             npcs=[_DummyNpc(220, 140)],
-            selected_entity=thronglet,
+            selected_entity=praxan,
             particle_system=particles,
             effect_cues=[{"label": "Birth", "category": "growth", "x": 40.0, "y": 50.0, "time": 38.0}],
         )
@@ -260,7 +260,7 @@ class GraphicsRendererTests(unittest.TestCase):
             world_size=(320, 240),
             buildings=[],
             resources=[],
-            thronglets=[],
+            praxans=[],
             encounters=[],
             hazards=[],
             npcs=[],

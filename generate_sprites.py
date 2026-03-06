@@ -19,14 +19,14 @@ def create_sprite(path, size, draw_func):
     draw_func(surface)
     pygame.image.save(surface, path)
 
-def draw_thronglet_base(surface):
+def draw_praxan_base(surface):
     w, h = surface.get_size()
     pygame.draw.ellipse(surface, (236, 198, 172), (w//4, h//4, w//2, h//2))
     pygame.draw.rect(surface, (66, 62, 56), (w//3, h//2, w//3, h//3))
 
 def main():
     print(f"Generating sprite assets in {ASSET_ROOT} ...")
-    os.makedirs(os.path.join(ASSET_ROOT, "thronglets"), exist_ok=True)
+    os.makedirs(os.path.join(ASSET_ROOT, "praxans"), exist_ok=True)
     os.makedirs(os.path.join(ASSET_ROOT, "buildings"), exist_ok=True)
     os.makedirs(os.path.join(ASSET_ROOT, "resources"), exist_ok=True)
     os.makedirs(os.path.join(ASSET_ROOT, "npcs"), exist_ok=True)

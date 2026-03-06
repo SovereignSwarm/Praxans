@@ -29,13 +29,13 @@ Double-click `start_game.bat`
 ### Option 2: Direct Python Command
 Open PowerShell or Command Prompt in the game directory and run:
 ```
-py thronglets_game.py
+py praxans_game.py
 ```
 
 or
 
 ```
-python thronglets_game.py
+python praxans_game.py
 ```
 
 ### Option 3: PowerShell Script
@@ -75,7 +75,7 @@ If the game still doesn't launch:
 
 ### Files Modified:
 - `start_game.bat` - Fixed tee command issue
-- `thronglets_game.py` - Improved window initialization (lines ~6500-6535)
+- `praxans_game.py` - Improved window initialization (lines ~6500-6535)
 
 ### New Files:
 - `LAUNCH_FIXES.md` - This documentation file

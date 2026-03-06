@@ -1,4 +1,4 @@
-# Thronglets Game - System Connections & Interdependencies Analysis
+# Praxans Game - System Connections & Interdependencies Analysis
 
 **Generated:** Saturday, November 1, 2025  
 **Analysis Type:** Comprehensive System Integration Check
@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-This document provides a thorough analysis of all system connections and interdependencies in the Thronglets AI civilization simulator. The game consists of 20 major classes with complex interactions across UI systems, core mechanics, map systems, evolution systems, and environmental systems.
+This document provides a thorough analysis of all system connections and interdependencies in the Praxans AI civilization simulator. The game consists of 20 major classes with complex interactions across UI systems, core mechanics, map systems, evolution systems, and environmental systems.
 
 ### Overall Health: ⚠️ GOOD with Minor Issues
 
@@ -20,14 +20,14 @@ This document provides a thorough analysis of all system connections and interde
 
 ## 1. Core Entity Integration ✅ VERIFIED
 
-### Thronglet System
+### Praxan System
 **Status:** Fully functional with all interdependencies connected
 
 #### Verified Connections:
 - ✅ Needs system (hunger, energy, thirst) decay properly with delta_time
 - ✅ Health system tracks age, disease, and need deficiencies
 - ✅ Skills progression integrated with XP gain from gathering/building
-- ✅ Social bonds use stable Thronglet IDs (fixed from previous issues)
+- ✅ Social bonds use stable Praxan IDs (fixed from previous issues)
 - ✅ Disease mechanics check population density, hygiene, health, and biome
 - ✅ Reproduction system checks all requirements (needs, cooldown, health, happiness, thirst)
 - ✅ Movement respects biome modifiers and disease status
@@ -36,7 +36,7 @@ This document provides a thorough analysis of all system connections and interde
 #### Movement Speed Integration:
 ```python
 # Line 966-976: Proper modifier chain
-speed_mod = modifiers.get_modifier('thronglet_speed') if modifiers else 1.0
+speed_mod = modifiers.get_modifier('praxan_speed') if modifiers else 1.0
 speed_multiplier = (0.5 if self.diseased else 1.0) * speed_mod
 biome_mod = biome_props.get('movement_speed', 1.0)
 speed_multiplier *= biome_mod
@@ -68,7 +68,7 @@ speed_multiplier *= biome_mod
 #### Verified Connections:
 - ✅ Farm production uses `farm_production_rate` modifier (line 2755)
 - ✅ House capacity uses `house_capacity` modifier (line 2767)
-- ✅ Buildings track built_by using Thronglet IDs
+- ✅ Buildings track built_by using Praxan IDs
 - ✅ Storage, shrines, and wells function as intended
 - ✅ All building costs properly defined in LLM prompt
 
@@ -89,10 +89,10 @@ speed_multiplier *= biome_mod
 |---------------|-----------|-----------|--------|
 | `farm_production_rate` | Tech tree | Building.update() | ✅ Working |
 | `house_capacity` | Tech tree | Building.can_enter() | ✅ Working |
-| `thronglet_speed` | Tech tree + abilities | Thronglet.update_position() | ✅ Working |
+| `praxan_speed` | Tech tree + abilities | Praxan.update_position() | ✅ Working |
 | `disease_recovery_rate` | Tech tree | Disease recovery logic | ✅ Working |
 | `health_regen` | Tech tree | **NEVER APPLIED** | ❌ Missing |
-| `bond_decay` | Tech tree | Thronglet.update_bonds() | ✅ Working |
+| `bond_decay` | Tech tree | Praxan.update_bonds() | ✅ Working |
 | `workshop_bonus` | Tech tree | **NEVER APPLIED** | ❌ Missing |
 | `build_speed` | Abilities | **NEVER APPLIED** | ❌ Missing |
 | `gather_rate` | Abilities | **NEVER APPLIED** | ❌ Missing |
@@ -103,8 +103,8 @@ speed_multiplier *= biome_mod
 1. **health_regen modifier** (Priority: HIGH)
    - Defined in medicine_1 and medicine_2 techs
    - Never read or applied anywhere
-   - Thronglets cannot recover health naturally
-   - **Recommendation:** Add health regeneration in Thronglet.update_age_and_health()
+   - Praxans cannot recover health naturally
+   - **Recommendation:** Add health regeneration in Praxan.update_age_and_health()
 
 2. **workshop_bonus modifier** (Priority: MEDIUM)
    - Defined in industry_1 tech
@@ -125,7 +125,7 @@ speed_multiplier *= biome_mod
 5. **happiness_base modifier** (Priority: LOW)
    - Defined in social_1 tech
    - Happiness system exists but doesn't check this modifier
-   - **Recommendation:** Apply in Thronglet.update_happiness()
+   - **Recommendation:** Apply in Praxan.update_happiness()
 
 ---
 
@@ -149,7 +149,7 @@ speed_multiplier *= biome_mod
 - ✅ Unlocked tech tree shown
 - ✅ Session stats tracked (buildings_built, deaths_by_cause)
 - ✅ Strategic goals tracked
-- ✅ Directives properly parsed and used by Thronglets
+- ✅ Directives properly parsed and used by Praxans
 
 ### Challenge System
 **Status:** ✅ Fully functional
@@ -169,7 +169,7 @@ speed_multiplier *= biome_mod
 **Status:** Defined but underutilized
 
 #### ✅ Verified Applications:
-- ✅ Movement speed affects thronglet movement (line 974)
+- ✅ Movement speed affects praxan movement (line 974)
 - ✅ Disease risk affects disease contraction (line 3425)
 
 #### ❌ NOT Applied:
@@ -200,7 +200,7 @@ speed_multiplier *= biome_mod
 ### TooltipSystem
 **Status:** ✅ Fully functional
 
-- ✅ Detects all entity types (thronglets, buildings, resources, encounters, hazards, NPCs)
+- ✅ Detects all entity types (praxans, buildings, resources, encounters, hazards, NPCs)
 - ✅ Priority order prevents overlap
 - ✅ Displays relevant stats (3-5 items)
 - ✅ Uses screen coordinates properly
@@ -261,7 +261,7 @@ speed_multiplier *= biome_mod
 ### TerrainHazards
 **Status:** ✅ Fully functional
 
-- ✅ check_affect() called for all thronglets (line 3488)
+- ✅ check_affect() called for all praxans (line 3488)
 - ✅ Hazards spawn based on biome type
 - ✅ Effects properly implemented:
   - Quicksand drains energy
@@ -293,7 +293,7 @@ speed_multiplier *= biome_mod
 
 2. **LLM_QUERY_INTERVAL** (line 29)
    - Defined: 5.0 seconds
-   - Used: Never (individual thronglets use timers, advisor uses CIVILIZATION_ADVISOR_INTERVAL)
+   - Used: Never (individual praxans use timers, advisor uses CIVILIZATION_ADVISOR_INTERVAL)
    - **Action:** Remove constant
 
 ### Partially Implemented Features:
@@ -304,9 +304,9 @@ speed_multiplier *= biome_mod
    - **Never used in gameplay**
    - **Action:** Either integrate or remove class
 
-4. **Knowledge Sharing** (Thronglet.territories_known)
-   - Thronglets track discovered territories
-   - Knowledge shared between thronglets
+4. **Knowledge Sharing** (Praxan.territories_known)
+   - Praxans track discovered territories
+   - Knowledge shared between praxans
    - **Territories have no gameplay effect**
    - **Action:** Link to exploration bonuses or remove
 
@@ -333,8 +333,8 @@ speed_multiplier *= biome_mod
 - UI panels don't overlap incorrectly
 
 🔧 **Potential Improvements:**
-1. Spatial partitioning for large thronglet counts (not needed yet)
-2. Cache biome lookups for thronglets (minor gain)
+1. Spatial partitioning for large praxan counts (not needed yet)
+2. Cache biome lookups for praxans (minor gain)
 3. Batch particle rendering (minor gain)
 
 ---
@@ -344,7 +344,7 @@ speed_multiplier *= biome_mod
 ### 🔴 HIGH PRIORITY
 
 1. **Implement health_regen modifier**
-   - Location: Thronglet.update_age_and_health()
+   - Location: Praxan.update_age_and_health()
    - Add: `health_regen = modifiers.get_modifier('health_regen')`
    - Apply: `self.health = min(100, self.health + health_regen * delta_time)`
 
@@ -354,19 +354,19 @@ speed_multiplier *= biome_mod
    - Multiply spawn chance/amount by biome bonus
 
 3. **Implement workshop_bonus effect**
-   - Location: Thronglet gathering/building logic
+   - Location: Praxan gathering/building logic
    - Check proximity to workshops
    - Apply production multiplier
 
 ### 🟡 MEDIUM PRIORITY
 
 4. **Add comfort_bonus to happiness**
-   - Location: Thronglet.update_happiness()
+   - Location: Praxan.update_happiness()
    - Get biome comfort_bonus
    - Factor into happiness calculation
 
 5. **Implement encounter exploration and rewards**
-   - Add interaction when thronglet near explored encounter
+   - Add interaction when praxan near explored encounter
    - Award resources/research points
    - Mark encounter as explored
 
@@ -400,7 +400,7 @@ speed_multiplier *= biome_mod
 
 ## Conclusion
 
-The Thronglets game has **excellent overall system integration** with most mechanics properly connected. The main issues are:
+The Praxans game has **excellent overall system integration** with most mechanics properly connected. The main issues are:
 
 1. **Evolution modifiers partially implemented** - Some defined but not applied
 2. **Biome properties underutilized** - Resource bonuses not connected

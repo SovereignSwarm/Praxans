@@ -20,7 +20,7 @@ from graphics.content import (
     RESOURCE_ART,
     ROLE_PALETTES,
     SOURCE_RESOURCE_SIZE,
-    SOURCE_THRONGLET_SIZE,
+    SOURCE_PRAXAN_SIZE,
     SOURCE_TILE_SIZE,
     palette_for_biome_and_season,
 )
@@ -203,9 +203,9 @@ def draw_overlay(zone_type: str, variant: int) -> pygame.Surface:
     return surf
 
 
-def draw_thronglet(role: str, animation: str, facing: str, frame_idx: int) -> pygame.Surface:
+def draw_praxan(role: str, animation: str, facing: str, frame_idx: int) -> pygame.Surface:
     palette = ROLE_PALETTES.get(role, ROLE_PALETTES["default"])
-    surf = surface(SOURCE_THRONGLET_SIZE)
+    surf = surface(SOURCE_PRAXAN_SIZE)
     bounce = 1 if animation in {"walk", "gather", "build", "celebrate"} and frame_idx == 0 else 0
     body = palette.clothing
     skin = palette.skin
@@ -446,13 +446,13 @@ def write_overlays() -> None:
             save_png(draw_overlay(zone_type, variant), ASSETS / "tilesets" / "overlays" / f"{zone_type}_{variant}.png")
 
 
-def write_thronglets() -> None:
+def write_praxans() -> None:
     for role in ROLES:
         for animation in ANIMATIONS:
             for facing in FACINGS:
                 for frame_idx in range(2):
-                    sprite = draw_thronglet(role, animation, facing, frame_idx)
-                    save_png(sprite, ASSETS / "sprites" / "thronglets" / f"{role}_{animation}_{facing}_{frame_idx}.png")
+                    sprite = draw_praxan(role, animation, facing, frame_idx)
+                    save_png(sprite, ASSETS / "sprites" / "praxans" / f"{role}_{animation}_{facing}_{frame_idx}.png")
 
 
 def write_buildings() -> None:
@@ -477,7 +477,7 @@ def write_npcs() -> None:
 
 def write_placeholders() -> None:
     save_png(draw_placeholder("terrain", (16, 16)), ASSETS / "tilesets" / "placeholders" / "terrain_placeholder.png")
-    save_png(draw_placeholder("thronglet", SOURCE_THRONGLET_SIZE), ASSETS / "sprites" / "placeholders" / "thronglet_placeholder.png")
+    save_png(draw_placeholder("praxan", SOURCE_PRAXAN_SIZE), ASSETS / "sprites" / "placeholders" / "praxan_placeholder.png")
     save_png(draw_placeholder("building", (32, 40)), ASSETS / "sprites" / "placeholders" / "building_placeholder.png")
     save_png(draw_placeholder("resource", SOURCE_RESOURCE_SIZE), ASSETS / "sprites" / "placeholders" / "resource_placeholder.png")
     save_png(draw_placeholder("hazard", (24, 24)), ASSETS / "sprites" / "placeholders" / "hazard_placeholder.png")
@@ -489,13 +489,13 @@ def main() -> None:
     try:
         write_terrain()
         write_overlays()
-        write_thronglets()
+        write_praxans()
         write_buildings()
         write_resources()
         write_hazards()
         write_npcs()
         write_placeholders()
-        print("Generated SNES-inspired Thronglets asset pack.")
+        print("Generated SNES-inspired Praxans asset pack.")
     finally:
         pygame.quit()
 

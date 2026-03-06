@@ -7,9 +7,9 @@ set EXIT_CODE=%ERRORLEVEL%
 
 echo.
 if %EXIT_CODE% EQU 0 (
-    echo Verbose Thronglets session complete.
+    echo Verbose Praxans session complete.
 ) else (
-    echo Verbose Thronglets session exited with code %EXIT_CODE%.
+    echo Verbose Praxans session exited with code %EXIT_CODE%.
 )
 
 pause

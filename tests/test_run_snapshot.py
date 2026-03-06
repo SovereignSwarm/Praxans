@@ -47,7 +47,7 @@ class RunSnapshotTests(unittest.TestCase):
                 load_run_snapshot(snapshot_path)
 
     def test_build_write_and_load_snapshot_round_trip(self):
-        thronglet = SimpleNamespace(
+        praxan = SimpleNamespace(
             id=7,
             role="builder",
             x=12.5,
@@ -99,7 +99,7 @@ class RunSnapshotTests(unittest.TestCase):
             built_by=7,
             aura_strength=0.6,
             stored_resources={"food": 1, "wood": 0, "stone": 0},
-            occupants=[thronglet],
+            occupants=[praxan],
         )
         resource = SimpleNamespace(
             resource_type="food",
@@ -128,7 +128,7 @@ class RunSnapshotTests(unittest.TestCase):
             total_deaths=2,
             achievements=["weathered_winter"],
             history=[{"summary": "hold steady"}],
-            events_history=[{"time": 99.0, "description": "New thronglet born"}],
+            events_history=[{"time": 99.0, "description": "New praxan born"}],
             last_model_used="qwen3.5:9b",
             group_tasks=[
                 SimpleNamespace(
@@ -137,7 +137,7 @@ class RunSnapshotTests(unittest.TestCase):
                     required_count=2,
                     target_location=(44.0, 55.0),
                     target_building_type="workshop",
-                    assigned_thronglets=[7],
+                    assigned_praxans=[7],
                     active=True,
                     faction_id=0,
                     created_time=92.0,
@@ -224,7 +224,7 @@ class RunSnapshotTests(unittest.TestCase):
         )
 
         snapshot = build_run_snapshot(
-            [thronglet],
+            [praxan],
             [building],
             [resource],
             advisor,
@@ -285,17 +285,17 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(loaded["scenario_id"], "high_mutation")
         self.assertEqual(loaded["run_summary"]["current_phase"]["label"], "Expansion")
         self.assertEqual(loaded["graphics"]["scene_thumbnail_key"], "thumb_test_session.png")
-        self.assertEqual(loaded["thronglets"][0]["id"], 7)
+        self.assertEqual(loaded["praxans"][0]["id"], 7)
         self.assertEqual(loaded["buildings"][0]["built_by"], 7)
         self.assertEqual(loaded["buildings"][0]["occupant_ids"], [7])
         self.assertEqual(loaded["advisor"]["tech_unlocked"], ["agriculture_1"])
-        self.assertEqual(loaded["thronglets"][0]["generation"], 2)
-        self.assertEqual(loaded["thronglets"][0]["lineage_id"], 1)
-        self.assertEqual(loaded["thronglets"][0]["genetics"]["learning_affinity"], 1.12)
-        self.assertEqual(loaded["thronglets"][0]["skills"]["building"]["level"], 4)
-        self.assertEqual(loaded["thronglets"][0]["known_resources"][0]["x"], 100.0)
-        self.assertEqual(loaded["thronglets"][0]["disease_elapsed"], 10.0)
-        self.assertEqual(loaded["thronglets"][0]["last_reproduction_elapsed"], 18.0)
+        self.assertEqual(loaded["praxans"][0]["generation"], 2)
+        self.assertEqual(loaded["praxans"][0]["lineage_id"], 1)
+        self.assertEqual(loaded["praxans"][0]["genetics"]["learning_affinity"], 1.12)
+        self.assertEqual(loaded["praxans"][0]["skills"]["building"]["level"], 4)
+        self.assertEqual(loaded["praxans"][0]["known_resources"][0]["x"], 100.0)
+        self.assertEqual(loaded["praxans"][0]["disease_elapsed"], 10.0)
+        self.assertEqual(loaded["praxans"][0]["last_reproduction_elapsed"], 18.0)
         self.assertEqual(loaded["advisor"]["civilization_age"], 6)
         self.assertEqual(loaded["advisor"]["total_deaths"], 2)
         self.assertEqual(loaded["advisor"]["last_model_used"], "qwen3.5:9b")

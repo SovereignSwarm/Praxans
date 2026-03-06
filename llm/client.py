@@ -1,6 +1,6 @@
-"""Unified Ollama client wrapper for the Thronglets LLM subsystem.
+"""Unified Ollama client wrapper for the Praxans LLM subsystem.
 
-Replaces the six top-level LLM helper functions that were in thronglets_game.py:
+Replaces the six top-level LLM helper functions that were in praxans_game.py:
   get_ollama_client, get_fastest_available_model, get_ollama_options,
   sanitize_llm_response, generate_ollama_text, start_async_llm_job
 

@@ -13,7 +13,7 @@ from game_scenarios import DEFAULT_SCENARIO_ID, format_scenario_help, list_scena
 _NOISY_CONSOLE_PREFIXES = (
     "[DEBUG]",
     "[STATUS",
-    "[Thronglet ",
+    "[Praxan ",
     "[Q-Learning]",
     "[Directive",
     "[JSON Directive]",
@@ -81,7 +81,7 @@ def _positive_int(value: str) -> int:
 
 
 def parse_runtime_config(argv: Optional[Sequence[str]] = None) -> RuntimeConfig:
-    parser = argparse.ArgumentParser(description="Run the Thronglets simulation.")
+    parser = argparse.ArgumentParser(description="Run the Praxans simulation.")
     parser.add_argument("--width", type=_positive_int, default=1920, help="Window width in pixels.")
     parser.add_argument("--height", type=_positive_int, default=1080, help="Window height in pixels.")
     parser.add_argument("--fps", type=_positive_int, default=30, help="Target frames per second.")

@@ -82,7 +82,7 @@ class RenderFrame:
     world: WorldLayerState
     buildings: tuple[EntityVisualState, ...] = field(default_factory=tuple)
     resources: tuple[EntityVisualState, ...] = field(default_factory=tuple)
-    thronglets: tuple[EntityVisualState, ...] = field(default_factory=tuple)
+    praxans: tuple[EntityVisualState, ...] = field(default_factory=tuple)
     encounters: tuple[EntityVisualState, ...] = field(default_factory=tuple)
     hazards: tuple[EntityVisualState, ...] = field(default_factory=tuple)
     npcs: tuple[EntityVisualState, ...] = field(default_factory=tuple)
@@ -105,7 +105,7 @@ def _derive_facing(entity) -> str:
 
 
 def _derive_animation_state(entity, entity_type: str) -> str:
-    if entity_type == "thronglet":
+    if entity_type == "praxan":
         if not bool(getattr(entity, "alive", True)):
             return "death"
         if bool(getattr(entity, "diseased", False)):
@@ -127,7 +127,7 @@ def _derive_animation_state(entity, entity_type: str) -> str:
 
 
 def _derive_health_state(entity, entity_type: str) -> str:
-    if entity_type == "thronglet":
+    if entity_type == "praxan":
         if not bool(getattr(entity, "alive", True)):
             return "dead"
         if bool(getattr(entity, "diseased", False)):
@@ -190,7 +190,7 @@ def build_render_frame(
     world_size: tuple[int, int],
     buildings,
     resources,
-    thronglets,
+    praxans,
     encounters,
     hazards,
     npcs,
@@ -256,7 +256,7 @@ def build_render_frame(
         world=world_state,
         buildings=_build_entity_states(buildings, "building", selected_entity, faction_manager),
         resources=_build_entity_states(resources, "resource", selected_entity, faction_manager),
-        thronglets=_build_entity_states(thronglets, "thronglet", selected_entity, faction_manager),
+        praxans=_build_entity_states(praxans, "praxan", selected_entity, faction_manager),
         encounters=_build_entity_states(encounters, "encounter", selected_entity, faction_manager),
         hazards=_build_entity_states(hazards, "hazard", selected_entity, faction_manager),
         npcs=_build_entity_states(npcs, "npc", selected_entity, faction_manager),

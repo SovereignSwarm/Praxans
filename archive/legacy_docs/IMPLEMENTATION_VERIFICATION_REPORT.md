@@ -1,4 +1,4 @@
-# Thronglets AI Enhancement - Implementation Verification Report
+# Praxans AI Enhancement - Implementation Verification Report
 
 **Date**: 2025-01-03  
 **Status**: Implementation Complete - Bugs Identified & Fixes Proposed
@@ -11,16 +11,16 @@
 
 ```
 BehaviorTree System:
-  Thronglet.__init__ → behavior_tree = None (lazy init)
-  Thronglet.decide_action() → BehaviorTree(self) → behavior_tree.tick(context)
+  Praxan.__init__ → behavior_tree = None (lazy init)
+  Praxan.decide_action() → BehaviorTree(self) → behavior_tree.tick(context)
   BehaviorTree._build_tree() → FSM States (STATE_SEEK_NEED, etc.)
   BehaviorTreeNode.tick() → condition_func / action_func → transition_to_state()
 
 Q-Learning System:
-  Thronglet.__init__ → q_table = {}, last_state = None, last_action = None
-  Thronglet.decide_action() → _get_state_tuple() → get_best_q_action() → q_learning_action → boosts directive priority ✅
-  Thronglet.record_failure() → update_q_value(reward=-5)
-  Thronglet.record_success() → update_q_value(reward=10) ✅ Called on building/gathering success
+  Praxan.__init__ → q_table = {}, last_state = None, last_action = None
+  Praxan.decide_action() → _get_state_tuple() → get_best_q_action() → q_learning_action → boosts directive priority ✅
+  Praxan.record_failure() → update_q_value(reward=-5)
+  Praxan.record_success() → update_q_value(reward=10) ✅ Called on building/gathering success
   update_q_value() → Q-table (max 1000 entries, LRU eviction)
 
 Voronoi Territory:
@@ -29,20 +29,20 @@ Voronoi Territory:
   CityPlanner.score_building_location() → territory_manager.is_claimed() [✅ API unchanged]
 
 Boids Clustering:
-  Thronglet.calculate_path() → get_boids_forces(other_thronglets) → adjusts path waypoints ✅
-  Thronglet.decide_action() → get_boids_forces() → blends into velocity when not pathfinding ✅
-  CityPlanner.score_building_location() → thronglet density check [✅ Works]
+  Praxan.calculate_path() → get_boids_forces(other_praxans) → adjusts path waypoints ✅
+  Praxan.decide_action() → get_boids_forces() → blends into velocity when not pathfinding ✅
+  CityPlanner.score_building_location() → praxan density check [✅ Works]
 
 Factions System:
   FactionManager.__init__ → factions = {}
-  Main loop → faction_manager.update_factions(thronglets) [✅ Called after bond updates]
-  Thronglet.__init__ → faction_id = None
-  Thronglet.update_bonds() → triggers faction formation (via update_factions)
+  Main loop → faction_manager.update_factions(praxans) [✅ Called after bond updates]
+  Praxan.__init__ → faction_id = None
+  Praxan.update_bonds() → triggers faction formation (via update_factions)
   GroupTask.__init__ → faction_id = None
   CivilizationAdvisor.parse_json_directives() → team_task → process_communal_tasks() → GroupTask.faction_id
 
 Bonds → Directives:
-  Thronglet.decide_action(STATE_EXECUTE_DIRECTIVE) → get_bonded_thronglets_on_directive()
+  Praxan.decide_action(STATE_EXECUTE_DIRECTIVE) → get_bonded_praxans_on_directive()
   → weighted_directives (priority + bond_bonus) → sorted by weighted_priority [✅ Works]
 ```
 
@@ -53,10 +53,10 @@ Bonds → Directives:
 ### Critical Bugs Found
 
 #### Bug #1: Q-Learning Action Not Applied ⚠️ HIGH
-**Location**: `thronglets_game.py:2687-2736`  
+**Location**: `praxans_game.py:2687-2736`  
 **Issue**: `q_learning_action` is calculated but never used to influence behavior. It's stored in `self.last_action` but doesn't affect decision-making.
 
-**Impact**: Q-learning is effectively non-functional - thronglets never benefit from learned Q-values.
+**Impact**: Q-learning is effectively non-functional - praxans never benefit from learned Q-values.
 
 **Fix Required**:
 ```python
@@ -70,7 +70,7 @@ if q_learning_action:
 ```
 
 #### Bug #2: record_success() Never Called ⚠️ HIGH
-**Location**: `thronglets_game.py:2411-2421`  
+**Location**: `praxans_game.py:2411-2421`  
 **Issue**: `record_success()` method exists but is never invoked when actions complete successfully.
 
 **Impact**: Q-learning never receives positive rewards, only negative ones from `record_failure()`. Learning is unbalanced.
@@ -81,7 +81,7 @@ if q_learning_action:
 - Exploration reaches target (in pathfinding completion)
 
 #### Bug #3: Boids Only Applied on Multi-Waypoint Paths ⚠️ MEDIUM
-**Location**: `thronglets_game.py:2141-2155`  
+**Location**: `praxans_game.py:2141-2155`  
 **Issue**: Boids forces are only applied when `len(path) > 1`, but direct paths return `[(target_x, target_y)]` (length 1).
 
 **Impact**: Boids clustering doesn't work for close targets or when A* finds direct path.
@@ -89,8 +89,8 @@ if q_learning_action:
 **Fix Required**:
 ```python
 # Apply Boids to velocity directly, not just path
-if other_thronglets:
-    boids_cohesion, boids_separation = self.get_boids_forces(other_thronglets)
+if other_praxans:
+    boids_cohesion, boids_separation = self.get_boids_forces(other_praxans)
     # Blend into velocity (if not pathfinding)
     if not self.path or len(self.path) <= 1:
         self.vx += (boids_cohesion[0] + boids_separation[0]) * 0.05
@@ -98,7 +98,7 @@ if other_thronglets:
 ```
 
 #### Bug #4: _get_state_tuple() Fails with None Resources ⚠️ MEDIUM
-**Location**: `thronglets_game.py:2324-2344, 2420, 2313`  
+**Location**: `praxans_game.py:2324-2344, 2420, 2313`  
 **Issue**: When calling `_get_state_tuple(None, None)` in `record_success()` and `record_failure()`, the `if resources:` check is safe, but iteration would fail.
 
 **Impact**: Currently safe due to `if resources:` guard, but misleading. Should use empty list.
@@ -114,38 +114,38 @@ def record_success(self, action_type):
 ```
 
 #### Bug #5: Offspring Don't Initialize Behavior Tree ⚠️ LOW
-**Location**: `thronglets_game.py:3326`  
-**Issue**: `Thronglet.create_offspring()` creates child but behavior_tree remains None. Initialization happens lazily, so this is OK, but could delay first decision.
+**Location**: `praxans_game.py:3326`  
+**Issue**: `Praxan.create_offspring()` creates child but behavior_tree remains None. Initialization happens lazily, so this is OK, but could delay first decision.
 
 **Impact**: Minor - behavior tree initializes on first `decide_action()` call.
 
 **Fix Required**: None - lazy initialization is acceptable.
 
 #### Bug #6: Faction Formation Threshold May Be Too High ⚠️ LOW
-**Location**: `thronglets_game.py:1519`  
+**Location**: `praxans_game.py:1519`  
 **Issue**: Requires 3+ members with mutual bonds > 70. With small populations, factions may never form.
 
 **Impact**: Low cohesion in early game when population < 10.
 
-**Fix Required**: Scale threshold: `min(3, len(thronglets) // 4)` for minimum members.
+**Fix Required**: Scale threshold: `min(3, len(praxans) // 4)` for minimum members.
 
 ---
 
 ### Performance Issues
 
 #### Issue #1: Voronoi Calculation Cost
-**Location**: `thronglets_game.py:886-959`  
+**Location**: `praxans_game.py:886-959`  
 **Severity**: Medium - O(n * m) where n = seeds, m = tiles in bounding box
 
 **Mitigation**: ✅ Already implemented - cached for 5 seconds, only recalculates on significant population change.
 
 #### Issue #2: Q-Table Growth
-**Location**: `thronglets_game.py:2366-2371`  
+**Location**: `praxans_game.py:2366-2371`  
 **Status**: ✅ Already limited to 1000 entries with LRU eviction.
 
 #### Issue #3: Boids Calculation
-**Location**: `thronglets_game.py:2159-2203`  
-**Status**: ✅ Already optimized - only checks thronglets within 200px (spatial partition).
+**Location**: `praxans_game.py:2159-2203`  
+**Status**: ✅ Already optimized - only checks praxans within 200px (spatial partition).
 
 ---
 
@@ -172,10 +172,10 @@ if q_learning_action:
 
 ```python
 # In resource collection code (after successful gather):
-thronglet.record_success('gather_' + resource.resource_type)
+praxan.record_success('gather_' + resource.resource_type)
 
 # In building completion code:
-thronglet.record_success('build_' + building_type)
+praxan.record_success('build_' + building_type)
 ```
 
 ### Fix #3: Apply Boids to Velocity When Not Pathfinding
@@ -183,8 +183,8 @@ thronglet.record_success('build_' + building_type)
 ```python
 # In decide_action(), after movement calculations:
 if not self.path or len(self.path) <= 1:  # Direct movement
-    if other_thronglets:
-        boids_cohesion, boids_separation = self.get_boids_forces(other_thronglets)
+    if other_praxans:
+        boids_cohesion, boids_separation = self.get_boids_forces(other_praxans)
         # Apply as steering force (5% influence)
         steering_x = (boids_cohesion[0] + boids_separation[0]) * 0.05
         steering_y = (boids_cohesion[1] + boids_separation[1]) * 0.05
@@ -209,57 +209,57 @@ def record_success(self, action_type):
 ## 4. Unit Tests (Assertions)
 
 ### Test Suite Location
-Create `test_thronglets_ai.py` in project root.
+Create `test_praxans_ai.py` in project root.
 
 ```python
-"""Unit tests for Thronglets AI enhancements"""
+"""Unit tests for Praxans AI enhancements"""
 
 import unittest
-from thronglets_game import *
+from praxans_game import *
 
 class TestBehaviorTree(unittest.TestCase):
     def test_behavior_tree_initialization(self):
         """Test behavior tree lazy initialization"""
-        thronglet = Thronglet(100, 100)
-        self.assertIsNone(thronglet.behavior_tree)
+        praxan = Praxan(100, 100)
+        self.assertIsNone(praxan.behavior_tree)
         
         # Trigger initialization
-        thronglet.decide_action([], [], 0.1)
-        self.assertIsNotNone(thronglet.behavior_tree)
-        self.assertIsNotNone(thronglet.behavior_tree.root)
+        praxan.decide_action([], [], 0.1)
+        self.assertIsNotNone(praxan.behavior_tree)
+        self.assertIsNotNone(praxan.behavior_tree.root)
     
     def test_behavior_tree_survival_priority(self):
         """Test survival takes priority over directives"""
-        thronglet = Thronglet(100, 100)
-        thronglet.needs['hunger'] = 25  # Critical
-        thronglet.decide_action([], [], 0.1, directives=[{'priority': 10, 'action': 'build'}])
+        praxan = Praxan(100, 100)
+        praxan.needs['hunger'] = 25  # Critical
+        praxan.decide_action([], [], 0.1, directives=[{'priority': 10, 'action': 'build'}])
         
         # Should transition to SEEK_NEED, not EXECUTE_DIRECTIVE
-        self.assertEqual(thronglet.state, STATE_SEEK_NEED)
+        self.assertEqual(praxan.state, STATE_SEEK_NEED)
 
 class TestQLearning(unittest.TestCase):
     def test_q_table_size_limit(self):
         """Test Q-table doesn't exceed max size"""
-        thronglet = Thronglet(100, 100)
+        praxan = Praxan(100, 100)
         
         # Add 1500 entries
         for i in range(1500):
             state = ((i % 6, i % 6, i % 6), i % 4, i % 6)
             action = f'action_{i % 8}'
-            thronglet.q_table[(state, action)] = 1.0
+            praxan.q_table[(state, action)] = 1.0
         
         # Should be capped at 1000
-        self.assertLessEqual(len(thronglet.q_table), Q_TABLE_MAX_SIZE)
+        self.assertLessEqual(len(praxan.q_table), Q_TABLE_MAX_SIZE)
     
     def test_q_value_update(self):
         """Test Q-value updates correctly"""
-        thronglet = Thronglet(100, 100)
+        praxan = Praxan(100, 100)
         state = ((3, 3, 3), 1, 2)
         action = 'gather_food'
         
-        initial_q = thronglet.get_q_value(state, action)
-        thronglet.update_q_value(state, action, 10, state)
-        new_q = thronglet.get_q_value(state, action)
+        initial_q = praxan.get_q_value(state, action)
+        praxan.update_q_value(state, action, 10, state)
+        new_q = praxan.get_q_value(state, action)
         
         self.assertGreater(new_q, initial_q)
 
@@ -267,17 +267,17 @@ class TestVoronoiTerritory(unittest.TestCase):
     def test_voronoi_caching(self):
         """Test Voronoi cache prevents recalculation"""
         tm = TerritoryManager(2048, 1536)
-        thronglets = [Thronglet(100, 100), Thronglet(200, 200)]
+        praxans = [Praxan(100, 100), Praxan(200, 200)]
         buildings = []
         
         # First update
-        tm.update(thronglets, buildings)
+        tm.update(praxans, buildings)
         cache_time_1 = tm.last_voronoi_calculation
         
         # Second update (within 5s) - should use cache
         import time
         time.sleep(0.1)
-        tm.update(thronglets, buildings)
+        tm.update(praxans, buildings)
         cache_time_2 = tm.last_voronoi_calculation
         
         # Should be same (cached)
@@ -286,8 +286,8 @@ class TestVoronoiTerritory(unittest.TestCase):
     def test_voronoi_api_compatibility(self):
         """Test is_claimed() API unchanged"""
         tm = TerritoryManager(2048, 1536)
-        thronglets = [Thronglet(100, 100)]
-        tm.update(thronglets, [])
+        praxans = [Praxan(100, 100)]
+        tm.update(praxans, [])
         
         # API should work same as before
         result = tm.is_claimed(100, 100, threshold=50)
@@ -297,21 +297,21 @@ class TestFactions(unittest.TestCase):
     def test_faction_formation_bonds_70(self):
         """Test factions form from bonds > 70"""
         fm = FactionManager()
-        thronglets = [
-            Thronglet(100, 100),
-            Thronglet(110, 110),
-            Thronglet(120, 120)
+        praxans = [
+            Praxan(100, 100),
+            Praxan(110, 110),
+            Praxan(120, 120)
         ]
         
         # Set mutual bonds > 70
-        thronglets[0].bonds[thronglets[1].id] = 75
-        thronglets[1].bonds[thronglets[0].id] = 75
-        thronglets[1].bonds[thronglets[2].id] = 80
-        thronglets[2].bonds[thronglets[1].id] = 80
-        thronglets[0].bonds[thronglets[2].id] = 72
-        thronglets[2].bonds[thronglets[0].id] = 72
+        praxans[0].bonds[praxans[1].id] = 75
+        praxans[1].bonds[praxans[0].id] = 75
+        praxans[1].bonds[praxans[2].id] = 80
+        praxans[2].bonds[praxans[1].id] = 80
+        praxans[0].bonds[praxans[2].id] = 72
+        praxans[2].bonds[praxans[0].id] = 72
         
-        fm.update_factions(thronglets)
+        fm.update_factions(praxans)
         
         # Should form 1 faction with 3 members
         self.assertEqual(len(fm.factions), 1)
@@ -320,9 +320,9 @@ class TestFactions(unittest.TestCase):
     
     def test_bonds_directive_weighting(self):
         """Test bonds increase directive priority"""
-        thronglet = Thronglet(100, 100)
-        other = Thronglet(110, 110)
-        thronglet.bonds[other.id] = 60  # Bond > 50
+        praxan = Praxan(100, 100)
+        other = Praxan(110, 110)
+        praxan.bonds[other.id] = 60  # Bond > 50
         
         directives = [
             {'priority': 5, 'action': 'gather food'},
@@ -334,7 +334,7 @@ class TestFactions(unittest.TestCase):
         
         weighted = []
         for d in directives:
-            bonded = thronglet.get_bonded_thronglets_on_directive(d, [other])
+            bonded = praxan.get_bonded_praxans_on_directive(d, [other])
             bonus = min(6, len(bonded) * 2) if bonded else 0
             d_copy = d.copy()
             d_copy['weighted_priority'] = d['priority'] + bonus
@@ -346,31 +346,31 @@ class TestFactions(unittest.TestCase):
 class TestBoidsClustering(unittest.TestCase):
     def test_boids_cohesion_calculation(self):
         """Test Boids cohesion force"""
-        thronglet = Thronglet(100, 100)
+        praxan = Praxan(100, 100)
         others = [
-            Thronglet(110, 110),  # Within 100px
-            Thronglet(120, 120),  # Within 100px
-            Thronglet(300, 300)   # Outside range
+            Praxan(110, 110),  # Within 100px
+            Praxan(120, 120),  # Within 100px
+            Praxan(300, 300)   # Outside range
         ]
         
-        cohesion, separation = thronglet.get_boids_forces(others, cohesion_radius=100)
+        cohesion, separation = praxan.get_boids_forces(others, cohesion_radius=100)
         
-        # Should have cohesion force toward nearby thronglets
+        # Should have cohesion force toward nearby praxans
         self.assertNotEqual(cohesion[0], 0.0)
         self.assertNotEqual(cohesion[1], 0.0)
     
     def test_city_planner_density_scoring(self):
         """Test density scoring in building placement"""
         cp = CityPlanner(TerritoryManager(2048, 1536), None)
-        thronglets = [
-            Thronglet(100, 100),
-            Thronglet(110, 110),
-            Thronglet(120, 120)
+        praxans = [
+            Praxan(100, 100),
+            Praxan(110, 110),
+            Praxan(120, 120)
         ]
         
-        score = cp.score_building_location(105, 105, 'house', [], [], None, thronglets)
+        score = cp.score_building_location(105, 105, 'house', [], [], None, praxans)
         
-        # Should have bonus for 3 nearby thronglets (2-4 range)
+        # Should have bonus for 3 nearby praxans (2-4 range)
         self.assertGreater(score, 50)  # Base is 50
 
 class TestIntegration(unittest.TestCase):
@@ -388,25 +388,25 @@ class TestIntegration(unittest.TestCase):
         
         # Create faction
         fm = FactionManager()
-        thronglets = [Thronglet(100 + i*10, 100 + i*10) for i in range(5)]
+        praxans = [Praxan(100 + i*10, 100 + i*10) for i in range(5)]
         # Set bonds to form faction
         for i in range(3):
             for j in range(3):
                 if i != j:
-                    thronglets[i].bonds[thronglets[j].id] = 75
-                    thronglets[j].bonds[thronglets[i].id] = 75
+                    praxans[i].bonds[praxans[j].id] = 75
+                    praxans[j].bonds[praxans[i].id] = 75
         
-        fm.update_factions(thronglets)
+        fm.update_factions(praxans)
         faction = list(fm.factions.values())[0]
         
         # Process team task
-        advisor.process_communal_tasks(thronglets, [], [], fm)
+        advisor.process_communal_tasks(praxans, [], [], fm)
         
         # Check GroupTask created with faction members
         self.assertGreater(len(advisor.group_tasks), 0)
         task = advisor.group_tasks[0]
         self.assertEqual(task.faction_id, faction.id)
-        self.assertGreaterEqual(len(task.assigned_thronglets), 2)
+        self.assertGreaterEqual(len(task.assigned_praxans), 2)
 
 if __name__ == '__main__':
     unittest.main()
@@ -420,7 +420,7 @@ if __name__ == '__main__':
 **Purpose**: Debug behavior tree and Q-learning decisions
 
 ```python
-# Add to Thronglet class
+# Add to Praxan class
 def _log_ai_tick(self, system, decision, context=None):
     """Log AI system decisions for debugging"""
     if not VERBOSE_LOGGING:
@@ -428,7 +428,7 @@ def _log_ai_tick(self, system, decision, context=None):
     
     log_entry = {
         'time': time.time(),
-        'thronglet_id': self.id,
+        'praxan_id': self.id,
         'system': system,  # 'behavior_tree', 'q_learning', 'fsm'
         'decision': decision,
         'state': self.state,
@@ -454,13 +454,13 @@ if self.behavior_tree:
 **Purpose**: Increase cohesion when factions work together
 
 ```python
-# In Thronglet.update_happiness():
+# In Praxan.update_happiness():
 if self.faction_id and faction_manager:
     faction = faction_manager.get_faction(self.faction_id)
     if faction:
         # Check if faction members nearby
         nearby_faction_members = sum(
-            1 for t in other_thronglets
+            1 for t in other_praxans
             if t.faction_id == self.faction_id and
             math.sqrt((t.x - self.x)**2 + (t.y - self.y)**2) < 50
         )
@@ -511,7 +511,7 @@ def draw_voronoi_debug(self, surface, camera):
 **Purpose**: Track which actions are most successful
 
 ```python
-# Add to Thronglet class
+# Add to Praxan class
 def get_learning_statistics(self):
     """Get Q-learning statistics for analysis"""
     if not self.q_table:
@@ -594,7 +594,7 @@ All high and medium priority bugs have been fixed in the codebase:
 2. Enable VERBOSE_LOGGING for AI tick debugging
 3. Monitor Q-learning success rates (should see positive rewards accumulating)
 4. Watch for faction formation in early game (with scaled thresholds)
-5. Observe Boids clustering when multiple thronglets move toward same target
+5. Observe Boids clustering when multiple praxans move toward same target
 
 ---
 
@@ -607,8 +607,8 @@ All high and medium priority bugs have been fixed in the codebase:
 
 ### Thrive ✅
 - **Voronoi territory**: Better organization via distinct territorial zones
-- **Boids clustering**: Thronglets group when working on same tasks (velocity blending)
-- **City planner density**: Buildings prefer areas with 2-4 thronglets (line 1183-1184)
+- **Boids clustering**: Praxans group when working on same tasks (velocity blending)
+- **City planner density**: Buildings prefer areas with 2-4 praxans (line 1183-1184)
 - **Q-learning rewards**: Successes now recorded for balanced learning (lines 7015, 7080, 7093, 7106)
 
 ### Evolve ✅
@@ -622,17 +622,17 @@ All high and medium priority bugs have been fixed in the codebase:
 ## 10. Memory & FPS Impact Assessment
 
 **Memory**:
-- Q-table: ~1000 entries × 24 bytes = ~24 KB per thronglet (worst case with 25 thronglets = 600 KB)
+- Q-table: ~1000 entries × 24 bytes = ~24 KB per praxan (worst case with 25 praxans = 600 KB)
 - Voronoi cache: ~500-1000 tiles × 16 bytes = ~8-16 KB (recalculated every 5s)
-- Behavior trees: ~2 KB per thronglet (tree structure)
+- Behavior trees: ~2 KB per praxan (tree structure)
 - Factions: ~500 bytes per faction (typically 2-3 factions)
 - **Total overhead**: <1 MB for all systems combined ✅ Acceptable
 
 **FPS Impact**:
-- Behavior tree tick: ~0.1ms per thronglet (25 thronglets = 2.5ms)
-- Q-learning lookup: ~0.05ms per thronglet (with 1000 entries)
+- Behavior tree tick: ~0.1ms per praxan (25 praxans = 2.5ms)
+- Q-learning lookup: ~0.05ms per praxan (with 1000 entries)
 - Voronoi calculation: ~5-10ms every 5s (spread over time = ~1ms/frame)
-- Boids forces: ~0.2ms per thronglet (spatial partition helps)
+- Boids forces: ~0.2ms per praxan (spatial partition helps)
 - Faction update: ~2ms every 10s (spread = ~0.2ms/frame)
 - **Total per frame**: ~5-8ms overhead (well within 30 FPS = 33ms budget) ✅ Good
 

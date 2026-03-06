@@ -102,10 +102,10 @@ test_living_atlas_layers_render_to_surface (test_ui_render_smoke.UIRenderSmokeTe
 FAIL: test_game_exits_cleanly_in_headless_smoke_mode (test_headless_smoke.HeadlessSmokeTests.test_game_exits_cleanly_in_headless_smoke_mode)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "D:\Documents\PerseusXR\Thonglets\tests\test_headless_smoke.py", line 36, in test_game_exits_cleanly_in_headless_smoke_mode
+  File "D:\Documents\PerseusXR\Praxans\tests\test_headless_smoke.py", line 36, in test_game_exits_cleanly_in_headless_smoke_mode
     self.assertIn("SESSION ENDED", result.stdout)
     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: 'SESSION ENDED' not found in "\n================================================================================\nCRITICAL ERROR: Game crashed before logging was initialized\n================================================================================\nError: cannot import name 'log_timeline_event' from 'observer_analytics' (D:\\Documents\\PerseusXR\\Thonglets\\observer_analytics.py)\n\n================================================================================\nIf logging was initialized, check logs/ directory for detailed crash reports.\nExpected location: D:\\Documents\\PerseusXR\\Thonglets\\logs\n================================================================================\n"
+AssertionError: 'SESSION ENDED' not found in "\n================================================================================\nCRITICAL ERROR: Game crashed before logging was initialized\n================================================================================\nError: cannot import name 'log_timeline_event' from 'observer_analytics' (D:\\Documents\\PerseusXR\\Praxans\\observer_analytics.py)\n\n================================================================================\nIf logging was initialized, check logs/ directory for detailed crash reports.\nExpected location: D:\\Documents\\PerseusXR\\Praxans\\logs\n================================================================================\n"
 
 ----------------------------------------------------------------------
 Ran 97 tests in 10.988s

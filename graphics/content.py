@@ -8,7 +8,7 @@ from graphics.palette import BIOME_MATERIALS, darken, doctrine_color, lighten, m
 Color = tuple[int, int, int]
 
 SOURCE_TILE_SIZE = 16
-SOURCE_THRONGLET_SIZE = (16, 24)
+SOURCE_PRAXAN_SIZE = (16, 24)
 SOURCE_RESOURCE_SIZE = (16, 16)
 SOURCE_ICON_SIZE = (16, 16)
 SNAP_ZOOM_LEVELS = (0.125, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0)
@@ -101,9 +101,9 @@ TILE_ATLASES: dict[str, dict[str, object]] = {
 }
 
 SPRITE_ATLASES: dict[str, dict[str, object]] = {
-    "thronglets": {
-        "folder": "sprites/thronglets",
-        "source_size": SOURCE_THRONGLET_SIZE,
+    "praxans": {
+        "folder": "sprites/praxans",
+        "source_size": SOURCE_PRAXAN_SIZE,
         "animations": ("idle", "walk", "gather", "build", "rest", "celebrate", "sick", "death"),
         "facings": ("down", "up", "left", "right"),
     },
@@ -186,7 +186,7 @@ DISTRICT_OVERLAYS: dict[str, dict[str, object]] = {
 
 FALLBACK_PLACEHOLDERS: dict[str, str] = {
     "terrain": "tilesets/placeholders/terrain_placeholder.png",
-    "thronglet": "sprites/placeholders/thronglet_placeholder.png",
+    "praxan": "sprites/placeholders/praxan_placeholder.png",
     "building": "sprites/placeholders/building_placeholder.png",
     "resource": "sprites/placeholders/resource_placeholder.png",
     "hazard": "sprites/placeholders/hazard_placeholder.png",
