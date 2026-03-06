@@ -40,6 +40,13 @@ def _build_faction_snapshots(thronglets, faction_manager) -> list[dict[str, Any]
                 "leader_id": getattr(faction, "leader_id", None),
                 "shared_goals": len(getattr(faction, "shared_goals", [])),
                 "avg_generation": avg_generation,
+                "doctrine": getattr(faction, "primary_doctrine", "growth"),
+                "cohesion": round(float(getattr(faction, "cohesion", 0.0)), 2),
+                "stability": round(float(getattr(faction, "stability", 0.0)), 2),
+                "schism_pressure": round(float(getattr(faction, "schism_pressure", 0.0)), 2),
+                "migration_pressure": round(float(getattr(faction, "migration_pressure", 0.0)), 2),
+                "rival_count": len(getattr(faction, "rival_faction_ids", []) or []),
+                "succession_count": int(getattr(faction, "succession_count", 0) or 0),
             }
         )
 
@@ -135,6 +142,9 @@ def build_observer_report(thronglets, advisor, faction_manager=None) -> dict[str
         "peak_factions": int(session_stats.get("peak_factions", len(faction_snapshots)) or len(faction_snapshots)),
         "factions_formed": int(session_stats.get("factions_formed", 0) or 0),
         "factions_dissolved": int(session_stats.get("factions_dissolved", 0) or 0),
+        "faction_schisms": int(session_stats.get("faction_schisms", 0) or 0),
+        "faction_successions": int(session_stats.get("faction_successions", 0) or 0),
+        "migration_events": int(session_stats.get("migration_events", 0) or 0),
         "active_group_tasks": len(getattr(advisor, "group_tasks", []) or []),
         "top_lineages": top_lineages,
         "mortality": mortality,

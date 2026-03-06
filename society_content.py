@@ -3,6 +3,15 @@ from __future__ import annotations
 
 FACTION_IDEOLOGY_AXES = ("growth", "security", "industry", "exploration", "harmony")
 
+FACTION_DYNAMICS = {
+    "schism_pressure_threshold": 58.0,
+    "migration_pressure_threshold": 46.0,
+    "minimum_schism_size": 2,
+    "schism_cooldown_seconds": 40.0,
+    "migration_cooldown_seconds": 26.0,
+    "succession_grace_seconds": 18.0,
+}
+
 FACTION_DOCTRINE_PROFILES = {
     "growth": {
         "label": "Growth Kinship",
@@ -39,6 +48,14 @@ FACTION_DOCTRINE_PROFILES = {
         "crisis_response": "restore_morale",
         "summary": "Stabilizes happiness, bonds, and cultural continuity.",
     },
+}
+
+AUTONOMOUS_DOCTRINE_GOALS = {
+    "growth": "build houses and farms for the next population wave",
+    "security": "secure water, shelter, and health reserves",
+    "industry": "raise storage and workshop capacity",
+    "exploration": "survey the frontier and claim new resource ground",
+    "harmony": "restore morale and social cohesion around the shrine",
 }
 
 RUN_PHASE_DEFINITIONS = {

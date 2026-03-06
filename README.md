@@ -21,6 +21,8 @@ Thronglets is an autonomous Pygame civilization sandbox where small AI-driven cr
 - Expanded snapshot fidelity again so resumed runs now keep fog-of-war discovery, territory claim memory, faction/group coordination, and world encounters/hazards/NPC state.
 - Added observer scenario presets so autonomous runs can start from distinct ecological and evolutionary conditions without introducing player control.
 - Added observer analytics tooling with a structured timeline, mortality summaries, lineage dominance tracking, and faction churn visibility.
+- Added run archive summaries so completed observer sessions now emit `logs/archive_*.json` alongside snapshots for comparison and scoring.
+- Added deeper faction society mechanics with doctrine drift, leadership succession, schism pressure, and migration-frontier behavior.
 
 ## Requirements
 
@@ -53,6 +55,8 @@ Observer controls:
 - `R` to inspect research/evolution modifiers
 - `S` to open the evolution observer panel with lineage events and trait drift
 - `T` to open the observer analytics panel with timeline, mortality, and faction summaries
+- `A` to open the run archive review panel with phase, end-state, and recent-run comparisons
+- Active faction migration pressure now appears in-world as frontier route lines pointing toward migration targets
 
 Explicitly target the preferred Qwen model:
 
@@ -164,5 +168,7 @@ python -m unittest discover -s tests
 - If `noise` is unavailable, city zoning falls back to a deterministic math-based noise approximation.
 - Runtime logs and reports are written to `logs/`.
 - End-of-session structured state snapshots are written to `logs/snapshot_*.json`, and those files can be used to resume a colony run.
+- End-of-session run archive summaries are written to `logs/archive_*.json` with phase, end-state, and observer score metadata.
 - Snapshots now retain the active scenario ID so resumed runs preserve the same observer conditions and mutation profile.
 - The observer analytics view highlights lineage dominance, death causes, faction formation/dissolution, and recent colony milestones so long autonomous runs are easier to read.
+- Factions can now accumulate succession pressure, split into schisms, and push migration goals without any player intervention.

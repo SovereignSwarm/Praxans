@@ -23,6 +23,9 @@ class ObserverAnalyticsTests(unittest.TestCase):
                 "factions_formed": 2,
                 "factions_dissolved": 1,
                 "peak_factions": 2,
+                "faction_schisms": 1,
+                "faction_successions": 2,
+                "migration_events": 3,
                 "current_evolution_summary": {
                     "lineage_counts": {1: 2, 2: 1},
                     "avg_traits": {
@@ -40,7 +43,18 @@ class ObserverAnalyticsTests(unittest.TestCase):
         )
         faction_manager = SimpleNamespace(
             factions={
-                0: SimpleNamespace(member_ids=[1, 2, 3], leader_id=2, shared_goals=[{"type": "build_workshop"}]),
+                0: SimpleNamespace(
+                    member_ids=[1, 2, 3],
+                    leader_id=2,
+                    shared_goals=[{"type": "build_workshop"}],
+                    primary_doctrine="industry",
+                    cohesion=64.0,
+                    stability=59.0,
+                    schism_pressure=34.0,
+                    migration_pressure=48.0,
+                    rival_faction_ids=[1],
+                    succession_count=2,
+                ),
             }
         )
 
@@ -51,11 +65,15 @@ class ObserverAnalyticsTests(unittest.TestCase):
         self.assertEqual(report["births_total"], 4)
         self.assertEqual(report["deaths_total"], 3)
         self.assertEqual(report["active_group_tasks"], 2)
+        self.assertEqual(report["faction_schisms"], 1)
+        self.assertEqual(report["faction_successions"], 2)
+        self.assertEqual(report["migration_events"], 3)
         self.assertEqual(report["top_lineages"][0]["lineage_id"], 1)
         self.assertEqual(report["top_lineages"][0]["count"], 2)
         self.assertEqual(report["mortality"][0]["label"], "Old Age")
         self.assertEqual(report["active_factions"][0]["members"], 3)
         self.assertEqual(report["active_factions"][0]["leader_id"], 2)
+        self.assertEqual(report["active_factions"][0]["doctrine"], "industry")
         self.assertEqual(report["timeline"][-1]["summary"], "Faction 0 formed")
         self.assertEqual(report["faction_history"][0]["action"], "formed")
 

@@ -37,6 +37,15 @@ class RunSnapshotTests(unittest.TestCase):
             resolved = resolve_snapshot_path(temp_dir, snapshot_file="snapshot_case.json")
             self.assertEqual(resolved, os.path.abspath(snapshot_path))
 
+    def test_load_run_snapshot_rejects_newer_snapshot_version(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            snapshot_path = os.path.join(temp_dir, "snapshot_future.json")
+            with open(snapshot_path, "w", encoding="utf-8") as file_handle:
+                file_handle.write('{"snapshot_version": 999}')
+
+            with self.assertRaises(ValueError):
+                load_run_snapshot(snapshot_path)
+
     def test_build_write_and_load_snapshot_round_trip(self):
         thronglet = SimpleNamespace(
             id=7,
@@ -106,7 +115,9 @@ class RunSnapshotTests(unittest.TestCase):
             current_focus="resources",
             directives=[{"priority": 5, "action": "gather food", "reasoning": "low reserves"}],
             json_directives={"individual": {}, "communal": "gather food", "conditions": {}},
-            session_stats={"max_population": 4},
+            council_state={"doctrine": {"focus": "growth", "stance": "measured"}},
+            advisory_history=[{"time": 97.0, "doctrine": {"focus": "growth"}}],
+            session_stats={"max_population": 4, "current_run_summary": {"end_state": {"label": "Thriving Civilization"}}},
             current_settlement_state={"district_identity": "homestead"},
             query_count=3,
             intervention_stats={"total_queries": 5, "interventions": 2, "no_changes": 3, "crisis_interventions": 1},
@@ -154,10 +165,27 @@ class RunSnapshotTests(unittest.TestCase):
                     member_ids=[7],
                     leader_id=7,
                     shared_goals=[{"type": "build_workshop"}],
+                    ideology={"growth": 0.8, "security": 0.3},
+                    cohesion=0.71,
+                    stability=0.66,
+                    schism_pressure=48.0,
+                    migration_pressure=63.0,
+                    primary_doctrine="growth",
+                    preferred_biome="forest",
+                    migration_target=(180.0, 210.0),
+                    succession_count=2,
+                    last_succession_time=95.0,
+                    last_schism_time=92.0,
+                    last_migration_time=98.0,
+                    rival_faction_ids=[2],
                     formed_time=84.0,
                 )
             }
         )
+        run_summary = {
+            "current_phase": {"id": "expansion", "label": "Expansion"},
+            "end_state": {"id": "brittle_survival", "label": "Brittle Survival", "score": 61},
+        }
         city_planner = SimpleNamespace(
             zones={(8, 9): "residential"},
             current_plan={"districts": [{"type": "residential", "priority": 1, "location": "north"}]},
@@ -203,11 +231,13 @@ class RunSnapshotTests(unittest.TestCase):
             faction_manager=faction_manager,
             city_planner=city_planner,
             scenario_id="high_mutation",
+            run_summary=run_summary,
         )
 
         self.assertEqual(snapshot["snapshot_version"], SNAPSHOT_VERSION)
         self.assertEqual(snapshot["selected_model"], "qwen3.5:35b")
         self.assertEqual(snapshot["scenario_id"], "high_mutation")
+        self.assertEqual(snapshot["run_summary"]["end_state"]["score"], 61)
         self.assertEqual(snapshot["advisor"]["temporary_modifiers"]["workers_focus"]["remaining_seconds"], 40.0)
         self.assertEqual(snapshot["camera"]["zoom"], 1.75)
         self.assertEqual(snapshot["celebration"]["active_remaining"], 12.0)
@@ -216,9 +246,15 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["fog_of_war"]["tiles"][0]["x"], 1)
         self.assertEqual(snapshot["territory"]["tiles"][0]["claim_strength"], 66.5)
         self.assertEqual(snapshot["factions"][0]["leader_id"], 7)
+        self.assertEqual(snapshot["factions"][0]["primary_doctrine"], "growth")
+        self.assertEqual(snapshot["factions"][0]["migration_target"]["x"], 180.0)
+        self.assertEqual(snapshot["factions"][0]["succession_count"], 2)
+        self.assertEqual(snapshot["factions"][0]["rival_faction_ids"], [2])
         self.assertEqual(snapshot["city_planner"]["zones"][0]["zone_type"], "residential")
         self.assertEqual(snapshot["world"]["encounters"][0]["encounter_type"], "ruins")
         self.assertEqual(snapshot["world"]["npcs"][0]["last_interaction_elapsed"], 4.0)
+        self.assertEqual(snapshot["advisor"]["council_state"]["doctrine"]["focus"], "growth")
+        self.assertEqual(snapshot["advisor"]["advisory_history"][0]["doctrine"]["focus"], "growth")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             snapshot_path = write_run_snapshot(temp_dir, "test_session", snapshot)
@@ -227,6 +263,7 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(loaded["population"], 1)
         self.assertEqual(loaded["season"], "autumn")
         self.assertEqual(loaded["scenario_id"], "high_mutation")
+        self.assertEqual(loaded["run_summary"]["current_phase"]["label"], "Expansion")
         self.assertEqual(loaded["thronglets"][0]["id"], 7)
         self.assertEqual(loaded["buildings"][0]["built_by"], 7)
         self.assertEqual(loaded["buildings"][0]["occupant_ids"], [7])
@@ -241,10 +278,15 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(loaded["advisor"]["civilization_age"], 6)
         self.assertEqual(loaded["advisor"]["total_deaths"], 2)
         self.assertEqual(loaded["advisor"]["last_model_used"], "qwen3.5:35b")
+        self.assertEqual(loaded["advisor"]["council_state"]["doctrine"]["focus"], "growth")
+        self.assertEqual(loaded["advisor"]["advisory_history"][0]["doctrine"]["focus"], "growth")
         self.assertEqual(loaded["advisor"]["group_tasks"][0]["task_type"], "build")
         self.assertEqual(loaded["fog_of_war"]["visibility_radius"], 72)
         self.assertEqual(loaded["territory"]["tiles"][0]["center_type"], "building")
         self.assertEqual(loaded["factions"][0]["member_ids"], [7])
+        self.assertEqual(loaded["factions"][0]["cohesion"], 0.71)
+        self.assertEqual(loaded["factions"][0]["migration_pressure"], 63.0)
+        self.assertEqual(loaded["factions"][0]["preferred_biome"], "forest")
         self.assertEqual(loaded["city_planner"]["current_plan"]["districts"][0]["location"], "north")
         self.assertEqual(loaded["world"]["hazards"][0]["damage_rate"], 0.8)
         self.assertEqual(loaded["world"]["npcs"][0]["trade_rates"]["food_for_wood"], 2)

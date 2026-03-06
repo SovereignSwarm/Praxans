@@ -8,7 +8,7 @@ from observer_analytics import build_observer_report
 from society_content import END_STATE_DEFINITIONS, RUN_PHASE_DEFINITIONS
 
 
-ARCHIVE_VERSION = 1
+ARCHIVE_VERSION = 2
 
 
 def _phase_label(phase_id: str) -> str:
@@ -99,6 +99,111 @@ def calculate_run_score(observer_report: dict[str, Any], settlement_state: dict[
     return max(0, min(100, int(round(score))))
 
 
+def _key_moments(observer_report: dict[str, Any], session_stats: dict[str, Any]) -> list[dict[str, Any]]:
+    timeline = list(observer_report.get("timeline", []))
+    if not timeline:
+        timeline = list(session_stats.get("timeline_events", []))
+    important = [event for event in timeline if str(event.get("category", "")) in {"scenario", "birth", "faction", "migration", "crisis", "extinction", "resume"}]
+    if len(important) < 8:
+        important = timeline[-8:]
+    return [dict(event) for event in important[-10:]]
+
+
+def _phase_history(phase_id: str, elapsed_seconds: float) -> list[dict[str, Any]]:
+    ordered_phases = ["founding", "expansion", "societal_divergence", "crisis_endgame"]
+    current_index = ordered_phases.index(phase_id) if phase_id in ordered_phases else 0
+    completed = []
+    for index, candidate in enumerate(ordered_phases[: current_index + 1]):
+        completed.append(
+            {
+                "id": candidate,
+                "label": _phase_label(candidate),
+                "elapsed_seconds": round(max(0.0, elapsed_seconds * ((index + 1) / max(1, current_index + 1))), 3),
+            }
+        )
+    return completed
+
+
+def _population_curve(session_stats: dict[str, Any], observer_report: dict[str, Any]) -> list[dict[str, Any]]:
+    curve = []
+    for sample in list(session_stats.get("generation_history", []))[-12:]:
+        curve.append(
+            {
+                "elapsed_seconds": round(float(sample.get("elapsed_seconds", 0.0) or 0.0), 3),
+                "population": int(sample.get("population", 0) or 0),
+                "avg_generation": round(float(sample.get("avg_generation", 0.0) or 0.0), 3),
+            }
+        )
+    if curve:
+        return curve
+    return [
+        {
+            "elapsed_seconds": 0.0,
+            "population": int(observer_report.get("population", 0) or 0),
+            "avg_generation": 0.0,
+        }
+    ]
+
+
+def _death_cause_breakdown(observer_report: dict[str, Any]) -> list[dict[str, Any]]:
+    breakdown = []
+    for cause in observer_report.get("mortality", []):
+        if not isinstance(cause, dict):
+            continue
+        breakdown.append(
+            {
+                "cause_id": str(cause.get("cause_id", "unknown")),
+                "label": str(cause.get("label", "Unknown")),
+                "count": int(cause.get("count", 0) or 0),
+                "share": round(float(cause.get("share", 0.0) or 0.0), 3),
+            }
+        )
+    return breakdown
+
+
+def _lineage_highlights(observer_report: dict[str, Any], session_stats: dict[str, Any]) -> list[dict[str, Any]]:
+    highlights = []
+    for lineage in observer_report.get("top_lineages", [])[:4]:
+        highlights.append(
+            {
+                "lineage_id": int(lineage.get("lineage_id", 0) or 0),
+                "count": int(lineage.get("count", 0) or 0),
+                "share": round(float(lineage.get("share", 0.0) or 0.0), 3),
+            }
+        )
+    for event in list(session_stats.get("lineage_events", []))[-4:]:
+        highlights.append(
+            {
+                "event": str(event.get("summary") or event.get("label") or "lineage_event"),
+                "time": round(float(event.get("time", 0.0) or 0.0), 3),
+            }
+        )
+    return highlights
+
+
+def _faction_highlights(observer_report: dict[str, Any], session_stats: dict[str, Any]) -> list[dict[str, Any]]:
+    highlights = []
+    for faction in observer_report.get("active_factions", [])[:4]:
+        highlights.append(
+            {
+                "id": int(faction.get("id", 0) or 0),
+                "members": int(faction.get("members", 0) or 0),
+                "doctrine": str(faction.get("doctrine", "survival")),
+                "cohesion": round(float(faction.get("cohesion", 0.0) or 0.0), 3),
+            }
+        )
+    for event in list(session_stats.get("faction_history", []))[-4:]:
+        highlights.append(
+            {
+                "faction_id": int(event.get("faction_id", 0) or 0),
+                "action": str(event.get("action", "shift")),
+                "members": int(event.get("members", 0) or 0),
+                "time": round(float(event.get("time", 0.0) or 0.0), 3),
+            }
+        )
+    return highlights
+
+
 def build_run_summary(
     thronglets,
     buildings,
@@ -113,8 +218,10 @@ def build_run_summary(
     seed: int | None = None,
     session_id: str | None = None,
     extinction: bool = False,
+    camera_bookmarks: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     settlement_state = dict(settlement_state or getattr(advisor, "current_settlement_state", {}) or {})
+    session_stats = dict(getattr(advisor, "session_stats", {}) or {})
     observer_report = build_observer_report(thronglets, advisor, faction_manager)
     elapsed_seconds = max(0.0, current_time - game_start_time)
     phase_id = classify_run_phase(
@@ -134,6 +241,8 @@ def build_run_summary(
     score = calculate_run_score(observer_report, settlement_state, end_state_id)
     doctrine = dict(getattr(advisor, "council_state", {}) or {}).get("doctrine", {})
     dominant_faction = observer_report.get("active_factions", [{}])[0] if observer_report.get("active_factions") else {}
+    key_moments = _key_moments(observer_report, session_stats)
+    population_curve = _population_curve(session_stats, observer_report)
 
     return {
         "archive_version": ARCHIVE_VERSION,
@@ -160,6 +269,13 @@ def build_run_summary(
         "dominant_lineage": observer_report.get("top_lineages", [{}])[0] if observer_report.get("top_lineages") else {},
         "dominant_faction": dominant_faction,
         "observer_report": observer_report,
+        "key_moments": key_moments,
+        "phase_history": _phase_history(phase_id, elapsed_seconds),
+        "population_curve": population_curve,
+        "death_cause_breakdown": _death_cause_breakdown(observer_report),
+        "lineage_highlights": _lineage_highlights(observer_report, session_stats),
+        "faction_highlights": _faction_highlights(observer_report, session_stats),
+        "camera_bookmarks": list(camera_bookmarks or []),
         "council": {
             "doctrine": doctrine,
             "strategic_priorities": list((getattr(advisor, "council_state", {}) or {}).get("strategic_priorities", [])),
@@ -182,6 +298,7 @@ def build_run_archive(
     seed: int | None = None,
     session_id: str | None = None,
     extinction: bool = False,
+    camera_bookmarks: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     archive = build_run_summary(
         thronglets=thronglets,
@@ -197,6 +314,7 @@ def build_run_archive(
         seed=seed,
         session_id=session_id,
         extinction=extinction,
+        camera_bookmarks=camera_bookmarks,
     )
     archive["finalized_at"] = round(current_time, 3)
     archive["extinction"] = bool(extinction)
@@ -216,7 +334,10 @@ def write_run_archive(log_dir: str, session_id: str, archive: dict[str, Any]) ->
 
 def load_run_archive(archive_path: str) -> dict[str, Any]:
     with open(archive_path, "r", encoding="utf-8") as archive_file:
-        return json.load(archive_file)
+        archive = json.load(archive_file)
+    if not isinstance(archive, dict):
+        raise ValueError(f"Archive file is not a JSON object: {archive_path}")
+    return archive
 
 
 def find_recent_archives(log_dir: str, limit: int = 3) -> list[str]:
@@ -234,7 +355,10 @@ def find_recent_archives(log_dir: str, limit: int = 3) -> list[str]:
 def build_archive_comparison(current_summary: dict[str, Any], archive_paths: list[str]) -> list[dict[str, Any]]:
     comparisons = []
     for archive_path in archive_paths:
-        archive = load_run_archive(archive_path)
+        try:
+            archive = load_run_archive(archive_path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
         summary_card = dict(archive.get("summary_card", {}))
         comparisons.append(
             {

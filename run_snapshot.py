@@ -5,7 +5,7 @@ import os
 from typing import Any
 
 
-SNAPSHOT_VERSION = 4
+SNAPSHOT_VERSION = 6
 
 
 def _sanitize_json_value(value: Any) -> Any:
@@ -151,6 +151,19 @@ def _serialize_factions(faction_manager, current_time: float) -> list[dict[str, 
         return []
     serialized = []
     for faction_id, faction in getattr(faction_manager, "factions", {}).items():
+        raw_migration_target = getattr(faction, "migration_target", None)
+        if isinstance(raw_migration_target, (list, tuple)) and len(raw_migration_target) == 2:
+            migration_target = {
+                "x": round(float(raw_migration_target[0]), 2),
+                "y": round(float(raw_migration_target[1]), 2),
+            }
+        elif isinstance(raw_migration_target, dict):
+            migration_target = {
+                "x": round(float(raw_migration_target.get("x", 0.0)), 2),
+                "y": round(float(raw_migration_target.get("y", 0.0)), 2),
+            }
+        else:
+            migration_target = None
         serialized.append(
             {
                 "id": int(faction_id),
@@ -161,6 +174,34 @@ def _serialize_factions(faction_manager, current_time: float) -> list[dict[str, 
                 ],
                 "leader_id": getattr(faction, "leader_id", None),
                 "shared_goals": _sanitize_json_value(list(getattr(faction, "shared_goals", []))),
+                "ideology": _sanitize_json_value(dict(getattr(faction, "ideology", {}))),
+                "cohesion": round(float(getattr(faction, "cohesion", 0.0)), 3),
+                "stability": round(float(getattr(faction, "stability", 0.0)), 3),
+                "schism_pressure": round(float(getattr(faction, "schism_pressure", 0.0)), 3),
+                "migration_pressure": round(float(getattr(faction, "migration_pressure", 0.0)), 3),
+                "primary_doctrine": getattr(faction, "primary_doctrine", None),
+                "preferred_biome": getattr(faction, "preferred_biome", None),
+                "migration_target": migration_target,
+                "succession_count": int(getattr(faction, "succession_count", 0) or 0),
+                "rival_faction_ids": _sanitize_json_value(list(getattr(faction, "rival_faction_ids", []))),
+                "last_succession_elapsed": round(
+                    max(0.0, current_time - float(getattr(faction, "last_succession_time", 0.0) or 0.0))
+                    if getattr(faction, "last_succession_time", 0.0)
+                    else 0.0,
+                    3,
+                ),
+                "last_schism_elapsed": round(
+                    max(0.0, current_time - float(getattr(faction, "last_schism_time", 0.0) or 0.0))
+                    if getattr(faction, "last_schism_time", 0.0)
+                    else 0.0,
+                    3,
+                ),
+                "last_migration_elapsed": round(
+                    max(0.0, current_time - float(getattr(faction, "last_migration_time", 0.0) or 0.0))
+                    if getattr(faction, "last_migration_time", 0.0)
+                    else 0.0,
+                    3,
+                ),
                 "formed_elapsed": round(
                     max(0.0, current_time - float(getattr(faction, "formed_time", current_time) or current_time)),
                     3,
@@ -322,12 +363,14 @@ def build_run_snapshot(
     faction_manager=None,
     city_planner=None,
     scenario_id: str | None = None,
+    run_summary: dict[str, Any] | None = None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
         "saved_at": round(current_time, 3),
         "elapsed_seconds": round(max(0.0, current_time - game_start_time), 3),
         "scenario_id": scenario_id,
+        "run_summary": _sanitize_json_value(run_summary),
         "season": getattr(season, "current", "summer"),
         "weather": getattr(weather_system, "current_weather", "clear"),
         "weather_next_event_in": round(max(0.0, getattr(weather_system, "next_event_time", current_time) - current_time), 3),
@@ -436,6 +479,8 @@ def build_run_snapshot(
             "current_focus": getattr(advisor, "current_focus", None),
             "directives": _sanitize_json_value(list(getattr(advisor, "directives", []))),
             "json_directives": _sanitize_json_value(dict(getattr(advisor, "json_directives", {}))),
+            "council_state": _sanitize_json_value(dict(getattr(advisor, "council_state", {}))),
+            "advisory_history": _sanitize_json_value(list(getattr(advisor, "advisory_history", []))),
             "session_stats": _sanitize_json_value(dict(getattr(advisor, "session_stats", {}))),
             "settlement_state": _sanitize_json_value(dict(getattr(advisor, "current_settlement_state", {}))),
             "query_count": getattr(advisor, "query_count", 0),
@@ -465,7 +510,15 @@ def write_run_snapshot(log_dir: str, session_id: str, snapshot: dict[str, Any]) 
 
 def load_run_snapshot(snapshot_path: str) -> dict[str, Any]:
     with open(snapshot_path, "r", encoding="utf-8") as snapshot_file:
-        return json.load(snapshot_file)
+        snapshot = json.load(snapshot_file)
+    if not isinstance(snapshot, dict):
+        raise ValueError(f"Snapshot file is not a JSON object: {snapshot_path}")
+    snapshot_version = int(snapshot.get("snapshot_version", 0) or 0)
+    if snapshot_version > SNAPSHOT_VERSION:
+        raise ValueError(
+            f"Snapshot version {snapshot_version} is newer than supported version {SNAPSHOT_VERSION}: {snapshot_path}"
+        )
+    return snapshot
 
 
 def find_latest_snapshot(log_dir: str) -> str | None:

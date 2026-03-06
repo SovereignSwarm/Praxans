@@ -15,13 +15,24 @@ import sys
 import threading
 import time
 import traceback
+from dataclasses import replace
 from datetime import datetime
 
 from advisor_contract import advisory_payload_defaults, parse_advisory_payload
 from game_scenarios import DEFAULT_SCENARIO_ID, get_scenario_profile
 from observer_analytics import build_observer_report
-from run_archive import build_archive_comparison, build_run_archive, build_run_summary, find_recent_archives
-from society_content import FACTION_DOCTRINE_PROFILES, FACTION_IDEOLOGY_AXES, RUN_PHASE_DEFINITIONS
+from run_archive import build_archive_comparison, build_run_archive, build_run_summary, find_recent_archives, write_run_archive
+from society_content import AUTONOMOUS_DOCTRINE_GOALS, FACTION_DOCTRINE_PROFILES, FACTION_DYNAMICS, FACTION_IDEOLOGY_AXES, RUN_PHASE_DEFINITIONS
+from society_dynamics import choose_migration_target, choose_schism_members, compute_faction_metrics
+from ui.analytics import draw_end_summary, draw_modal_layer, load_archive_cards
+from ui.camera_director import CameraDirector
+from ui.hud import draw_run_hud, next_overlay
+from ui.input_router import UIState, UIRectRegistry, handle_escape, pick_world_entity
+from ui.inspect import build_inspect_view_model, draw_inspect_drawer
+from ui.layout import compute_run_layout
+from ui.models import RunHudModel, build_field_notes
+from ui.shell import run_command_center
+from ui.theme import build_ui_theme
 from game_content import (
     BUILDING_DEFINITIONS,
     clone_abilities,
@@ -1431,12 +1442,23 @@ class TooltipSystem:
             if hasattr(thronglet, 'faction_id') and thronglet.faction_id is not None:
                 lines.append(f"Faction: {thronglet.faction_id}")
                 line_colors.append((200, 100, 255))
+                if faction_manager and hasattr(faction_manager, 'factions'):
+                    faction = faction_manager.get_faction(thronglet.faction_id)
+                    if faction:
+                        lines.append(
+                            f"Doctrine: {faction.primary_doctrine.title()}  Cohesion: {int(faction.cohesion)}  Schism: {int(faction.schism_pressure)}"
+                        )
+                        line_colors.append((220, 190, 255))
             elif faction_manager and hasattr(faction_manager, 'factions'):
                 # Check if thronglet is in any faction
                 for fid, faction in faction_manager.factions.items():
                     if thronglet.id in faction.member_ids:
                         lines.append(f"Faction: {fid}")
                         line_colors.append((200, 100, 255))
+                        lines.append(
+                            f"Doctrine: {faction.primary_doctrine.title()}  Cohesion: {int(faction.cohesion)}  Schism: {int(faction.schism_pressure)}"
+                        )
+                        line_colors.append((220, 190, 255))
                         break
             
             # Skills and bonuses
@@ -1943,7 +1965,8 @@ class ObserverAnalyticsPanel:
         summary_lines = [
             f"Population: {report['population']}  |  Peak: {report['max_population']}  |  Births: {report['births_total']}  |  Deaths: {report['deaths_total']}",
             f"Avg survival: {report['avg_survival_time']:.1f}s  |  Factions: {len(report['active_factions'])} active / {report['peak_factions']} peak",
-            f"Faction churn: +{report['factions_formed']} / -{report['factions_dissolved']}  |  Group tasks: {report['active_group_tasks']}",
+            f"Faction churn: +{report['factions_formed']} / -{report['factions_dissolved']} / split {report['faction_schisms']} / succession {report['faction_successions']}",
+            f"Migration events: {report['migration_events']}  |  Group tasks: {report['active_group_tasks']}",
         ]
         for summary_line in summary_lines:
             surface.blit(font_small.render(summary_line[:92], True, WHITE), (panel_x + 20, summary_y))
@@ -1998,11 +2021,14 @@ class ObserverAnalyticsPanel:
             for faction in report["active_factions"][:4]:
                 faction_line = (
                     f"F{faction['id']}  size {faction['members']}  "
-                    f"leader #{faction['leader_id']}  goals {faction['shared_goals']}"
+                    f"{faction['doctrine'][:5].upper()}  leader #{faction['leader_id']}"
                 )
                 surface.blit(font_small.render(faction_line[:34], True, (195, 170, 255)), (faction_x + 12, faction_y))
                 faction_y += 22
-                gen_line = f"Avg generation {faction['avg_generation']:.1f}"
+                gen_line = (
+                    f"Gen {faction['avg_generation']:.1f}  coh {int(faction['cohesion'])}  "
+                    f"sch {int(faction['schism_pressure'])}  mig {int(faction['migration_pressure'])}"
+                )
                 surface.blit(font_small.render(gen_line, True, (180, 200, 230)), (faction_x + 24, faction_y))
                 faction_y += 20
         else:
@@ -2047,6 +2073,189 @@ class ObserverAnalyticsPanel:
                 trend_y += 20
 
         close_hint = font_small.render("[T] to close", True, (180, 200, 230))
+        surface.blit(close_hint, (panel_x + panel_w - 104, panel_y + panel_h - 28))
+
+
+class ArchiveReviewPanel:
+    """Run archive and comparison view for observer-side postmortems."""
+
+    def __init__(self):
+        self.last_refresh_time = 0.0
+        self.cached_log_dir = ""
+        self.cached_archive_count = 0
+        self.cached_comparisons = []
+
+    def _refresh_cache(self, current_summary, log_dir, current_time):
+        if not log_dir:
+            self.cached_comparisons = []
+            return
+        if (
+            log_dir != self.cached_log_dir
+            or current_time - self.last_refresh_time >= 5.0
+        ):
+            archive_paths = find_recent_archives(log_dir, limit=3)
+            self.cached_comparisons = build_archive_comparison(current_summary, archive_paths) if current_summary else []
+            self.cached_archive_count = len(archive_paths)
+            self.cached_log_dir = log_dir
+            self.last_refresh_time = current_time
+
+    def draw(self, surface, advisor, current_time, log_dir):
+        current_summary = dict(advisor.session_stats.get("current_run_summary", {}) or {})
+        self._refresh_cache(current_summary, log_dir, current_time)
+
+        panel_w = min(980, WINDOW_WIDTH - 40)
+        panel_h = min(620, WINDOW_HEIGHT - 70)
+        panel_x = max(20, WINDOW_WIDTH // 2 - panel_w // 2)
+        panel_y = max(20, WINDOW_HEIGHT // 2 - panel_h // 2)
+
+        panel = pygame.Surface((panel_w, panel_h))
+        panel.set_alpha(242)
+        panel.fill((18, 22, 34))
+        surface.blit(panel, (panel_x, panel_y))
+        pygame.draw.rect(surface, (135, 170, 220), (panel_x, panel_y, panel_w, panel_h), 3)
+
+        scenario_name = current_summary.get("scenario", {}).get("name") or advisor.session_stats.get(
+            "scenario_name",
+            ACTIVE_SCENARIO_PROFILE.get("name", "Standard Basin"),
+        )
+        title = font.render("RUN ARCHIVE REVIEW", True, (230, 235, 255))
+        subtitle = font_small.render(
+            f"{scenario_name}  |  Phase progression, end-state, and recent-run comparison",
+            True,
+            (170, 210, 255),
+        )
+        surface.blit(title, (panel_x + 20, panel_y + 14))
+        surface.blit(subtitle, (panel_x + 20, panel_y + 42))
+
+        phase = dict(current_summary.get("current_phase", {}) or {})
+        phase_id = phase.get("id", "founding")
+        end_state = dict(current_summary.get("end_state", {}) or {})
+        summary_card = dict(current_summary.get("summary_card", {}) or {})
+        settlement = dict(current_summary.get("settlement", {}) or {})
+        dominant_lineage = dict(current_summary.get("dominant_lineage", {}) or {})
+        dominant_faction = dict(current_summary.get("dominant_faction", {}) or {})
+        council = dict(current_summary.get("council", {}) or {})
+        doctrine = dict(council.get("doctrine", {}) or {})
+        phase_summary = RUN_PHASE_DEFINITIONS.get(phase_id, RUN_PHASE_DEFINITIONS["founding"]).get("summary", "")
+
+        def draw_box(title_text, box_x, box_y, box_w, box_h):
+            pygame.draw.rect(surface, (34, 40, 58), (box_x, box_y, box_w, box_h))
+            pygame.draw.rect(surface, (90, 120, 170), (box_x, box_y, box_w, box_h), 2)
+            title_surface = font_small.render(title_text, True, (215, 228, 255))
+            surface.blit(title_surface, (box_x + 12, box_y + 10))
+            return box_y + 36
+
+        top_y = panel_y + 78
+        gap = 16
+        left_w = 360
+        mid_w = 270
+        right_w = panel_w - 40 - left_w - mid_w - gap * 2
+
+        info_y = draw_box("Current Run", panel_x + 20, top_y, left_w, 176)
+        info_lines = [
+            f"Phase: {phase.get('label', 'Founding')}",
+            f"End-state: {end_state.get('label', 'Brittle Survival')}",
+            f"Observer score: {int(end_state.get('score', 0) or 0)}",
+            f"Peak population: {int(summary_card.get('population_peak', 0) or 0)}",
+            f"Births / deaths: {int(summary_card.get('births_total', 0) or 0)} / {int(summary_card.get('deaths_total', 0) or 0)}",
+            f"District: {str(settlement.get('district_identity', 'homestead')).replace('_', ' ').title()}",
+            f"Prosperity {float(settlement.get('prosperity_score', 0.0) or 0.0):.2f}  |  Culture {float(settlement.get('culture_score', 0.0) or 0.0):.2f}",
+        ]
+        for line in info_lines:
+            surface.blit(font_small.render(line[:44], True, WHITE), (panel_x + 32, info_y))
+            info_y += 22
+
+        phase_x = panel_x + 20 + left_w + gap
+        phase_y = draw_box("Phase + Doctrine", phase_x, top_y, mid_w, 176)
+        phase_lines = [
+            phase_summary[:40] or "The colony is still establishing itself.",
+            f"Doctrine: {str(doctrine.get('focus', 'survival')).replace('_', ' ').title()}",
+            f"Stance: {str(doctrine.get('stance', 'measured')).title()}",
+            f"District priority: {str(doctrine.get('district_priority', 'homestead')).replace('_', ' ').title()}",
+            f"Crisis posture: {str(doctrine.get('crisis_posture', 'stabilize')).replace('_', ' ').title()}",
+        ]
+        for line in phase_lines:
+            surface.blit(font_small.render(line[:32], True, (210, 225, 255)), (phase_x + 12, phase_y))
+            phase_y += 22
+
+        if doctrine.get("reasoning"):
+            surface.blit(
+                font_small.render(str(doctrine.get("reasoning", ""))[:32], True, (190, 200, 220)),
+                (phase_x + 12, phase_y + 4),
+            )
+
+        compare_x = phase_x + mid_w + gap
+        compare_y = draw_box("Recent Archives", compare_x, top_y, right_w, 176)
+        if self.cached_comparisons:
+            for comparison in self.cached_comparisons[:3]:
+                header = (
+                    f"{comparison.get('scenario_name', 'Unknown')}  "
+                    f"{comparison.get('score', 0)} pts"
+                )
+                surface.blit(font_small.render(header[:28], True, (255, 220, 170)), (compare_x + 12, compare_y))
+                compare_y += 20
+                detail = (
+                    f"{comparison.get('end_state_label', 'Unknown')}  "
+                    f"peak {comparison.get('population_peak', 0)}  "
+                    f"delta {comparison.get('score_delta', 0):+d}"
+                )
+                surface.blit(font_small.render(detail[:30], True, (215, 220, 240)), (compare_x + 12, compare_y))
+                compare_y += 28
+        else:
+            surface.blit(font_small.render("No archived runs yet.", True, (180, 190, 215)), (compare_x + 12, compare_y))
+            compare_y += 22
+        archive_count_line = f"Archive files available: {self.cached_archive_count}"
+        surface.blit(font_small.render(archive_count_line, True, (170, 190, 220)), (compare_x + 12, top_y + 144))
+
+        lower_y = top_y + 176 + 18
+        lower_h = panel_h - (lower_y - panel_y) - 24
+        lower_left_w = panel_w - 40 - 280 - gap
+        lower_right_w = 280
+
+        timeline_y = draw_box("Major Moments", panel_x + 20, lower_y, lower_left_w, lower_h)
+        timeline = list(current_summary.get("observer_report", {}).get("timeline", []))
+        if timeline:
+            for event in timeline[-8:]:
+                category = str(event.get("category", "sim"))[:10].upper()
+                summary = str(event.get("summary", "Event"))
+                line = f"[{category}] {summary}"
+                surface.blit(font_small.render(line[:80], True, (220, 220, 220)), (panel_x + 32, timeline_y))
+                timeline_y += 22
+        else:
+            surface.blit(font_small.render("The timeline is still sparse.", True, (180, 190, 215)), (panel_x + 32, timeline_y))
+
+        right_y = draw_box("Dominance + Friction", panel_x + 20 + lower_left_w + gap, lower_y, lower_right_w, lower_h)
+        right_lines = [
+            (
+                f"Lineage L{dominant_lineage.get('lineage_id', '?')}  "
+                f"{dominant_lineage.get('count', 0)} ({int(float(dominant_lineage.get('share', 0.0) or 0.0) * 100)}%)"
+                if dominant_lineage
+                else "No dominant lineage yet."
+            ),
+            (
+                f"Faction F{dominant_faction.get('id', '?')}  size {dominant_faction.get('members', 0)}"
+                if dominant_faction
+                else "No dominant faction yet."
+            ),
+            f"Festival readiness: {float(settlement.get('festival_readiness', 0.0) or 0.0):.2f}",
+        ]
+        for line in right_lines:
+            surface.blit(font_small.render(line[:30], True, (210, 225, 255)), (panel_x + 20 + lower_left_w + gap + 12, right_y))
+            right_y += 22
+
+        event_framing = str(council.get("event_framing", ""))
+        if event_framing:
+            right_y += 8
+            surface.blit(font_small.render("Council framing", True, (255, 220, 170)), (panel_x + 20 + lower_left_w + gap + 12, right_y))
+            right_y += 22
+            for offset in range(0, min(len(event_framing), 96), 30):
+                surface.blit(
+                    font_small.render(event_framing[offset : offset + 30], True, (220, 220, 220)),
+                    (panel_x + 20 + lower_left_w + gap + 12, right_y),
+                )
+                right_y += 20
+
+        close_hint = font_small.render("[A] to close", True, (180, 200, 230))
         surface.blit(close_hint, (panel_x + panel_w - 104, panel_y + panel_h - 28))
 
 
@@ -2755,6 +2964,15 @@ class Faction:
         self.primary_doctrine = "growth"
         self.doctrine_profile = dict(FACTION_DOCTRINE_PROFILES[self.primary_doctrine])
         self.rival_faction_ids = []
+        self.schism_pressure = 0.0
+        self.migration_pressure = 0.0
+        self.migration_target = None
+        self.preferred_biome = "plains"
+        self.succession_count = 0
+        self.last_succession_time = 0.0
+        self.last_schism_time = 0.0
+        self.last_migration_time = 0.0
+        self.last_doctrine_goal_time = 0.0
     
     def add_member(self, thronglet_id):
         """Add a member to this faction"""
@@ -2768,17 +2986,22 @@ class Faction:
     
     def update_leader(self, thronglets):
         """Update leader to highest skill thronglet"""
-        best_skill = -1
+        best_skill = -1.0
         best_id = None
         
         for thronglet_id in self.member_ids:
             thronglet = next((t for t in thronglets if t.id == thronglet_id), None)
             if thronglet:
-                # Calculate total skill level
-                total_skill = 0
+                total_skill = 0.0
                 skill_key = get_role_skill_key(thronglet.role)
                 if skill_key and skill_key in thronglet.skills:
-                    total_skill = thronglet.skills[skill_key]['level']
+                    total_skill = float(thronglet.skills[skill_key]['level']) * 12.0
+                total_skill += float(getattr(thronglet, "health", 100.0)) * 0.08
+                total_skill += float(getattr(thronglet, "happiness", 70.0)) * 0.06
+                total_skill += float(getattr(thronglet, "morale", 65.0)) * 0.07
+                total_skill += float(getattr(thronglet, "genetics", {}).get("social_cohesion", 1.0)) * 7.5
+                if thronglet.id == self.leader_id:
+                    total_skill += 5.0
                 
                 if total_skill > best_skill:
                     best_skill = total_skill
@@ -2820,32 +3043,39 @@ class Faction:
             return
 
         avg_bond = self.get_bond_strength(thronglets)
-        avg_health = sum(member.health for member in members) / len(members)
-        avg_happiness = sum(member.happiness for member in members) / len(members)
-        avg_morale = sum(getattr(member, "morale", 65) for member in members) / len(members)
-        avg_curiosity = sum(member.personality.get("curiosity", 0.5) for member in members) / len(members)
-        avg_sociability = sum(member.personality.get("sociability", 0.5) for member in members) / len(members)
-        avg_learning = sum(member.genetics.get("learning_affinity", 1.0) for member in members) / len(members)
-        avg_immunity = sum(member.genetics.get("immune_strength", 1.0) for member in members) / len(members)
-        avg_fertility = sum(member.genetics.get("fertility_drive", 1.0) for member in members) / len(members)
-        avg_cohesion = sum(member.genetics.get("social_cohesion", 1.0) for member in members) / len(members)
-        avg_adaptation = sum(member.genetics.get("adaptability", 1.0) for member in members) / len(members)
-        diseased_members = sum(1 for member in members if member.diseased)
-        builder_share = sum(1 for member in members if member.role == "builder") / len(members)
-        explorer_share = sum(1 for member in members if member.role == "explorer") / len(members)
-        gatherer_share = sum(1 for member in members if member.role == "gatherer") / len(members)
+        member_snapshots = []
+        for member in members:
+            member_snapshots.append(
+                {
+                    "id": member.id,
+                    "health": member.health,
+                    "happiness": member.happiness,
+                    "morale": getattr(member, "morale", 65),
+                    "curiosity": member.personality.get("curiosity", 0.5),
+                    "sociability": member.personality.get("sociability", 0.5),
+                    "learning_affinity": member.genetics.get("learning_affinity", 1.0),
+                    "immune_strength": member.genetics.get("immune_strength", 1.0),
+                    "fertility_drive": member.genetics.get("fertility_drive", 1.0),
+                    "social_cohesion": member.genetics.get("social_cohesion", 1.0),
+                    "adaptability": member.genetics.get("adaptability", 1.0),
+                    "favorite_biome": getattr(member, "favorite_biome", "plains"),
+                    "role": member.role,
+                    "diseased": bool(member.diseased),
+                    "known_resources_count": len(getattr(member, "known_resources", [])),
+                    "known_resources": list(getattr(member, "known_resources", [])),
+                    "leader_bond": member.bonds.get(self.leader_id, 50.0) if self.leader_id is not None else 50.0,
+                }
+            )
 
-        self.ideology = {
-            "growth": round(avg_fertility + (avg_morale / 100.0) + max(0.0, (len(members) - 2) * 0.08), 3),
-            "security": round(avg_immunity + avg_adaptation + (avg_health / 100.0) - (diseased_members * 0.08), 3),
-            "industry": round(avg_learning + builder_share + (gatherer_share * 0.45), 3),
-            "exploration": round(avg_curiosity + explorer_share + (avg_adaptation * 0.35), 3),
-            "harmony": round(avg_cohesion + avg_sociability + (avg_bond / 100.0), 3),
-        }
-        self.primary_doctrine = max(self.ideology.items(), key=lambda item: item[1])[0]
+        metrics = compute_faction_metrics(member_snapshots, avg_bond=avg_bond)
+        self.ideology = dict(metrics["ideology"])
+        self.primary_doctrine = str(metrics["primary_doctrine"])
         self.doctrine_profile = dict(FACTION_DOCTRINE_PROFILES.get(self.primary_doctrine, FACTION_DOCTRINE_PROFILES["growth"]))
-        self.cohesion = clamp((avg_bond * 0.58) + (avg_happiness * 0.2) + (avg_cohesion * 18.0) - (diseased_members * 5.0), 0.0, 100.0)
-        self.stability = clamp((self.cohesion * 0.7) + (avg_morale * 0.3), 0.0, 100.0)
+        self.cohesion = clamp(float(metrics["cohesion"]), 0.0, 100.0)
+        self.stability = clamp(float(metrics["stability"]), 0.0, 100.0)
+        self.schism_pressure = clamp(float(metrics["schism_pressure"]), 0.0, 100.0)
+        self.migration_pressure = clamp(float(metrics["migration_pressure"]), 0.0, 100.0)
+        self.preferred_biome = str(metrics.get("preferred_biome", "plains"))
 
     def assign_shared_goal(self, goal_text, reasoning="", doctrine_key=""):
         goal_text = str(goal_text or "").strip()
@@ -2913,7 +3143,6 @@ class FactionManager:
                 bond_groups.append(group)
         
         # Create or update factions
-        existing_faction_ids = set(self.factions.keys())
         used_groups = set()
         
         # Try to match existing factions to groups
@@ -2929,9 +3158,11 @@ class FactionManager:
             
             if best_match:
                 # Update existing faction
+                previous_leader_id = faction.leader_id
                 faction.member_ids = list(best_match)
                 faction.update_leader(thronglets)
                 faction.refresh_identity(thronglets)
+                self._register_leadership_change(faction, previous_leader_id, advisor, current_time)
                 used_groups.add(id(best_match))
             else:
                 # Faction dissolved (not enough bonds), remove it
@@ -2942,23 +3173,14 @@ class FactionManager:
                         thronglet.faction_id = None
                 if advisor is not None:
                     advisor.session_stats["factions_dissolved"] = advisor.session_stats.get("factions_dissolved", 0) + 1
-                    append_bounded_history(
-                        advisor.session_stats.setdefault("faction_history", []),
-                        {
-                            "time": current_time,
-                            "action": "dissolved",
-                            "faction_id": faction_id,
-                            "members": dissolved_size,
-                        },
-                        16,
-                    )
-                    record_observer_timeline_event(
+                    self._record_faction_history(
                         advisor,
                         current_time,
-                        "faction",
-                        f"Faction {faction_id} dissolved",
-                        f"{dissolved_size} members lost cohesion.",
+                        "dissolved",
+                        faction_id=faction_id,
+                        members=dissolved_size,
                     )
+                    record_observer_timeline_event(advisor, current_time, "faction", f"Faction {faction_id} dissolved", f"{dissolved_size} members lost cohesion.")
         
         # Create new factions for unmatched groups
         for group in bond_groups:
@@ -2974,16 +3196,14 @@ class FactionManager:
                         thronglet.faction_id = new_faction.id
                 if advisor is not None:
                     advisor.session_stats["factions_formed"] = advisor.session_stats.get("factions_formed", 0) + 1
-                    append_bounded_history(
-                        advisor.session_stats.setdefault("faction_history", []),
-                        {
-                            "time": current_time,
-                            "action": "formed",
-                            "faction_id": new_faction.id,
-                            "members": len(group),
-                            "leader_id": new_faction.leader_id,
-                        },
-                        16,
+                    self._record_faction_history(
+                        advisor,
+                        current_time,
+                        "formed",
+                        faction_id=new_faction.id,
+                        members=len(group),
+                        leader_id=new_faction.leader_id,
+                        doctrine=new_faction.primary_doctrine,
                     )
                     record_observer_timeline_event(
                         advisor,
@@ -3001,6 +3221,8 @@ class FactionManager:
 
         for faction in self.factions.values():
             faction.refresh_identity(thronglets)
+        self._update_rivalries()
+        self._evaluate_schisms(thronglets, advisor, current_time)
         self._update_rivalries()
 
     def _update_rivalries(self):
@@ -3022,6 +3244,216 @@ class FactionManager:
                     best_rival_id = other.id
             if best_rival_id is not None and best_rival_score >= 0.45:
                 faction.rival_faction_ids = [best_rival_id]
+
+    def _record_faction_history(self, advisor, current_time, action, **payload):
+        if advisor is None:
+            return
+        event_payload = {"time": current_time, "action": str(action)}
+        event_payload.update(payload)
+        append_bounded_history(advisor.session_stats.setdefault("faction_history", []), event_payload, 24)
+
+    def _register_leadership_change(self, faction, previous_leader_id, advisor, current_time):
+        if previous_leader_id in (None, faction.leader_id):
+            return
+        if current_time - getattr(faction, "last_succession_time", 0.0) < FACTION_DYNAMICS["succession_grace_seconds"]:
+            return
+        faction.succession_count += 1
+        faction.last_succession_time = current_time
+        if advisor is None:
+            return
+        advisor.session_stats["faction_successions"] = advisor.session_stats.get("faction_successions", 0) + 1
+        self._record_faction_history(
+            advisor,
+            current_time,
+            "succession",
+            faction_id=faction.id,
+            previous_leader_id=previous_leader_id,
+            leader_id=faction.leader_id,
+            members=len(faction.member_ids),
+            doctrine=faction.primary_doctrine,
+        )
+        record_observer_timeline_event(
+            advisor,
+            current_time,
+            "faction",
+            f"Faction {faction.id} leadership changed",
+            f"Leader #{previous_leader_id} replaced by #{faction.leader_id}.",
+        )
+
+    def _soften_cross_faction_bonds(self, split_members, remaining_members):
+        for member in split_members:
+            for other in remaining_members:
+                if other.id in member.bonds:
+                    member.bonds[other.id] = min(member.bonds[other.id], 42.0)
+                if member.id in other.bonds:
+                    other.bonds[member.id] = min(other.bonds[member.id], 42.0)
+
+    def _evaluate_schisms(self, thronglets, advisor, current_time):
+        for faction in list(self.factions.values()):
+            if len(faction.member_ids) < max(4, FACTION_DYNAMICS["minimum_schism_size"] * 2):
+                continue
+            if faction.schism_pressure < FACTION_DYNAMICS["schism_pressure_threshold"]:
+                continue
+            if current_time - faction.formed_time < FACTION_DYNAMICS["schism_cooldown_seconds"]:
+                continue
+            if current_time - getattr(faction, "last_schism_time", 0.0) < FACTION_DYNAMICS["schism_cooldown_seconds"]:
+                continue
+
+            members = faction.get_members(thronglets)
+            if len(members) < 4:
+                continue
+            member_snapshots = [
+                {
+                    "id": member.id,
+                    "leader_bond": member.bonds.get(faction.leader_id, 50.0) if faction.leader_id is not None else 50.0,
+                    "happiness": member.happiness,
+                    "curiosity": member.personality.get("curiosity", 0.5),
+                    "social_cohesion": member.genetics.get("social_cohesion", 1.0),
+                    "favorite_biome": getattr(member, "favorite_biome", "plains"),
+                    "role": member.role,
+                }
+                for member in members
+            ]
+            split_ids = choose_schism_members(
+                member_snapshots,
+                leader_id=faction.leader_id,
+                preferred_biome=faction.preferred_biome,
+                minimum_size=FACTION_DYNAMICS["minimum_schism_size"],
+            )
+            if not split_ids:
+                continue
+
+            split_members = [member for member in members if member.id in split_ids]
+            remaining_members = [member for member in members if member.id not in split_ids]
+            if len(split_members) < FACTION_DYNAMICS["minimum_schism_size"] or len(remaining_members) < FACTION_DYNAMICS["minimum_schism_size"]:
+                continue
+
+            faction.member_ids = [member.id for member in remaining_members]
+            new_faction = Faction(split_ids)
+            new_faction.formed_time = current_time
+            new_faction.last_schism_time = current_time
+            faction.last_schism_time = current_time
+
+            for member in split_members:
+                member.faction_id = new_faction.id
+            for member in remaining_members:
+                member.faction_id = faction.id
+
+            self._soften_cross_faction_bonds(split_members, remaining_members)
+            faction.update_leader(thronglets)
+            faction.refresh_identity(thronglets)
+            new_faction.update_leader(thronglets)
+            new_faction.refresh_identity(thronglets)
+            new_goal = AUTONOMOUS_DOCTRINE_GOALS.get(new_faction.primary_doctrine)
+            if new_goal:
+                new_faction.assign_shared_goal(new_goal, "Emergent post-schism doctrine", new_faction.primary_doctrine)
+            self.factions[new_faction.id] = new_faction
+
+            if advisor is not None:
+                advisor.session_stats["faction_schisms"] = advisor.session_stats.get("faction_schisms", 0) + 1
+                advisor.session_stats["peak_factions"] = max(advisor.session_stats.get("peak_factions", 0), len(self.factions))
+                self._record_faction_history(
+                    advisor,
+                    current_time,
+                    "schism",
+                    faction_id=faction.id,
+                    new_faction_id=new_faction.id,
+                    members=len(split_members),
+                    leader_id=new_faction.leader_id,
+                    doctrine=new_faction.primary_doctrine,
+                )
+                record_observer_timeline_event(
+                    advisor,
+                    current_time,
+                    "faction",
+                    f"Faction {faction.id} split into F{new_faction.id}",
+                    f"{len(split_members)} members broke away under doctrine {new_faction.primary_doctrine}.",
+                )
+
+    def apply_autonomous_pressure(self, thronglets, advisor, world_map, world_width, world_height, current_time):
+        for faction in self.factions.values():
+            members = faction.get_members(thronglets)
+            if len(members) < 2:
+                continue
+
+            if (
+                not faction.shared_goals
+                or current_time - getattr(faction, "last_doctrine_goal_time", 0.0) >= 32.0
+            ):
+                doctrine_goal = AUTONOMOUS_DOCTRINE_GOALS.get(faction.primary_doctrine)
+                if doctrine_goal:
+                    faction.assign_shared_goal(doctrine_goal, "Autonomous doctrine pressure", faction.primary_doctrine)
+                    faction.last_doctrine_goal_time = current_time
+
+            if faction.migration_pressure < FACTION_DYNAMICS["migration_pressure_threshold"]:
+                continue
+            if current_time - getattr(faction, "last_migration_time", 0.0) < FACTION_DYNAMICS["migration_cooldown_seconds"]:
+                continue
+
+            member_snapshots = [
+                {
+                    "known_resources": list(getattr(member, "known_resources", [])),
+                }
+                for member in members
+            ]
+            target = choose_migration_target(
+                faction.get_centroid(thronglets),
+                member_snapshots,
+                faction.primary_doctrine,
+                world_width,
+                world_height,
+                faction.migration_pressure,
+            )
+            if not target:
+                continue
+
+            faction.migration_target = target
+            faction.last_migration_time = current_time
+            eligible_members = [
+                member
+                for member in members
+                if member.needs["hunger"] > 50 and member.needs["energy"] > 50 and not member.diseased
+            ]
+            eligible_members.sort(
+                key=lambda member: (
+                    0 if member.role == "explorer" else 1,
+                    distance_between(member.x, member.y, target[0], target[1]),
+                    member.id,
+                )
+            )
+            assigned = 0
+            for member in eligible_members:
+                existing_reason = str((member.personal_goal or {}).get("reason", ""))
+                if member.personal_goal and "Faction migration" not in existing_reason and current_time - getattr(member, "goal_assigned_time", 0.0) < 18.0:
+                    continue
+                member.personal_goal = {
+                    "type": "migrate",
+                    "target": {"x": round(target[0], 2), "y": round(target[1], 2)},
+                    "reason": f"Faction migration toward {faction.primary_doctrine} frontier",
+                }
+                member.goal_assigned_time = current_time
+                assigned += 1
+                if assigned >= min(3, len(eligible_members)):
+                    break
+
+            if assigned and advisor is not None:
+                advisor.session_stats["migration_events"] = advisor.session_stats.get("migration_events", 0) + 1
+                self._record_faction_history(
+                    advisor,
+                    current_time,
+                    "migration",
+                    faction_id=faction.id,
+                    members=assigned,
+                    doctrine=faction.primary_doctrine,
+                    target={"x": round(target[0], 1), "y": round(target[1], 1)},
+                )
+                record_observer_timeline_event(
+                    advisor,
+                    current_time,
+                    "migration",
+                    f"Faction {faction.id} shifted toward a new frontier",
+                    f"{assigned} members moving toward ({int(target[0])}, {int(target[1])}).",
+                )
     
     def get_faction(self, faction_id):
         """Get faction by ID"""
@@ -4650,6 +5082,25 @@ class Thronglet:
         # Directives take priority over personal goals
         if self.personal_goal and not directives and self.needs['hunger'] > 50 and self.needs['energy'] > 50:
             goal_type = self.personal_goal.get('type', '')
+
+            if goal_type == 'migrate':
+                target = self.personal_goal.get('target')
+                target_x = target.get('x') if isinstance(target, dict) else (target[0] if isinstance(target, (list, tuple)) and len(target) == 2 else None)
+                target_y = target.get('y') if isinstance(target, dict) else (target[1] if isinstance(target, (list, tuple)) and len(target) == 2 else None)
+                if target_x is not None and target_y is not None:
+                    dx = float(target_x) - self.x
+                    dy = float(target_y) - self.y
+                    distance = math.sqrt(dx**2 + dy**2)
+                    if distance <= 36:
+                        self.goal_progress = 1.0
+                        self.current_action = "holding migration frontier"
+                        self.personal_goal = None
+                    elif distance > 0:
+                        self.goal_progress = clamp(1.0 - (distance / 400.0), 0.0, 0.95)
+                        self.vx = (dx / distance) * THRONGLET_SPEED
+                        self.vy = (dy / distance) * THRONGLET_SPEED
+                        self.current_action = "goal: migrating"
+                        return None
             
             # Handle exploration goals
             if goal_type.startswith('explore_'):
@@ -5592,6 +6043,9 @@ class CivilizationAdvisor:
             'peak_factions': 0,
             'factions_formed': 0,
             'factions_dissolved': 0,
+            'faction_schisms': 0,
+            'faction_successions': 0,
+            'migration_events': 0,
             'lineage_events': [],
             'evolution_history': [],
             'current_evolution_summary': {},
@@ -6400,16 +6854,23 @@ Directives:"""
                 for building_type in ("house", "farm", "storage", "well", "workshop", "shrine")
             ]
         )
+        faction_lines = []
+        if faction_manager and getattr(faction_manager, "factions", {}):
+            for faction in list(faction_manager.factions.values())[:4]:
+                faction_lines.append(
+                    f"- F{faction.id}: doctrine={faction.primary_doctrine}, cohesion={int(faction.cohesion)}, members={len(faction.member_ids)}, rivals={faction.rival_faction_ids}"
+                )
+        faction_text = "\n".join(faction_lines) or "- none"
 
-        prompt = f"""You are the strategic council for a local colony sim.
+        prompt = f"""You are the strategic council for a local autonomous colony sim.
 Target model: {PREFERRED_OLLAMA_MODEL}
-Respond with either the exact text No changes or one raw JSON object.
+Return either the exact text No changes or one raw JSON object.
 No markdown fences. No prose preamble. No <think> tags.
 
-Goal:
-- Keep the colony alive.
-- Use minimal interventions.
-- Prefer low-cost actions that can happen now.
+Mission:
+- Co-govern the colony without changing rules directly.
+- Suggest doctrine, priorities, faction goals, and a small set of directives.
+- Never invent technologies, abilities, modifiers, or raw rule mutations.
 
 Current review trigger: {intervention_reason or 'routine'}
 State summary: {summary_text}
@@ -6426,10 +6887,11 @@ Colony:
 - District: {settlement.get('district_identity', 'homestead')}
 - Prosperity: {int(settlement.get('prosperity_score', 0.0) * 100)}%
 - Culture: {int(settlement.get('culture_score', 0.0) * 100)}%
-- Dominant biome: {settlement.get('dominant_biome', 'plains')}
 - Festival readiness: {int(settlement.get('festival_readiness', 0.0) * 100)}%
-- Research points: {self.research_points}
 - Factions: {faction_count}
+
+Faction snapshot:
+{faction_text}
 
 Thronglet snapshot:
 {thronglet_lines}
@@ -6441,16 +6903,29 @@ Constraints:
 - Max 2 individual directives.
 - Max 1 communal directive.
 - Use team_task only if factions > 0.
-- Avoid storage spam.
-- Wells matter for thirst and disease control.
+- Keep event_framing to one sentence.
 - If stable, return No changes.
 
 JSON schema:
 {{
+  "doctrine": {{
+    "focus": "survival|growth|industry|territory|culture|health|stability",
+    "stance": "measured|urgent|expansive|defensive|restorative",
+    "district_priority": "homestead|agrarian|industrial|frontier|civic|sanctuary",
+    "crisis_posture": "stabilize|expand|recover|fortify|consolidate",
+    "reasoning": "brief"
+  }},
+  "strategic_priorities": [
+    {{"key": "food_security", "weight": 0.9, "reasoning": "brief"}}
+  ],
   "individual": {{"0": "short instruction"}},
   "communal": "short group instruction",
-  "team_task": {{"faction_id": 0, "task": "build workshop", "count": 3, "reasoning": "why"}},
-  "conditions": {{"hunger<50": "prioritize food"}}
+  "team_task": {{"faction_id": 0, "task": "build workshop", "count": 3, "reasoning": "brief"}},
+  "conditions": {{"hunger<50": "prioritize food"}},
+  "faction_goals": [
+    {{"faction_id": 0, "goal": "secure water access", "reasoning": "brief", "doctrine_key": "security"}}
+  ],
+  "event_framing": "One short council sentence for the observer log."
 }}"""
         prompt += "\n\nDirectives:"
         return {
@@ -6490,47 +6965,91 @@ JSON schema:
         )
         return True
 
-    def _apply_strategy_response(self, response_text, model_used, thronglets, resources, buildings, narrative_panel=None):
+    def _apply_bounded_advisory_payload(self, advisory_payload, faction_manager=None):
+        self.council_state = advisory_payload or advisory_payload_defaults()
+        doctrine = dict(self.council_state.get("doctrine", {}))
+        focus_mapping = {
+            "survival": "population",
+            "growth": "population",
+            "industry": "infrastructure",
+            "territory": "territory",
+            "culture": "population",
+            "health": "resources",
+            "stability": "resources",
+        }
+        self.current_focus = focus_mapping.get(doctrine.get("focus"), self.current_focus)
+        self.json_directives = {
+            "individual": dict(self.council_state.get("individual", {})),
+            "communal": str(self.council_state.get("communal", "")),
+            "conditions": dict(self.council_state.get("conditions", {})),
+        }
+        if self.council_state.get("team_task"):
+            self.json_directives["team_task"] = dict(self.council_state.get("team_task", {}))
+
+        if faction_manager is not None:
+            for faction in faction_manager.factions.values():
+                faction.shared_goals = []
+            for goal in self.council_state.get("faction_goals", []):
+                faction = faction_manager.get_faction(goal.get("faction_id"))
+                if faction is None:
+                    continue
+                doctrine_key = goal.get("doctrine_key") or faction.primary_doctrine
+                faction.assign_shared_goal(goal.get("goal", ""), goal.get("reasoning", ""), doctrine_key)
+
+        append_bounded_history(
+            self.advisory_history,
+            {
+                "time": time.time(),
+                "doctrine": doctrine,
+                "strategic_priorities": list(self.council_state.get("strategic_priorities", [])),
+                "event_framing": str(self.council_state.get("event_framing", "")),
+            },
+            10,
+        )
+        self.session_stats["current_doctrine"] = doctrine
+        self.session_stats["current_advisory_priorities"] = list(self.council_state.get("strategic_priorities", []))
+
+    def _apply_strategy_response(self, response_text, model_used, thronglets, resources, buildings, narrative_panel=None, faction_manager=None):
         self.last_model_used = model_used or self.last_model_used
         self.last_llm_error = None
 
         print(f"[Civilization Advisor] Async response from {model_used}: {response_text[:300]}...")
 
-        json_parsed = self.parse_json_directives(response_text)
-        has_json_directives = False
-        if json_parsed:
-            has_json_directives = bool(
-                json_parsed.get("individual")
-                or json_parsed.get("communal")
-                or json_parsed.get("conditions")
-                or json_parsed.get("team_task")
-            )
-
-        if json_parsed is None:
+        advisory_payload = parse_advisory_payload(response_text)
+        if advisory_payload is None:
             print("[Advisor] No intervention from LLM - civilization stable")
+            self.council_state = advisory_payload_defaults()
+            self.json_directives = {"individual": {}, "communal": "", "conditions": {}}
             self.directives = []
-        elif has_json_directives:
-            self.directives = []
-            for thronglet_id, instruction in list(json_parsed.get("individual", {}).items()):
+            intervened = False
+        else:
+            self._apply_bounded_advisory_payload(advisory_payload, faction_manager=faction_manager)
+            validated_individual = {}
+            for thronglet_id, instruction in list(self.json_directives.get("individual", {}).items()):
                 directive = {"action": instruction, "priority": 8}
                 is_valid, errors = self.validate_directive(directive, thronglets, buildings, resources)
-                if not is_valid:
-                    print(f"[Directive Validation] Invalid directive for thronglet {thronglet_id}: {', '.join(errors)}")
-                    if thronglet_id in self.json_directives["individual"]:
-                        del self.json_directives["individual"][thronglet_id]
-        else:
-            self.parse_directives(response_text)
-            validated_directives = []
-            for directive in self.directives:
-                is_valid, errors = self.validate_directive(directive, thronglets, buildings, resources)
                 if is_valid:
-                    validated_directives.append(directive)
+                    validated_individual[thronglet_id] = instruction
                 else:
-                    print(f"[Directive Validation] Vetoed directive: {directive['action']} - {', '.join(errors)}")
-            self.directives = validated_directives
-
-        has_legacy_directives = len(self.directives) > 0
-        intervened = has_json_directives or has_legacy_directives
+                    print(f"[Directive Validation] Invalid directive for thronglet {thronglet_id}: {', '.join(errors)}")
+            self.json_directives["individual"] = validated_individual
+            self.directives = [
+                {
+                    "priority": max(1, min(10, int(round(priority.get("weight", 0.5) * 10)))),
+                    "action": str(priority.get("key", "monitor")),
+                    "reasoning": str(priority.get("reasoning", "Council priority")),
+                }
+                for priority in self.council_state.get("strategic_priorities", [])[:3]
+                if isinstance(priority, dict)
+            ]
+            intervened = bool(
+                self.json_directives.get("individual")
+                or self.json_directives.get("communal")
+                or self.json_directives.get("conditions")
+                or self.json_directives.get("team_task")
+                or self.council_state.get("faction_goals")
+                or self.directives
+            )
 
         if not intervened and response_text and ("build" in response_text.lower() or "gather" in response_text.lower()):
             self.directives = [
@@ -6542,8 +7061,8 @@ JSON schema:
             ]
             intervened = True
 
-        if narrative_panel:
-            self.parse_evolution_commands(response_text, narrative_panel, thronglets, resources, buildings)
+        if narrative_panel and self.council_state.get("event_framing"):
+            narrative_panel.add_message(self.council_state["event_framing"], "Strategy")
 
         history_entry = {
             "time": time.time(),
@@ -6576,6 +7095,7 @@ JSON schema:
         else:
             fallback_action = "continue gathering resources"
 
+        self.council_state = advisory_payload_defaults()
         self.json_directives = {"individual": {}, "communal": "", "conditions": {}}
         self.directives = [
             {"priority": 5, "action": fallback_action, "reasoning": f"LLM unavailable - {fallback_action}"}
@@ -6660,6 +7180,7 @@ Directives:"""
                     resources,
                     buildings,
                     narrative_panel=narrative_panel,
+                    faction_manager=faction_manager,
                 )
                 self.query_count += 1
 
@@ -6859,6 +7380,9 @@ Directives:"""
                             if btype in task_description.lower():
                                 target_building_type = btype
                                 break
+                        if target_building_type is None:
+                            preferred = faction.doctrine_profile.get("preferred_buildings", [])
+                            target_building_type = preferred[0] if preferred else None
                     
                     # Create GroupTask with faction pre-assigned members
                     new_task = GroupTask(
@@ -6875,6 +7399,51 @@ Directives:"""
                     
                     self.group_tasks.append(new_task)
                     print(f"[Group Task] Created faction task: {task_type} for faction {faction_id} ({len(new_task.assigned_thronglets)}/{required_count} assigned)")
+
+        if faction_manager:
+            existing_signatures = {
+                (task.faction_id, task.description.strip().lower())
+                for task in self.group_tasks
+                if getattr(task, "faction_id", None) is not None
+            }
+            for faction in faction_manager.factions.values():
+                if not faction.shared_goals:
+                    continue
+                latest_goal = faction.shared_goals[-1]
+                goal_text = str(latest_goal.get("goal", "")).strip()
+                if not goal_text:
+                    continue
+                signature = (faction.id, goal_text.lower())
+                if signature in existing_signatures:
+                    continue
+                task_type = "build"
+                target_building_type = None
+                lowered_goal = goal_text.lower()
+                if "gather" in lowered_goal or "secure" in lowered_goal:
+                    task_type = "gather"
+                elif "explore" in lowered_goal or "scout" in lowered_goal:
+                    task_type = "explore"
+                elif "build" in lowered_goal or "raise" in lowered_goal:
+                    task_type = "build"
+                for btype in BUILDING_DEFINITIONS:
+                    if btype in lowered_goal:
+                        target_building_type = btype
+                        break
+                if task_type == "build" and target_building_type is None:
+                    preferred = faction.doctrine_profile.get("preferred_buildings", [])
+                    target_building_type = preferred[0] if preferred else None
+                new_task = GroupTask(
+                    task_type=task_type,
+                    description=goal_text,
+                    required_count=max(2, min(4, len(faction.member_ids))),
+                    target_building_type=target_building_type,
+                )
+                new_task.faction_id = faction.id
+                for member_id in faction.member_ids[: new_task.required_count]:
+                    new_task.add_thronglet(member_id)
+                self.group_tasks.append(new_task)
+                existing_signatures.add(signature)
+                print(f"[Group Task] Doctrine task: {task_type} for faction {faction.id}")
         
         communal_str = self.json_directives.get('communal', '')
         if not communal_str:
@@ -8257,8 +8826,8 @@ class ObserverOverlay:
     """Read-only observer HUD for the autonomous simulation."""
 
     def draw(self, surface, advisor, camera):
-        panel_w = 700
-        panel_h = 58
+        panel_w = min(980, WINDOW_WIDTH - 40)
+        panel_h = 78
         panel_x = WINDOW_WIDTH // 2 - panel_w // 2
         panel_y = 10
 
@@ -8272,17 +8841,31 @@ class ObserverOverlay:
         title = font_small.render(f"AUTONOMOUS OBSERVER | {scenario_name[:24].upper()}", True, (200, 220, 255))
         surface.blit(title, (panel_x + 14, panel_y + 8))
 
+        current_summary = dict(advisor.session_stats.get("current_run_summary", {}) or {})
+        phase_label = current_summary.get("current_phase", {}).get("label", "Founding")
+        observer_score = int(current_summary.get("end_state", {}).get("score", 0) or 0)
+        doctrine = dict(advisor.session_stats.get("current_doctrine", {}) or {})
         llm_status = advisor.get_llm_status_label("offline")
         follow_state = "ON" if camera.follow_mode else "OFF"
-        status = font_small.render(f"Advisor: {llm_status}  |  Follow: {follow_state}", True, (160, 220, 170))
+        status = font_small.render(
+            f"Advisor: {llm_status}  |  Phase: {phase_label}  |  Score: {observer_score}  |  Follow: {follow_state}",
+            True,
+            (160, 220, 170),
+        )
         surface.blit(status, (panel_x + 14, panel_y + 28))
 
+        doctrine_text = (
+            f"Doctrine: {str(doctrine.get('focus', 'survival')).replace('_', ' ').title()} / "
+            f"{str(doctrine.get('stance', 'measured')).title()}"
+        )
+        surface.blit(font_small.render(doctrine_text[:42], True, (230, 210, 165)), (panel_x + 14, panel_y + 48))
+
         controls = font_small.render(
-            "Mouse inspect/pan  |  1/2/5 speed  |  F follow  |  R research  |  S evolution  |  T analytics  |  +/- zoom",
+            "Mouse inspect/pan  |  1/2/5 speed  |  F follow  |  R research  |  S evolution  |  T analytics  |  A archive  |  +/- zoom",
             True,
             (180, 180, 205),
         )
-        surface.blit(controls, (panel_x + 280, panel_y + 28))
+        surface.blit(controls, (panel_x + 310, panel_y + 48))
 
 
 class GameLogger:
@@ -8691,6 +9274,8 @@ def restore_session_from_snapshot(
     advisor.current_focus = advisor_data.get("current_focus", advisor.current_focus)
     advisor.directives = list(advisor_data.get("directives", []))
     advisor.json_directives = dict(advisor_data.get("json_directives", advisor.json_directives))
+    advisor.council_state = dict(advisor_data.get("council_state", advisor.council_state))
+    advisor.advisory_history = list(advisor_data.get("advisory_history", advisor.advisory_history))
     advisor.session_stats.update(dict(advisor_data.get("session_stats", {})))
     advisor.session_stats.setdefault("buildings_built", {})
     advisor.session_stats.setdefault("deaths_by_cause", {})
@@ -8702,11 +9287,15 @@ def restore_session_from_snapshot(
     advisor.session_stats.setdefault("peak_factions", 0)
     advisor.session_stats.setdefault("factions_formed", 0)
     advisor.session_stats.setdefault("factions_dissolved", 0)
+    advisor.session_stats.setdefault("faction_schisms", 0)
+    advisor.session_stats.setdefault("faction_successions", 0)
+    advisor.session_stats.setdefault("migration_events", 0)
     advisor.session_stats.setdefault("lineage_events", [])
     advisor.session_stats.setdefault("evolution_history", [])
     advisor.session_stats.setdefault("current_evolution_summary", {})
     advisor.session_stats.setdefault("timeline_events", [])
     advisor.session_stats.setdefault("faction_history", [])
+    advisor.session_stats.setdefault("current_run_summary", {})
     for lineage_event in advisor.session_stats.get("lineage_events", []):
         if isinstance(lineage_event, dict) and "time" in lineage_event:
             lineage_event["time"] = _rebase_timestamp(lineage_event.get("time"))
@@ -8716,6 +9305,9 @@ def restore_session_from_snapshot(
     for faction_event in advisor.session_stats.get("faction_history", []):
         if isinstance(faction_event, dict) and "time" in faction_event:
             faction_event["time"] = _rebase_timestamp(faction_event.get("time"))
+    for advisory_event in advisor.advisory_history:
+        if isinstance(advisory_event, dict) and "time" in advisory_event:
+            advisory_event["time"] = _rebase_timestamp(advisory_event.get("time"))
     advisor.current_settlement_state = dict(advisor_data.get("settlement_state", advisor.current_settlement_state))
     advisor.intervention_stats.update(dict(advisor_data.get("intervention_stats", {})))
     advisor.active_challenges = []
@@ -8865,6 +9457,30 @@ def restore_session_from_snapshot(
             if restored_faction.leader_id not in member_ids:
                 restored_faction.leader_id = member_ids[0]
             restored_faction.shared_goals = list(faction_data.get("shared_goals", []))
+            restored_faction.ideology = dict(faction_data.get("ideology", restored_faction.ideology))
+            restored_faction.cohesion = clamp(float(faction_data.get("cohesion", restored_faction.cohesion)), 0.0, 100.0)
+            restored_faction.stability = clamp(float(faction_data.get("stability", restored_faction.stability)), 0.0, 100.0)
+            restored_faction.schism_pressure = clamp(float(faction_data.get("schism_pressure", 0.0)), 0.0, 100.0)
+            restored_faction.migration_pressure = clamp(float(faction_data.get("migration_pressure", 0.0)), 0.0, 100.0)
+            restored_faction.primary_doctrine = str(faction_data.get("primary_doctrine", restored_faction.primary_doctrine))
+            restored_faction.doctrine_profile = dict(
+                FACTION_DOCTRINE_PROFILES.get(restored_faction.primary_doctrine, FACTION_DOCTRINE_PROFILES["growth"])
+            )
+            restored_faction.preferred_biome = str(faction_data.get("preferred_biome", restored_faction.preferred_biome))
+            restored_target = _parse_coordinate_entry(faction_data.get("migration_target"))
+            restored_faction.migration_target = restored_target if restored_target else None
+            restored_faction.succession_count = max(0, int(faction_data.get("succession_count", 0) or 0))
+            restored_faction.rival_faction_ids = [
+                rival_id
+                for rival_id in (_parse_optional_int(raw_id) for raw_id in faction_data.get("rival_faction_ids", []))
+                if rival_id is not None
+            ]
+            last_succession_elapsed = max(0.0, float(faction_data.get("last_succession_elapsed", 0.0)))
+            restored_faction.last_succession_time = now - last_succession_elapsed if last_succession_elapsed > 0 else 0.0
+            last_schism_elapsed = max(0.0, float(faction_data.get("last_schism_elapsed", 0.0)))
+            restored_faction.last_schism_time = now - last_schism_elapsed if last_schism_elapsed > 0 else 0.0
+            last_migration_elapsed = max(0.0, float(faction_data.get("last_migration_elapsed", 0.0)))
+            restored_faction.last_migration_time = now - last_migration_elapsed if last_migration_elapsed > 0 else 0.0
             formed_elapsed = max(0.0, float(faction_data.get("formed_elapsed", 0.0)))
             restored_faction.formed_time = now - formed_elapsed if formed_elapsed > 0 else now
             faction_manager.factions[saved_faction_id] = restored_faction
@@ -8873,6 +9489,9 @@ def restore_session_from_snapshot(
                 thronglet_lookup[member_id].faction_id = saved_faction_id
         if max_faction_id >= 0:
             Faction._next_id = max(Faction._next_id, max_faction_id + 1)
+        for restored_faction in faction_manager.factions.values():
+            restored_faction.refresh_identity(restored_thronglets)
+        faction_manager._update_rivalries()
 
     if world_map is not None:
         world_data = snapshot.get("world", {})
@@ -8997,6 +9616,7 @@ def restore_session_from_snapshot(
         "elapsed_seconds": elapsed_seconds,
         "selected_model": snapshot.get("selected_model"),
         "scenario_id": snapshot.get("scenario_id", DEFAULT_SCENARIO_ID) or DEFAULT_SCENARIO_ID,
+        "run_summary": dict(snapshot.get("run_summary", {}) or {}),
         "thronglets": restored_thronglets,
         "buildings": restored_buildings,
         "resources": restored_resources,
@@ -9011,6 +9631,9 @@ def main(runtime_config=RUNTIME_CONFIG):
     global current_time_speed, screen, clock, WINDOW_WIDTH, WINDOW_HEIGHT, FPS
     global font, font_large, font_small, VERBOSE_LOGGING
 
+    if not pygame.get_init():
+        pygame.init()
+
     WINDOW_WIDTH = runtime_config.width
     WINDOW_HEIGHT = runtime_config.height
     FPS = runtime_config.fps
@@ -9021,7 +9644,8 @@ def main(runtime_config=RUNTIME_CONFIG):
 
     if runtime_config.seed is not None:
         random.seed(runtime_config.seed)
-    scenario_profile = set_active_scenario(runtime_config.scenario)
+    selected_scenario_id = runtime_config.scenario
+    scenario_profile = set_active_scenario(selected_scenario_id)
 
     # #region agent log
     log_path = os.path.join(runtime_config.log_dir, "probe_debug.log")
@@ -9131,14 +9755,30 @@ def main(runtime_config=RUNTIME_CONFIG):
             if not runtime_config.headless:
                 input("Press Enter to exit...")
             return
-    
+
+    shell_choice = {
+        "action": "start",
+        "scenario_id": selected_scenario_id,
+        "snapshot_path": resolve_snapshot_path(
+            runtime_config.log_dir,
+            snapshot_file=runtime_config.snapshot_file,
+            load_latest=runtime_config.load_latest_snapshot,
+        ),
+    }
+    if not runtime_config.headless and not runtime_config.snapshot_file and not runtime_config.load_latest_snapshot:
+        screen, shell_choice = run_command_center(screen, clock, runtime_config, selected_scenario_id)
+        if shell_choice.get("action") == "quit":
+            try:
+                pygame.quit()
+            except Exception:
+                pass
+            return
+    selected_scenario_id = str(shell_choice.get("scenario_id") or selected_scenario_id)
+    scenario_profile = set_active_scenario(selected_scenario_id)
+
     # Initialize logging and crash tracking
     game_logger = GameLogger(log_dir=runtime_config.log_dir, log_level=runtime_config.log_level)
-    snapshot_resume_path = resolve_snapshot_path(
-        runtime_config.log_dir,
-        snapshot_file=runtime_config.snapshot_file,
-        load_latest=runtime_config.load_latest_snapshot,
-    )
+    snapshot_resume_path = shell_choice.get("snapshot_path")
     
     # Initialize LLM model selection (detect fastest available model)
     # Make this non-blocking to prevent hanging - use threading with timeout
@@ -9397,6 +10037,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     info_panel = InfoPanel()
     evolution_stats_panel = EvolutionStatsPanel()
     observer_analytics_panel = ObserverAnalyticsPanel()
+    archive_review_panel = ArchiveReviewPanel()
     
     # Initialize read-only observer HUD
     observer_overlay = ObserverOverlay()
@@ -9434,6 +10075,20 @@ def main(runtime_config=RUNTIME_CONFIG):
         scenario_profile.get("description"),
     )
     record_population_evolution_sample(advisor, thronglets, time.time(), time.time(), force=True)
+    refresh_run_summary_cache(
+        advisor,
+        thronglets,
+        buildings,
+        time.time(),
+        time.time(),
+        faction_manager=faction_manager,
+        scenario_id=scenario_profile["id"],
+        scenario_name=scenario_profile["name"],
+        selected_model=selected_model,
+        seed=runtime_config.seed,
+        session_id=game_logger.session_id,
+        force=True,
+    )
     restored_elapsed_seconds = 0.0
     if snapshot_resume_path:
         try:
@@ -9458,6 +10113,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             settlement_state.update(restored_state["settlement_state"])
             celebration_state = restored_state["celebration_state"]
             advisor.current_settlement_state = settlement_state
+            if restored_state.get("run_summary"):
+                advisor.session_stats["current_run_summary"] = dict(restored_state["run_summary"])
             restored_elapsed_seconds = restored_state["elapsed_seconds"]
             scenario_profile = set_active_scenario(restored_state.get("scenario_id", scenario_profile["id"]))
             advisor.session_stats["scenario_id"] = scenario_profile["id"]
@@ -9479,6 +10136,20 @@ def main(runtime_config=RUNTIME_CONFIG):
             fog_of_war.update(thronglets)
             territory_manager.update(thronglets, buildings)
             record_population_evolution_sample(advisor, thronglets, time.time(), time.time() - restored_elapsed_seconds, force=True)
+            refresh_run_summary_cache(
+                advisor,
+                thronglets,
+                buildings,
+                time.time(),
+                time.time() - restored_elapsed_seconds,
+                faction_manager=faction_manager,
+                scenario_id=scenario_profile["id"],
+                scenario_name=scenario_profile["name"],
+                selected_model=selected_model,
+                seed=runtime_config.seed,
+                session_id=game_logger.session_id,
+                force=True,
+            )
             narrative_panel.add_message(
                 f"RESUMED: {os.path.basename(snapshot_resume_path)} [{scenario_profile['name']}]",
                 "Achievement",
@@ -9509,11 +10180,119 @@ def main(runtime_config=RUNTIME_CONFIG):
     research_panel_open = False
     analytics_panel_open = False
     stats_panel_open = False
+    archive_panel_open = False
+    ui_theme = build_ui_theme(WINDOW_WIDTH, WINDOW_HEIGHT)
+    ui_registry = UIRectRegistry()
+    ui_state = UIState(
+        active_screen="run",
+        selected_scenario_id=scenario_profile["id"],
+        camera_mode="follow" if camera.follow_mode else "free",
+        map_overlay="districts",
+    )
+    camera_director = CameraDirector()
+    post_run_action = None
+
+    def _toggle_modal(modal_name):
+        ui_state.active_modal = None if ui_state.active_modal == modal_name else modal_name
+        if ui_state.active_modal != "archive":
+            ui_state.archive_scroll = 0
+        if ui_state.active_modal != "analytics":
+            ui_state.analytics_section = "population"
+
+    def _handle_ui_action(action_name, payload=None):
+        nonlocal running, post_run_action, current_time_speed, selected_model
+        if action_name == "toggle_follow":
+            camera.follow_mode = not camera.follow_mode
+            ui_state.camera_mode = "follow" if camera.follow_mode else "free"
+            return
+        if action_name == "speed_1":
+            current_time_speed = 0
+            return
+        if action_name == "speed_2":
+            current_time_speed = 1
+            return
+        if action_name == "speed_5":
+            current_time_speed = 2
+            return
+        if action_name == "toggle_modal_research":
+            _toggle_modal("research")
+            return
+        if action_name == "toggle_modal_evolution":
+            _toggle_modal("evolution")
+            return
+        if action_name == "toggle_modal_analytics":
+            _toggle_modal("analytics")
+            return
+        if action_name == "toggle_modal_archive":
+            _toggle_modal("archive")
+            return
+        if action_name == "close_modal":
+            ui_state.active_modal = None
+            return
+        if action_name == "inspect_tab":
+            ui_state.inspect_tab = str(payload or "overview")
+            ui_state.inspect_scroll = 0
+            return
+        if action_name == "analytics_tab":
+            ui_state.analytics_section = str(payload or "population")
+            return
+        if action_name == "cycle_overlay":
+            ui_state.map_overlay = next_overlay(ui_state.map_overlay)
+            return
+        if action_name == "focus_latest_event":
+            cue_label = camera_director.queue_latest_focus(time.time())
+            if cue_label:
+                ui_state.camera_mode = "event"
+                ui_state.camera_cue = cue_label
+                camera.follow_mode = False
+            return
+        if action_name == "archive_select":
+            session_id = str(payload or "")
+            if not session_id:
+                return
+            if ui_state.selected_run is None or ui_state.selected_run == session_id:
+                ui_state.selected_run = session_id
+            elif ui_state.compare_run == session_id:
+                ui_state.compare_run = None
+            elif ui_state.compare_run is None:
+                ui_state.compare_run = session_id
+            else:
+                ui_state.selected_run = session_id
+                ui_state.compare_run = None
+            return
+        if action_name == "end_archive":
+            ui_state.active_modal = "archive"
+            return
+        if action_name == "end_compare":
+            ui_state.active_modal = "archive"
+            return
+        if action_name == "end_resume":
+            post_run_action = "resume_latest"
+            running = False
+            return
+        if action_name == "end_new_run":
+            post_run_action = "new_run"
+            running = False
+            return
     
     game_start_time = time.time() - restored_elapsed_seconds
     last_status_time = game_start_time
     render_diag_until = game_start_time  # Disable diag overlay
     record_population_evolution_sample(advisor, thronglets, time.time(), game_start_time, force=True)
+    refresh_run_summary_cache(
+        advisor,
+        thronglets,
+        buildings,
+        time.time(),
+        game_start_time,
+        faction_manager=faction_manager,
+        scenario_id=scenario_profile["id"],
+        scenario_name=scenario_profile["name"],
+        selected_model=selected_model,
+        seed=runtime_config.seed,
+        session_id=game_logger.session_id,
+        force=True,
+    )
     print("Thronglets game started! Observer mode is active - the colony evolves without player commands.")
     print(f"[DEBUG] Entering main game loop...")
     
@@ -9543,167 +10322,107 @@ def main(runtime_config=RUNTIME_CONFIG):
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+                elif event.type == pygame.VIDEORESIZE and not runtime_config.headless:
+                    WINDOW_WIDTH, WINDOW_HEIGHT = max(1366, event.w), max(768, event.h)
+                    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SCALED | pygame.RESIZABLE)
+                    ui_theme = build_ui_theme(WINDOW_WIDTH, WINDOW_HEIGHT)
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        selection_manager.deselect()
-                        running = False
+                        if handle_escape(ui_state, selection_manager):
+                            running = False
                     elif event.key == pygame.K_o and game_over:
-                        extinction_overlay_visible = not extinction_overlay_visible
+                        ui_state.end_summary_open = not ui_state.end_summary_open
+                    elif event.key == pygame.K_RETURN and ui_state.show_quit_prompt:
+                        running = False
                     elif event.key == pygame.K_1:
-                        current_time_speed = 0  # 1x speed
+                        _handle_ui_action("speed_1")
                     elif event.key == pygame.K_2:
-                        current_time_speed = 1  # 2x speed
+                        _handle_ui_action("speed_2")
                     elif event.key == pygame.K_5:
-                        current_time_speed = 2  # 5x speed
+                        _handle_ui_action("speed_5")
                     elif event.key == pygame.K_f:
-                        camera.follow_mode = not camera.follow_mode
-                        if camera.follow_mode:
-                            print("Auto-follow: ON")
-                        else:
-                            print("Auto-follow: OFF")
+                        _handle_ui_action("toggle_follow")
                     elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
                         camera.adjust_zoom(-0.1)
                     elif event.key == pygame.K_EQUALS or event.key == pygame.K_KP_PLUS:
                         camera.adjust_zoom(0.1)
-                    elif event.key == pygame.K_m:
-                        pass
                     elif event.key == pygame.K_r:
-                        research_panel_open = not research_panel_open
+                        _handle_ui_action("toggle_modal_research")
                     elif event.key == pygame.K_s:
-                        stats_panel_open = not stats_panel_open
-                        if stats_panel_open:
-                            analytics_panel_open = False
+                        _handle_ui_action("toggle_modal_evolution")
                     elif event.key == pygame.K_t:
-                        analytics_panel_open = not analytics_panel_open
-                        if analytics_panel_open:
-                            stats_panel_open = False
+                        _handle_ui_action("toggle_modal_analytics")
+                    elif event.key == pygame.K_a:
+                        _handle_ui_action("toggle_modal_archive")
+                    elif event.key == pygame.K_SPACE:
+                        _handle_ui_action("focus_latest_event")
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 1:  # Left mouse
-                        # Check if clicking on minimap
-                        minimap_width = 280
-                        minimap_height = 200
-                        minimap_x = WINDOW_WIDTH - minimap_width - 20
-                        minimap_y = WINDOW_HEIGHT - minimap_height - 30
-                        
-                        if (minimap_x <= event.pos[0] <= minimap_x + minimap_width and
-                            minimap_y <= event.pos[1] <= minimap_y + minimap_height):
-                            # Click on minimap - jump camera
-                            click_x_on_map = event.pos[0] - minimap_x - 10
-                            click_y_on_map = event.pos[1] - minimap_y - 30
-                            
-                            # Convert to world coordinates (use camera's world dimensions)
-                            minimap_scale_x = minimap_width / camera.world_width
-                            minimap_scale_y = minimap_height / camera.world_height
-                            world_click_x = click_x_on_map / minimap_scale_x
-                            world_click_y = click_y_on_map / minimap_scale_y
-                            
-                            # Center camera on clicked location
-                            camera.x = max(0, min(world_click_x - WINDOW_WIDTH / 2, camera.world_width - WINDOW_WIDTH))
-                            camera.y = max(0, min(world_click_y - WINDOW_HEIGHT / 2, camera.world_height - WINDOW_HEIGHT))
-                        else:
-                            # Check if clicking on UI panels (prevent selection)
-                            panel1_x, panel1_y = 20, 20
-                            panel1_w, panel1_h = 300, 200
-                            panel2_x, panel2_y = WINDOW_WIDTH - 320, 20
-                            panel2_w, panel2_h = 300, 200
-                            narr_x, narr_y = 20, WINDOW_HEIGHT - 380
-                            narr_w, narr_h = 400, 180
-                            
-                            click_in_ui = False
-                            if (panel1_x <= event.pos[0] <= panel1_x + panel1_w and 
-                                panel1_y <= event.pos[1] <= panel1_y + panel1_h):
-                                click_in_ui = True
-                            elif (panel2_x <= event.pos[0] <= panel2_x + panel2_w and 
-                                  panel2_y <= event.pos[1] <= panel2_y + panel2_h):
-                                click_in_ui = True
-                            elif (narr_x <= event.pos[0] <= narr_x + narr_w and 
-                                  narr_y <= event.pos[1] <= narr_y + narr_h):
-                                click_in_ui = True
-                            
-                            if not click_in_ui:
-                                # Track if we should start panning
-                                keys = pygame.key.get_pressed()
-                                shift_pressed = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
-                                
-                                # Try to select entity
-                                click_world_x, click_world_y = camera.screen_to_world(event.pos[0], event.pos[1])
-                                entity_selected = False
-                                
-                                if not shift_pressed:  # Only try selection if not holding shift
-                                    # Check entities in priority order: thronglet > building > resource > encounter > hazard > npc
-                                    for thronglet in thronglets:
-                                        distance = math.sqrt((click_world_x - thronglet.x)**2 + (click_world_y - thronglet.y)**2)
-                                        threshold = THRONGLET_RADIUS * camera.zoom
-                                        if distance < threshold:
-                                            selection_manager.select(thronglet, 'thronglet')
-                                            entity_selected = True
-                                            break
-                                    
-                                    if not entity_selected:
-                                        for building in buildings:
-                                            distance = math.sqrt((click_world_x - building.x)**2 + (click_world_y - building.y)**2)
-                                            threshold = BUILDING_SIZE * camera.zoom
-                                            if distance < threshold:
-                                                selection_manager.select(building, 'building')
-                                                entity_selected = True
-                                                break
-                                    
-                                    if not entity_selected:
-                                        for resource in resources:
-                                            if not resource.collected:
-                                                distance = math.sqrt((click_world_x - resource.x)**2 + (click_world_y - resource.y)**2)
-                                                if resource.resource_type == 'food':
-                                                    threshold = RESOURCE_RADIUS_FOOD * camera.zoom
-                                                elif resource.resource_type == 'stone':
-                                                    threshold = RESOURCE_RADIUS_STONE * camera.zoom
-                                                else:
-                                                    threshold = RESOURCE_RADIUS_WOOD * camera.zoom
-                                                if distance < threshold:
-                                                    selection_manager.select(resource, 'resource')
-                                                    entity_selected = True
-                                                    break
-                                    
-                                    if not entity_selected:
-                                        for encounter in world_map.encounters:
-                                            if encounter.discovered:
-                                                distance = math.sqrt((click_world_x - encounter.x)**2 + (click_world_y - encounter.y)**2)
-                                                threshold = 30 * camera.zoom
-                                                if distance < threshold:
-                                                    selection_manager.select(encounter, 'encounter')
-                                                    entity_selected = True
-                                                    break
-                                    
-                                    if not entity_selected:
-                                        for hazard in world_map.hazards:
-                                            if hazard.active:
-                                                distance = math.sqrt((click_world_x - hazard.x)**2 + (click_world_y - hazard.y)**2)
-                                                if distance < hazard.radius:
-                                                    selection_manager.select(hazard, 'hazard')
-                                                    entity_selected = True
-                                                    break
-                                    
-                                    if not entity_selected:
-                                        for npc in world_map.npcs:
-                                            if npc.visible:
-                                                distance = math.sqrt((click_world_x - npc.x)**2 + (click_world_y - npc.y)**2)
-                                                threshold = 25 * camera.zoom
-                                                if distance < threshold:
-                                                    selection_manager.select(npc, 'npc')
-                                                    entity_selected = True
-                                                    break
-                                
-                                if not entity_selected or shift_pressed:
-                                    # Empty space or shift-click - start pan drag
-                                    camera.start_pan(event.pos[0], event.pos[1])
+                        run_layout = compute_run_layout(WINDOW_WIDTH, WINDOW_HEIGHT)
+                        ui_hit = ui_registry.hit_test(event.pos)
+                        if ui_hit is not None:
+                            if ui_hit.action == "minimap_jump":
+                                map_x = run_layout.minimap.x + 10
+                                map_y = run_layout.minimap.y + 34
+                                map_w = run_layout.minimap.w - 20
+                                map_h = run_layout.minimap.h - 66
+                                if map_x <= event.pos[0] <= map_x + map_w and map_y <= event.pos[1] <= map_y + map_h:
+                                    click_x_on_map = event.pos[0] - map_x
+                                    click_y_on_map = event.pos[1] - map_y
+                                    minimap_scale_x = map_w / max(1, camera.world_width)
+                                    minimap_scale_y = map_h / max(1, camera.world_height)
+                                    world_click_x = click_x_on_map / minimap_scale_x
+                                    world_click_y = click_y_on_map / minimap_scale_y
+                                    camera.x = max(0, min(world_click_x - WINDOW_WIDTH / (2 * max(0.01, camera.zoom)), camera.world_width - WINDOW_WIDTH / max(0.01, camera.zoom)))
+                                    camera.y = max(0, min(world_click_y - WINDOW_HEIGHT / (2 * max(0.01, camera.zoom)), camera.world_height - WINDOW_HEIGHT / max(0.01, camera.zoom)))
+                                    camera.clamp_camera()
                             else:
-                                # Clicking UI - start pan drag too
+                                _handle_ui_action(ui_hit.action or ui_hit.id, ui_hit.payload)
+                        else:
+                            keys = pygame.key.get_pressed()
+                            shift_pressed = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+                            entity, entity_type = pick_world_entity(
+                                event.pos,
+                                camera,
+                                thronglets,
+                                buildings,
+                                resources,
+                                world_map.encounters,
+                                world_map.hazards,
+                                world_map.npcs,
+                                thronglet_radius=THRONGLET_RADIUS,
+                                building_size=BUILDING_SIZE,
+                                resource_radii={
+                                    "food": RESOURCE_RADIUS_FOOD,
+                                    "stone": RESOURCE_RADIUS_STONE,
+                                    "wood": RESOURCE_RADIUS_WOOD,
+                                },
+                            )
+                            if entity is not None and not shift_pressed:
+                                selection_manager.select(entity, entity_type)
+                                ui_state.inspect_target = {"entity": entity, "type": entity_type}
+                                ui_state.inspect_tab = "overview"
+                                ui_state.inspect_scroll = 0
+                            else:
                                 camera.start_pan(event.pos[0], event.pos[1])
                     elif event.button == 2:  # Middle mouse button - always pan
                         camera.start_pan(event.pos[0], event.pos[1])
                     elif event.button == 4:  # Scroll up
-                        camera.adjust_zoom(0.1)
+                        scroll_target = ui_registry.scroll_target(mouse_screen_pos)
+                        if scroll_target and scroll_target.id == "inspect_drawer":
+                            ui_state.inspect_scroll = max(0, ui_state.inspect_scroll - 28)
+                        elif scroll_target and scroll_target.id == "modal_frame" and ui_state.active_modal == "archive":
+                            ui_state.archive_scroll = max(0, ui_state.archive_scroll - 32)
+                        else:
+                            camera.adjust_zoom(0.1)
                     elif event.button == 5:  # Scroll down
-                        camera.adjust_zoom(-0.1)
+                        scroll_target = ui_registry.scroll_target(mouse_screen_pos)
+                        if scroll_target and scroll_target.id == "inspect_drawer":
+                            ui_state.inspect_scroll += 28
+                        elif scroll_target and scroll_target.id == "modal_frame" and ui_state.active_modal == "archive":
+                            ui_state.archive_scroll += 32
+                        else:
+                            camera.adjust_zoom(-0.1)
                 elif event.type == pygame.MOUSEMOTION:
                     camera.update_pan(event.pos[0], event.pos[1])
                     # Track mouse position for tooltips
@@ -10023,6 +10742,21 @@ def main(runtime_config=RUNTIME_CONFIG):
                 delta_time,
             )
             advisor.current_settlement_state = settlement_state
+            refresh_run_summary_cache(
+                advisor,
+                thronglets,
+                buildings,
+                current_time,
+                game_start_time,
+                faction_manager=faction_manager,
+                scenario_id=scenario_profile["id"],
+                scenario_name=scenario_profile["name"],
+                selected_model=advisor.last_model_used or selected_model,
+                seed=runtime_config.seed,
+                session_id=game_logger.session_id,
+                extinction=game_over,
+                force=False,
+            )
             
             # Apply weather effects to thronglets (per second)
             for thronglet in thronglets:
@@ -10129,6 +10863,14 @@ def main(runtime_config=RUNTIME_CONFIG):
             
             # Update factions after bonds are updated (outside the loop for efficiency)
             faction_manager.update_factions(thronglets, advisor)
+            faction_manager.apply_autonomous_pressure(
+                thronglets,
+                advisor,
+                world_map,
+                world_width,
+                world_height,
+                current_time,
+            )
             
             # Update happiness (move outside loop for efficiency)
             for thronglet in thronglets:
@@ -10165,11 +10907,29 @@ def main(runtime_config=RUNTIME_CONFIG):
                 game_over = True
                 extinction_time = current_time
                 extinction_overlay_visible = True
+                extinction_summary = refresh_run_summary_cache(
+                    advisor,
+                    thronglets,
+                    buildings,
+                    current_time,
+                    game_start_time,
+                    faction_manager=faction_manager,
+                    scenario_id=scenario_profile["id"],
+                    scenario_name=scenario_profile["name"],
+                    selected_model=advisor.last_model_used or selected_model,
+                    seed=runtime_config.seed,
+                    session_id=game_logger.session_id,
+                    extinction=True,
+                    force=True,
+                )
                 final_stats = {
+                    'phase': extinction_summary.get('current_phase', {}).get('label', 'Crisis / End-State'),
+                    'end_state': extinction_summary.get('end_state', {}).get('label', 'Lineage Extinction'),
+                    'observer_score': int(extinction_summary.get('end_state', {}).get('score', 0) or 0),
                     'days_survived': advisor.civilization_age,
                     'max_population': advisor.session_stats.get('max_population', INITIAL_POPULATION),
                     'total_deaths': advisor.total_deaths,
-                    'buildings_built': sum(advisor.session_stats['buildings_built'].values()),
+                    'buildings_built': sum(advisor.session_stats.get('buildings_built', {}).values()),
                     'research_points': advisor.research_points,
                     'techs_unlocked': len(advisor.game_modifiers.tech_unlocked),
                 }
@@ -10865,6 +11625,32 @@ def main(runtime_config=RUNTIME_CONFIG):
                             # Draw highlight if selected
                             selection_manager.draw_highlight(screen, building, 'building')
                             building.x, building.y = old_x, old_y
+
+            # Draw faction migration vectors before units so frontier pressure is visible
+            for faction in faction_manager.factions.values():
+                if not getattr(faction, "migration_target", None):
+                    continue
+                centroid = faction.get_centroid(thronglets)
+                if not centroid:
+                    continue
+                start_x, start_y = camera.world_to_screen(centroid[0], centroid[1])
+                target_x, target_y = camera.world_to_screen(faction.migration_target[0], faction.migration_target[1])
+                if (
+                    start_x < -120 and target_x < -120
+                    or start_x > WINDOW_WIDTH + 120 and target_x > WINDOW_WIDTH + 120
+                    or start_y < -120 and target_y < -120
+                    or start_y > WINDOW_HEIGHT + 120 and target_y > WINDOW_HEIGHT + 120
+                ):
+                    continue
+                route_color = {
+                    "growth": (255, 210, 120),
+                    "security": (120, 210, 255),
+                    "industry": (255, 170, 120),
+                    "exploration": (210, 160, 255),
+                    "harmony": (170, 255, 200),
+                }.get(faction.primary_doctrine, (220, 220, 220))
+                pygame.draw.line(screen, route_color, (int(start_x), int(start_y)), (int(target_x), int(target_y)), 2)
+                pygame.draw.circle(screen, route_color, (int(target_x), int(target_y)), 6, 2)
             
             # Draw resources with glow effect
             for resource in resources:
@@ -11189,7 +11975,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             
             # Action bar at bottom center
             action_bar_y = WINDOW_HEIGHT - 50
-            action_bar_w = 700
+            action_bar_w = 860
             action_bar_x = WINDOW_WIDTH // 2 - action_bar_w // 2
             action_bar = pygame.Surface((action_bar_w, 40))
             action_bar.set_alpha(220)
@@ -11197,8 +11983,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             screen.blit(action_bar, (action_bar_x, action_bar_y))
             
             # Observer controls with text
-            button_width = 118
-            button_spacing = 16
+            button_width = 104
+            button_spacing = 10
             button_y = action_bar_y + 5
             button_h = 30
             
@@ -11206,7 +11992,9 @@ def main(runtime_config=RUNTIME_CONFIG):
                 ("Inspect", "Mouse", (120, 190, 255)),
                 ("Follow", "F", (120, 220, 160)),
                 ("Research", "R", (100, 200, 255)),
-                ("Stats", "S", (255, 200, 150)),
+                ("Evolution", "S", (255, 200, 150)),
+                ("Analytics", "T", (215, 180, 255)),
+                ("Archive", "A", (255, 220, 150)),
                 ("Speed", "1/2/5", (210, 180, 120)),
             ]
             
@@ -11342,6 +12130,12 @@ def main(runtime_config=RUNTIME_CONFIG):
                 except Exception as e:
                     if VERBOSE_LOGGING:
                         print(f"[Analytics Panel] Error: {e}")
+            if archive_panel_open:
+                try:
+                    archive_review_panel.draw(screen, advisor, current_time, game_logger.log_dir)
+                except Exception as e:
+                    if VERBOSE_LOGGING:
+                        print(f"[Archive Panel] Error: {e}")
             
             # Minimap (bottom-right corner)
             minimap_width = 280  # Increased from 200
@@ -11521,9 +12315,42 @@ def main(runtime_config=RUNTIME_CONFIG):
         try:
             game_logger.save_quick_report()
             snapshot_file = None
+            archive_file = None
             local_names = locals()
             required_snapshot_names = ("thronglets", "buildings", "resources", "advisor", "season", "weather_system", "game_start_time")
             if all(name in local_names for name in required_snapshot_names):
+                run_summary = build_run_summary(
+                    thronglets=thronglets,
+                    buildings=buildings,
+                    advisor=advisor,
+                    current_time=time.time(),
+                    game_start_time=game_start_time,
+                    settlement_state=getattr(advisor, "current_settlement_state", {}),
+                    faction_manager=faction_manager if "faction_manager" in local_names else None,
+                    scenario_id=scenario_profile["id"] if "scenario_profile" in local_names else ACTIVE_SCENARIO_ID,
+                    scenario_name=scenario_profile["name"] if "scenario_profile" in local_names else ACTIVE_SCENARIO_PROFILE.get("name"),
+                    selected_model=advisor.last_model_used or selected_model,
+                    seed=runtime_config.seed,
+                    session_id=game_logger.session_id,
+                    extinction=bool(game_over),
+                )
+                advisor.session_stats["current_run_summary"] = run_summary
+                archive_payload = build_run_archive(
+                    thronglets=thronglets,
+                    buildings=buildings,
+                    advisor=advisor,
+                    current_time=time.time(),
+                    game_start_time=game_start_time,
+                    settlement_state=getattr(advisor, "current_settlement_state", {}),
+                    faction_manager=faction_manager if "faction_manager" in local_names else None,
+                    scenario_id=scenario_profile["id"] if "scenario_profile" in local_names else ACTIVE_SCENARIO_ID,
+                    scenario_name=scenario_profile["name"] if "scenario_profile" in local_names else ACTIVE_SCENARIO_PROFILE.get("name"),
+                    selected_model=advisor.last_model_used or selected_model,
+                    seed=runtime_config.seed,
+                    session_id=game_logger.session_id,
+                    extinction=bool(game_over),
+                )
+                archive_file = write_run_archive(game_logger.log_dir, game_logger.session_id, archive_payload)
                 snapshot = build_run_snapshot(
                     thronglets,
                     buildings,
@@ -11543,6 +12370,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     faction_manager=faction_manager if "faction_manager" in local_names else None,
                     city_planner=city_planner if "city_planner" in local_names else None,
                     scenario_id=scenario_profile["id"] if "scenario_profile" in local_names else ACTIVE_SCENARIO_ID,
+                    run_summary=run_summary,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {
@@ -11562,6 +12390,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             print(f"Session Report: {os.path.abspath(report_file)}")
             if snapshot_file:
                 print(f"Session Snapshot: {os.path.abspath(snapshot_file)}")
+            if archive_file:
+                print(f"Run Archive: {os.path.abspath(archive_file)}")
             if game_logger.crash_count > 0:
                 print(f"\nWARNING: {game_logger.crash_count} crash(es) occurred during this session")
                 print(f"Check logs/ directory for:")
