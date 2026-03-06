@@ -41,6 +41,10 @@ class UIPalette:
     note_birth: tuple[int, int, int]
     note_faction: tuple[int, int, int]
     note_discovery: tuple[int, int, int]
+    note_trade: tuple[int, int, int]
+    note_diplomacy: tuple[int, int, int]
+    note_cultural: tuple[int, int, int]
+    note_disaster: tuple[int, int, int]
 
 
 @dataclass(frozen=True)
@@ -113,6 +117,10 @@ def build_ui_theme(width: int, height: int) -> UITheme:
         note_birth=(166, 181, 116),
         note_faction=(165, 133, 186),
         note_discovery=(106, 171, 167),
+        note_trade=(196, 170, 94),
+        note_diplomacy=(98, 168, 156),
+        note_cultural=(172, 148, 204),
+        note_disaster=(196, 92, 78),
     )
     motion = UIMotion(
         fade_seconds=0.16,

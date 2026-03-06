@@ -75,7 +75,9 @@ def build_field_notes(timeline: list[dict[str, Any]], current_time: float, limit
                 title=category.replace("_", " ").title(),
                 body=summary,
                 age_seconds=max(0.0, current_time - float(event.get("time", current_time) or current_time)),
-                pinned=category in {"crisis", "extinction", "faction", "birth", "migration"},
+                pinned=category in {"crisis", "extinction", "faction", "birth", "migration",
+                                     "trade", "diplomacy", "disaster", "cultural_shift",
+                                     "doctrine_change", "schism", "building", "milestone", "death"},
             )
         )
         if len(notes) >= limit:

@@ -15,6 +15,15 @@ _NOTE_COLOR_MAP = {
     "discovery": "note_discovery",
     "scenario": "note_strategy",
     "extinction": "note_crisis",
+    "trade": "note_trade",
+    "diplomacy": "note_diplomacy",
+    "cultural_shift": "note_cultural",
+    "disaster": "note_disaster",
+    "doctrine_change": "note_faction",
+    "building": "note_strategy",
+    "milestone": "note_discovery",
+    "death": "note_crisis",
+    "schism": "note_faction",
 }
 
 _OVERLAYS = ("biome", "elevation", "water", "claims", "hazards", "routes", "fog", "bookmarks", "districts", "migration")
@@ -138,7 +147,7 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
     title = theme.fonts.label.render(f"Observer Map  |  {ui_state.map_overlay.title()}", True, theme.palette.parchment)
     surface.blit(title, (rect.x + 14, rect.y + 10))
     legend_rect = pygame.Rect(rect.x + 14, rect.y + rect.h - 28, rect.w - 28, 18)
-    registry.register("cycle_overlay", legend_rect, action="cycle_overlay", layer=7)
+    registry.register("cycle_overlay_legend", legend_rect, action="cycle_overlay", layer=7)
     surface.blit(theme.fonts.caption.render("Click map to jump  |  Click legend to cycle overlay", True, theme.palette.muted_text), legend_rect.topleft)
 
     map_x = rect.x + 10

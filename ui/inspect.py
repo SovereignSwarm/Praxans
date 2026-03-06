@@ -96,6 +96,8 @@ def build_inspect_view_model(
                         f"Cohesion  {int(float(getattr(faction, 'cohesion', 0.0) or 0.0) * 100)}%",
                         f"Schism Pressure  {int(getattr(faction, 'schism_pressure', 0) or 0)}",
                         f"Migration Pressure  {int(getattr(faction, 'migration_pressure', 0) or 0)}",
+                        f"Members  {len(getattr(faction, 'member_ids', []))}",
+                        f"Rivals  {len(getattr(faction, 'rival_faction_ids', []))}",
                     ]
             sections = [
                 _section(
@@ -112,10 +114,12 @@ def build_inspect_view_model(
                 _section(
                     "Vitals",
                     f"Health  {int(getattr(thronglet, 'health', 0) or 0)}/100",
-                    f"Hunger  {int(getattr(thronglet, 'needs', {}).get('hunger', 0) or 0)}/100",
+                    f"Hunger  {int(getattr(thronglet, 'hunger', 0) or 0)}/100",
                     f"Energy  {int(getattr(thronglet, 'needs', {}).get('energy', 0) or 0)}/100",
                     f"Thirst  {int(getattr(thronglet, 'needs', {}).get('thirst', 0) or 0)}/100",
                     f"Happiness  {int(getattr(thronglet, 'happiness', 0) or 0)}/100",
+                    f"Morale  {int(getattr(thronglet, 'morale', 0) or 0)}/100",
+                    f"Inspiration  {int(getattr(thronglet, 'inspiration', 0) or 0)}/100",
                 ),
                 _section(
                     "Activity",

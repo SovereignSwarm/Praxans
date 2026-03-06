@@ -1,19 +1,28 @@
 from __future__ import annotations
 
+import time as _time
+
 import pygame
 
 from run_archive import find_recent_archives, load_run_archive
 from ui.models import ArchiveCard, build_archive_card
 from ui.theme import draw_button, draw_divider, draw_panel, wrap_text
 
+_archive_cache: dict[str, tuple[float, list[ArchiveCard]]] = {}
+
 
 def load_archive_cards(log_dir: str, limit: int = 18) -> list[ArchiveCard]:
+    now = _time.monotonic()
+    cached = _archive_cache.get(log_dir)
+    if cached is not None and now - cached[0] < 10.0:
+        return cached[1]
     cards: list[ArchiveCard] = []
     for archive_path in find_recent_archives(log_dir, limit=limit):
         try:
             cards.append(build_archive_card(load_run_archive(archive_path)))
         except Exception:
             continue
+    _archive_cache[log_dir] = (now, cards)
     return cards
 
 
@@ -147,13 +156,34 @@ def _draw_analytics_modal(surface: pygame.Surface, theme, rect: pygame.Rect, reg
         registry.register(f"analytics_tab:{tab_id}", tab_rect, action="analytics_tab", payload=tab_id, layer=21)
         draw_button(surface, tab_rect, theme, label, active=ui_state.analytics_section == tab_id, accent=theme.palette.note_faction, subtle=True)
         x += 130
-    draw_panel(surface, pygame.Rect(rect.x + 24, rect.y + 154, rect.w - 48, rect.h - 178), theme, fill=(28, 34, 36), alpha=238)
+    content_rect = pygame.Rect(rect.x + 24, rect.y + 154, rect.w - 48, rect.h - 178)
+    draw_panel(surface, content_rect, theme, fill=(28, 34, 36), alpha=238)
     line_y = rect.y + 174
     for line in sections.get(ui_state.analytics_section, sections["population"]):
         for wrapped in wrap_text(theme.fonts.body, line, rect.w - 84):
             surface.blit(theme.fonts.body.render(wrapped, True, theme.palette.bright_text), (rect.x + 42, line_y))
             line_y += 28
         line_y += 6
+
+    # Population sparkline (bar chart of generation checkpoints)
+    if ui_state.analytics_section == "population":
+        pop_history = list(observer_report.get("population_history", []))[-8:]
+        if not pop_history:
+            pop_history = [int(observer_report.get("population", 0) or 0)]
+        peak = max(max(pop_history), 1)
+        sparkline_y = line_y + 12
+        sparkline_x = rect.x + 42
+        bar_max_w = content_rect.w - 56
+        bar_h = 12
+        surface.blit(theme.fonts.caption.render("Population Trend", True, theme.palette.ochre), (sparkline_x, sparkline_y))
+        sparkline_y += 22
+        for i, pop_val in enumerate(pop_history):
+            bar_w = max(4, int((pop_val / peak) * bar_max_w))
+            bar_color = theme.palette.moss if pop_val > peak * 0.5 else theme.palette.warning
+            pygame.draw.rect(surface, bar_color, (sparkline_x, sparkline_y, bar_w, bar_h), border_radius=3)
+            label_text = theme.fonts.caption.render(str(pop_val), True, theme.palette.bright_text)
+            surface.blit(label_text, (sparkline_x + bar_w + 6, sparkline_y - 1))
+            sparkline_y += bar_h + 6
 
 
 def _draw_archive_modal(surface: pygame.Surface, theme, rect: pygame.Rect, registry, ui_state, current_summary: dict, archive_cards: list[ArchiveCard]) -> None:
