@@ -237,7 +237,7 @@ ROLE_SKILL_MAP = {
     "builder": "building",
     "explorer": "exploring",
 }
-WORK_TYPES = ['Gathering', 'Building', 'Exploring', 'Hauling', 'Researching', 'Medical']
+WORK_TYPES = ['Gathering', 'Building', 'Exploring', 'Hauling', 'Researching', 'Medical', 'Crafting', 'Cooking']
 ACTIVE_SCENARIO_PROFILE = get_scenario_profile(DEFAULT_SCENARIO_ID)
 ACTIVE_SCENARIO_ID = ACTIVE_SCENARIO_PROFILE["id"]
 ACTIVE_MUTATION_SCALE = float(ACTIVE_SCENARIO_PROFILE.get("mutation_scale", 1.0))
