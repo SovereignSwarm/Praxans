@@ -52,6 +52,9 @@ from game_content import (
     format_building_prompt_lines,
     format_goal_type_lines,
     get_building_cost,
+    JOB_DEFS,
+    QUALITY_LEVELS,
+    QUALITY_MULTIPLIERS
 )
 from run_snapshot import (
     build_run_snapshot,
@@ -210,6 +213,7 @@ STATE_CLAIM_TILE = 'claim_tile'
 STATE_HAUL = 'haul'
 STATE_GATHER = 'gather'
 STATE_BUILD = 'build'
+STATE_CRAFT = 'craft'
 
 # Mental Break States
 STATE_BINGE = 'binge'
@@ -2022,7 +2026,83 @@ class BehaviorTree:
             )
             
             for work in prioritized_work:
-                if work == 'Gathering':
+                if work == 'Medical':
+                    # Find someone needing medical attention
+                    praxans = ctx.get('all_praxans', [])
+                    for patient in praxans:
+                        # Cannot tend dead people or healthy people
+                        if getattr(patient, 'health', 0) <= 0 or not hasattr(patient, 'hediffs'):
+                            continue
+                        
+                        # Find untended hediffs that need tending (wounds/bleeding/infection)
+                        needs_tending = any(h.get('tended') is False for h in patient.hediffs if h['type'] in ['wound', 'bleeding', 'infection'])
+                        
+                        if needs_tending:
+                            # 1. Provide target interaction logic
+                            dist = math.sqrt((t.x - patient.x)**2 + (t.y - patient.y)**2)
+                            if dist < 30:
+                                # Close enough to tend
+                                patient.tend_wound(t)
+                                t.action_duration = 3.0 # Tending takes time
+                                t.current_action = "tending"
+                                return 'SUCCESS' # Just do the action
+                            else:
+                                # Too far, move towards patient
+                                dx = patient.x - t.x
+                                dy = patient.y - t.y
+                                length = math.sqrt(dx**2 + dy**2)
+                                if length > 0:
+                                    t.x += (dx/length) * t.speed * 0.5 # Slower when moving with purpose
+                                    t.y += (dy/length) * t.speed * 0.5
+                                t.current_action = "seeking_patient"
+                                return 'SUCCESS'
+                elif work in ('Crafting', 'Cooking'):
+                    buildings = ctx.get('buildings', [])
+                    for b in buildings:
+                        if not hasattr(b, 'bills') or not b.bills:
+                            continue
+                        
+                        # Get the first bill
+                        bill_id = b.bills[0]
+                        if bill_id not in JOB_DEFS:
+                            continue
+                            
+                        job_def = JOB_DEFS[bill_id]
+                        if job_def.get('work_type') != work:
+                            continue
+                            
+                        # Does building match station requirement?
+                        if job_def.get('station') != b.building_type:
+                            continue
+                            
+                        # Are ingredients available globally or in building?
+                        # For simplicity, we assume ingredients are magical global for now similar to existing code
+                        can_craft = True
+                        for ing in job_def.get('ingredients', []):
+                            # In Thonglets, global inventory is managed loosely. Let's assume they have it if not explicitly preventing
+                            # Actually, we can check a global inventory if it exists in ctx, or just pass for now
+                            pass
+                        
+                        if can_craft:
+                            dist = math.sqrt((t.x - b.x)**2 + (t.y - b.y)**2)
+                            if dist < 40:
+                                t.current_action = f"crafting_{bill_id}"
+                                t.action_duration = job_def.get('base_work', 400) / 100.0  # Scale down to seconds
+                                # The actual production needs to happen at the END of the duration or inside praxan state machine
+                                # For BT, we trigger the state transition
+                                t.target_building = b
+                                t.current_bill = bill_id
+                                return self._transition_to_state(t, 'STATE_CRAFT')
+                            else:
+                                dx = b.x - t.x
+                                dy = b.y - t.y
+                                length = math.sqrt(dx**2 + dy**2)
+                                if length > 0:
+                                    t.x += (dx/length) * t.speed
+                                    t.y += (dy/length) * t.speed
+                                t.current_action = "going_to_craft"
+                                return 'SUCCESS'
+                elif work == 'Gathering':
                     if ctx.get('resources') and any(not r.collected for r in ctx['resources']):
                         return self._transition_to_state(t, 'STATE_GATHER')
                 elif work == 'Building':
@@ -2089,6 +2169,7 @@ class BehaviorTree:
             'STATE_HAUL': STATE_HAUL,
             'STATE_GATHER': STATE_GATHER,
             'STATE_BUILD': STATE_BUILD,
+            'STATE_CRAFT': STATE_CRAFT,
             'STATE_EXPLORE': STATE_EXPLORE
         }
         if state_name in state_map:
@@ -3288,6 +3369,7 @@ class Building:
         self.stored_resources = {'food': 0, 'wood': 0, 'stone': 0}  # For storage/farms
         self.level = 1
         self.aura_strength = 0.0
+        self.bills = []  # List of string bill IDs (e.g. 'CraftWeapon')
     
     def update(self, delta_time, modifiers=None, weather_effects=None):
         """Update building state (production, etc.)"""
@@ -4408,6 +4490,10 @@ def main(runtime_config=RUNTIME_CONFIG):
     selected_scenario_id = runtime_config.scenario
     scenario_profile = set_active_scenario(selected_scenario_id)
 
+    # Initialize the Content Authoring Pipeline
+    from systems.def_database import DefDatabase
+    DefDatabase.initialize("defs")
+
     # #region agent log
     log_path = os.path.join(runtime_config.log_dir, "probe_debug.log")
     def debug_log(location, message, data=None, hypothesis_id=None):
@@ -4859,6 +4945,12 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Initialize city planner
     city_planner = CityPlanner(territory_manager, world_map)
     
+    # Initialize Storyteller pacing engine
+    from systems.storyteller import Storyteller
+    from events.incidents import register_all_incidents, INCIDENT_GOOD, INCIDENT_NEUTRAL, INCIDENT_BAD
+    storyteller = Storyteller()
+    register_all_incidents(storyteller)
+    
     # Initialize season and weather systems
     season = Season()
     weather_system = WeatherSystem()
@@ -5144,6 +5236,29 @@ def main(runtime_config=RUNTIME_CONFIG):
                 camera.target_y = target.y - WINDOW_HEIGHT / (2 * camera.zoom)
                 camera.follow_mode = True
                 selection_manager.select(target, "praxan")
+            return
+        if action_name == "force_rest":
+            p_id = payload
+            target = next((p for p in praxans if p.id == p_id), None)
+            if target:
+                target.state = STATE_REST if 'STATE_REST' in dir() else 'STATE_REST'
+                target.current_action = "Forced rest"
+                target.vx, target.vy = 0, 0
+            return
+        if action_name == "force_haul":
+            p_id = payload
+            target = next((p for p in praxans if p.id == p_id), None)
+            if target:
+                target.work_priorities['Hauling'] = 1  # Highest priority
+                target.current_action = "Prioritized hauling"
+            return
+        if action_name == "deconstruct_building":
+            if payload and hasattr(payload, 'x'):
+                try:
+                    buildings.remove(payload)
+                    narrative_panel.add_message(f"Deconstructed {getattr(payload, 'building_type', 'building')}", 'Achievement')
+                except ValueError:
+                    pass
             return
         if action_name == "context_action":
             # Handle context specific orders
@@ -5640,6 +5755,21 @@ def main(runtime_config=RUNTIME_CONFIG):
             
             # Update season and weather
             season.update(current_time - game_start_time)
+            
+            # Update Storyteller Engine (Pacing & Events)
+            # Create a weak game state dict for incidents
+            game_state = {
+                'praxans': praxans,
+                'buildings': buildings,
+                'resources': resources,
+                'narrative_panel': narrative_panel,
+                'world_width': camera.world_width,
+                'world_height': camera.world_height,
+                'praxan_class': Praxan,
+                'resource_class': Resource,
+            }
+            storyteller.update(current_time, game_state)
+            
             advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
             temperature_grid.update(current_time, world_map, season, weather_system, buildings)
             weather_event = weather_system.check_event(current_time, advisor.challenge_difficulty, season.current)
@@ -6597,6 +6727,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 ui_state,
                 current_time_speed,
                 minimap_context,
+                advisor=advisor,
             )
 
             if ui_state.show_work_priority:
@@ -6649,6 +6780,19 @@ def main(runtime_config=RUNTIME_CONFIG):
                 try:
                     debug_text = font_small.render("DEBUG: RENDER OK", True, (255, 255, 0))
                     screen.blit(debug_text, (10, 5))
+                except Exception:
+                    pass
+                    
+            # Storyteller Debug Overlay
+            if not getattr(runtime_config, 'headless', False):
+                try:
+                    y_offset = 120
+                    st_text1 = font_small.render(f"Storyteller Phase: {storyteller.current_phase.upper()}", True, (255, 200, 100))
+                    st_text2 = font_small.render(f"Colony Wealth: {storyteller.colony_wealth:.0f}", True, (200, 255, 100))
+                    st_text3 = font_small.render(f"Threat Points: {storyteller.accumulated_points:.1f} / {storyteller.threat_points:.1f}/sec", True, (255, 100, 100))
+                    screen.blit(st_text1, (10, y_offset))
+                    screen.blit(st_text2, (10, y_offset + 20))
+                    screen.blit(st_text3, (10, y_offset + 40))
                 except Exception:
                     pass
             

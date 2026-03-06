@@ -7,6 +7,7 @@ import random
 from collections import deque
 from praxans_game import *
 from graphics.palette import *
+from game_content import JOB_DEFS, QUALITY_LEVELS, QUALITY_MULTIPLIERS
 
 class Praxan:
     """A cute AI-powered creature"""
@@ -380,6 +381,96 @@ class Praxan:
         else:
             self.current_action = "Gathering: No resources"
             self.state = STATE_IDLE
+        return None
+
+    def craft_item(self, buildings):
+        """Logic for crafting items at a workbench/farm."""
+        if not hasattr(self, 'current_bill') or not getattr(self, 'target_building', None):
+            self.transition_to_state(STATE_IDLE)
+            return None
+            
+        bill_id = self.current_bill
+        job_def = JOB_DEFS.get(bill_id)
+        if not job_def:
+            self.transition_to_state(STATE_IDLE)
+            return None
+            
+        b = self.target_building
+        if b not in buildings:
+            self.transition_to_state(STATE_IDLE)
+            return None
+            
+        dist = math.sqrt((self.x - b.x)**2 + (self.y - b.y)**2)
+        if dist > 40:
+            # Move towards station
+            dx = b.x - self.x
+            dy = b.y - self.y
+            length = math.sqrt(dx**2 + dy**2)
+            if length > 0:
+                self.vx = (dx/length) * PRAXAN_SPEED
+                self.vy = (dy/length) * PRAXAN_SPEED
+                self.current_action = f"Crafting: Going to {b.building_type}"
+            return None
+            
+        # At station. Start/continue crafting
+        self.vx, self.vy = 0, 0
+        if not hasattr(self, 'crafting_start_time'):
+            self.crafting_start_time = time.time()
+            self.current_action = f"Crafting {bill_id}..."
+            
+        elapsed = time.time() - self.crafting_start_time
+        required_time = job_def.get('base_work', 400) / 100.0  # e.g. 4 seconds
+        
+        # Skill bonus speeds up crafting 
+        skill_type = job_def.get('skill_factor', 'crafting')
+        skill_data = self.skills.get(skill_type, {})
+        level = skill_data.get('level', 1) if isinstance(skill_data, dict) else 1
+        time_divisor = 1.0 + (level - 1) * 0.15
+        
+        if elapsed >= (required_time / time_divisor):
+            # Finish crafting
+            output_item = job_def['output']
+            
+            # Roll quality
+            # Base logic: higher skill = higher chance of good quality
+            roll = random.uniform(0, 10) + (level * 1.5)
+            if roll < 4: qual = 'Awful'
+            elif roll < 8: qual = 'Poor'
+            elif roll < 12: qual = 'Normal'
+            elif roll < 16: qual = 'Good'
+            elif roll < 19: qual = 'Excellent'
+            elif roll < 22: qual = 'Masterwork'
+            else: qual = 'Legendary'
+            
+            # Add to building storage or praxan inventory
+            if output_item == 'meal':
+                self.inventory['food'] = self.inventory.get('food', 0) + 10
+                self.build_message = f"Cooked {qual} Meal"
+            else:
+                equipment_type = 'weapon' if 'Weapon' in bill_id else 'armor'
+                self.equipment[equipment_type] = f"{qual} {output_item}"
+                self.build_message = f"Made {qual} {output_item}"
+                
+            self.build_message_time = time.time()
+            self.gain_skill_xp(skill_type, 35)
+            
+            # Consume ingredients (global pool for now or from inventory)
+            for ing in job_def.get('ingredients', []):
+                self.inventory[ing['type']] = max(0, self.inventory.get(ing['type'], 0) - ing['amount'])
+                
+            # Remove bill from building if 'Do X times' implemented, but let's just pop it
+            if b.bills and b.bills[0] == bill_id:
+                b.bills.pop(0)
+
+            # Cleanup
+            delattr(self, 'crafting_start_time')
+            self.current_bill = None
+            self.target_building = None
+            self.transition_to_state(STATE_IDLE)
+        else:
+            pct = int((elapsed / (required_time / time_divisor)) * 100)
+            self.current_action = f"Crafting {bill_id} ({pct}%)"
+            
         return None
 
     def build_structure(self, buildings, resources, other_praxans, city_planner, territory_manager, hazards):
@@ -1692,6 +1783,9 @@ class Praxan:
             
         elif self.state == STATE_GATHER:
             return self.gather_resources(resources)
+            
+        elif self.state == STATE_CRAFT:
+            return self.craft_item(buildings)
             
         elif self.state == STATE_BUILD:
             return self.build_structure(buildings, resources, other_praxans, city_planner, territory_manager, hazards)

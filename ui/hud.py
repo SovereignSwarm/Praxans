@@ -109,18 +109,73 @@ def _draw_pawn_roster(surface: pygame.Surface, theme: UITheme, layout, registry,
     x = layout.pawn_roster.x
     y = layout.pawn_roster.y
     badge_w = 120
-    badge_h = 32
-    for praxan in praxans[:8]:
+    badge_h = 46  # Taller to fit mood bar
+
+    for praxan in praxans[:10]:
         rect = pygame.Rect(x, y, badge_w, badge_h)
         registry.register(f"jump_to_pawn:{praxan.id}", rect, action="jump_to_pawn", payload=praxan.id, layer=6)
-        
-        # Color based on health
+
+        # Determine fill based on health
+        health = float(getattr(praxan, "health", 100))
         fill = theme.palette.panel_fill_alt
-        if getattr(praxan, "health", 100) < 30:
+        if health < 30:
             fill = theme.palette.danger
-        
-        draw_badge(surface, theme, rect, f"P#{praxan.id}", fill=fill)
-        x += badge_w + 8
+        elif health < 60:
+            fill = (120, 90, 30)  # Dark amber
+
+        draw_panel(surface, rect, theme, fill=fill, alpha=240, radius=theme.radius_small)
+
+        # Border color based on mental state
+        mental = getattr(praxan, "mental_state", None)
+        if mental:
+            border_color = (220, 50, 50)  # Red for breaking
+        elif float(getattr(praxan, "happiness", 50)) < 25:
+            border_color = (200, 180, 50)  # Yellow for stressed
+        else:
+            border_color = theme.palette.panel_border
+        pygame.draw.rect(surface, border_color, rect, 2, border_radius=theme.radius_small)
+
+        # Pawn label
+        label = f"P#{praxan.id}"
+        role = getattr(praxan, "role", None)
+        if role:
+            label += f" {role[0].upper()}"
+        text_surf = theme.fonts.caption.render(label, True, theme.palette.bright_text)
+        surface.blit(text_surf, (rect.x + 6, rect.y + 4))
+
+        # Hediff indicator
+        hediffs = list(getattr(praxan, "hediffs", []))
+        if hediffs:
+            icon_surf = theme.fonts.caption.render("⚕", True, (220, 100, 80))
+            surface.blit(icon_surf, (rect.right - icon_surf.get_width() - 6, rect.y + 4))
+
+        # Downed indicator
+        if getattr(praxan, "downed", False):
+            down_surf = theme.fonts.caption.render("▼", True, (220, 50, 50))
+            surface.blit(down_surf, (rect.right - down_surf.get_width() - 6, rect.y + 4))
+
+        # Mood bar (tiny horizontal bar at bottom of badge)
+        bar_y = rect.y + badge_h - 12
+        bar_x = rect.x + 6
+        bar_w = badge_w - 12
+        bar_h = 6
+        bg_bar = pygame.Rect(bar_x, bar_y, bar_w, bar_h)
+        pygame.draw.rect(surface, (30, 35, 37), bg_bar, border_radius=2)
+        happiness = float(getattr(praxan, "happiness", 50))
+        ratio = max(0.0, min(1.0, happiness / 100.0))
+        fill_w = int(bar_w * ratio)
+        if fill_w > 0:
+            if ratio > 0.6:
+                bar_color = (80, 180, 90)
+            elif ratio > 0.3:
+                bar_color = (200, 180, 60)
+            else:
+                bar_color = (200, 70, 60)
+            pygame.draw.rect(surface, bar_color, pygame.Rect(bar_x, bar_y, fill_w, bar_h), border_radius=2)
+
+        x += badge_w + 6
+        if x + badge_w > surface.get_width() - 20:
+            break
 
 
 def _draw_bottom_spine(surface: pygame.Surface, theme: UITheme, layout, registry, ui_state) -> None:
@@ -385,6 +440,63 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
     pygame.draw.rect(surface, theme.palette.parchment, viewport, 2)
 
 
+def _build_alerts(praxans, buildings, advisor) -> list[dict]:
+    """Auto-generate severity-colored alerts from game state."""
+    alerts = []
+
+    # Red alerts
+    for p in praxans:
+        if getattr(p, "mental_state", None):
+            alerts.append({"text": f"P#{p.id} mental break!", "severity": "red"})
+        if getattr(p, "downed", False):
+            alerts.append({"text": f"P#{p.id} downed!", "severity": "red"})
+    if len(praxans) <= 2 and len(praxans) > 0:
+        alerts.append({"text": "Extinction threat!", "severity": "red"})
+
+    # Yellow alerts
+    total_food = sum(p.inventory.get("food", 0) for p in praxans) + sum(
+        getattr(b, "stored_resources", {}).get("food", 0) for b in buildings if hasattr(b, "stored_resources")
+    )
+    if total_food < len(praxans) * 2 and len(praxans) > 0:
+        alerts.append({"text": "Low food stores", "severity": "yellow"})
+
+    diseased_count = sum(1 for p in praxans if getattr(p, "diseased", False))
+    if diseased_count > 0:
+        alerts.append({"text": f"{diseased_count} praxan(s) diseased", "severity": "yellow"})
+
+    hungry_count = sum(1 for p in praxans if p.needs.get("hunger", 100) < 20)
+    if hungry_count > 0:
+        alerts.append({"text": f"{hungry_count} praxan(s) starving", "severity": "yellow"})
+
+    return alerts[:6]  # Cap at 6 for screen space
+
+
+def _draw_alert_stack(surface: pygame.Surface, theme: UITheme, layout, alerts: list[dict]) -> None:
+    if not alerts:
+        return
+
+    # Position in top-right corner below the top ribbon
+    x = surface.get_width() - 220
+    y = layout.top_ribbon.bottom + 8
+
+    severity_colors = {
+        "red": (180, 45, 45),
+        "yellow": (180, 150, 30),
+        "blue": (50, 120, 180),
+    }
+
+    for alert in alerts:
+        color = severity_colors.get(alert.get("severity", "blue"), (50, 120, 180))
+        text = alert.get("text", "Alert")
+
+        alert_rect = pygame.Rect(x, y, 210, 28)
+        draw_panel(surface, alert_rect, theme, fill=color, alpha=220, radius=theme.radius_small)
+        text_surf = theme.fonts.caption.render(text[:30], True, (255, 255, 255))
+        surface.blit(text_surf, (alert_rect.x + 8, alert_rect.y + 6))
+
+        y += 32
+
+
 def draw_run_hud(
     surface: pygame.Surface,
     theme: UITheme,
@@ -395,14 +507,21 @@ def draw_run_hud(
     ui_state,
     current_speed_index: int,
     minimap_context: dict,
+    advisor=None,
 ) -> None:
     _draw_top_ribbon(surface, theme, layout, registry, hud_model)
     _draw_notes(surface, theme, layout, registry, field_notes)
     _draw_transport_bar(surface, theme, layout, registry, ui_state, current_speed_index)
     _draw_minimap(surface, theme, layout, registry, ui_state, minimap_context)
-    
+
     # New Layers
     praxans = minimap_context.get("praxans", [])
+    buildings = minimap_context.get("buildings", [])
     _draw_pawn_roster(surface, theme, layout, registry, praxans)
     _draw_bottom_spine(surface, theme, layout, registry, ui_state)
     _draw_context_menu(surface, theme, registry, ui_state)
+
+    # Alert stack
+    alerts = _build_alerts(praxans, buildings, advisor)
+    _draw_alert_stack(surface, theme, layout, alerts)
+

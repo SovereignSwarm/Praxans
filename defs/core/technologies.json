@@ -1,0 +1,123 @@
+{
+    "TechDef": [
+        {
+            "id": "agriculture_1",
+            "cost": 100,
+            "name": "Efficient Farming",
+            "effect": {
+                "farm_production_rate": 1.5
+            }
+        },
+        {
+            "id": "agriculture_2",
+            "cost": 250,
+            "name": "Advanced Irrigation",
+            "effect": {
+                "farm_production_rate": 2.0
+            },
+            "requires": [
+                "agriculture_1"
+            ]
+        },
+        {
+            "id": "architecture_1",
+            "cost": 150,
+            "name": "Improved Housing",
+            "effect": {
+                "house_capacity": 1.5
+            }
+        },
+        {
+            "id": "medicine_1",
+            "cost": 200,
+            "name": "Basic Medicine",
+            "effect": {
+                "disease_recovery_rate": 2.0,
+                "health_regen": 1.0
+            }
+        },
+        {
+            "id": "medicine_2",
+            "cost": 400,
+            "name": "Advanced Healthcare",
+            "effect": {
+                "disease_recovery_rate": 4.0,
+                "health_regen": 2.0
+            },
+            "requires": [
+                "medicine_1"
+            ]
+        },
+        {
+            "id": "social_1",
+            "cost": 100,
+            "name": "Community Building",
+            "effect": {
+                "happiness_base": 1.2,
+                "bond_decay": 0.7
+            }
+        },
+        {
+            "id": "social_2",
+            "cost": 300,
+            "name": "Diplomatic Doctrine",
+            "effect": {
+                "happiness_base": 1.4,
+                "bond_decay": 0.5
+            },
+            "requires": [
+                "social_1"
+            ]
+        },
+        {
+            "id": "exploration_1",
+            "cost": 150,
+            "name": "Scout Training",
+            "effect": {
+                "praxan_speed": 1.3
+            }
+        },
+        {
+            "id": "industry_1",
+            "cost": 200,
+            "name": "Workshop Efficiency",
+            "effect": {
+                "workshop_bonus": 1.25,
+                "build_speed": 1.2
+            }
+        }
+    ],
+    "AbilityDef": [
+        {
+            "id": "speed_burst",
+            "name": "Speed Burst",
+            "cost": 50,
+            "duration": 30,
+            "effect": {
+                "praxan_speed": 2.0
+            }
+        },
+        {
+            "id": "workers_focus",
+            "name": "Workers Focus",
+            "cost": 75,
+            "duration": 60,
+            "effect": {
+                "gather_rate": 1.5,
+                "build_speed": 1.3
+            }
+        },
+        {
+            "id": "heal_wave",
+            "name": "Heal Wave",
+            "cost": 100,
+            "instant": true
+        },
+        {
+            "id": "resource_blessing",
+            "name": "Resource Blessing",
+            "cost": 80,
+            "instant": true
+        }
+    ]
+}

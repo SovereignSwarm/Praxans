@@ -35,6 +35,22 @@ class InspectSection:
 
 
 @dataclass(frozen=True)
+class NeedBar:
+    label: str
+    value: float  # 0-100
+    max_value: float = 100.0
+    color: tuple[int, int, int] = (100, 200, 100)
+
+
+@dataclass(frozen=True)
+class InspectCommand:
+    id: str
+    label: str
+    action: str
+    payload: Any = None
+
+
+@dataclass(frozen=True)
 class InspectViewModel:
     title: str
     subtitle: str
@@ -43,6 +59,8 @@ class InspectViewModel:
     tabs: list[tuple[str, str]]
     active_tab: str
     sections: list[InspectSection]
+    need_bars: list[NeedBar] = field(default_factory=list)
+    commands: list[InspectCommand] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

@@ -1,106 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
-
+from systems.def_database import DefDatabase
 
 BUILDING_ORDER = ["house", "farm", "storage", "workshop", "shrine", "well", "hospital", "school", "watchtower", "market"]
-
-BUILDING_DEFINITIONS = {
-    "house": {
-        "name": "House",
-        "cost": {"wood": 4, "stone": 0},
-        "beauty": 5,
-        "prompt_summary": "Base capacity 2 praxans, capacity scales with building level, restores energy while inside.",
-    },
-    "farm": {
-        "name": "Farm",
-        "cost": {"wood": 5, "stone": 0},
-        "beauty": 2,
-        "prompt_summary": "Auto-produces food over time and becomes stronger inside developed districts.",
-    },
-    "storage": {
-        "name": "Storage",
-        "cost": {"wood": 3, "stone": 0},
-        "beauty": -2,
-        "prompt_summary": "Stores gathered resources and supports industrial districts.",
-    },
-    "workshop": {
-        "name": "Workshop",
-        "cost": {"wood": 6, "stone": 4},
-        "beauty": 1,
-        "prompt_summary": "Boosts production and inspiration in developed districts.",
-    },
-    "shrine": {
-        "name": "Shrine",
-        "cost": {"wood": 8, "stone": 5},
-        "beauty": 15,
-        "prompt_summary": "Raises happiness, morale, inspiration, and cultural growth.",
-    },
-    "well": {
-        "name": "Well",
-        "cost": {"wood": 0, "stone": 3},
-        "beauty": 3,
-        "prompt_summary": "Supports thirst management and lowers hygiene pressure.",
-    },
-    "hospital": {
-        "name": "Hospital",
-        "cost": {"wood": 10, "stone": 8},
-        "beauty": 8,
-        "prompt_summary": "Greatly accelerates disease recovery and passively restores health.",
-    },
-    "school": {
-        "name": "School",
-        "cost": {"wood": 12, "stone": 6},
-        "beauty": 10,
-        "prompt_summary": "Accelerates skill acquisition and experience gain for nearby praxans.",
-    },
-    "watchtower": {
-        "name": "Watchtower",
-        "cost": {"wood": 15, "stone": 15},
-        "beauty": 5,
-        "prompt_summary": "Expands territory claims significantly and provides massive visibility radius.",
-    },
-    "market": {
-        "name": "Market",
-        "cost": {"wood": 20, "stone": 10},
-        "beauty": 12,
-        "prompt_summary": "Boosts faction cohesion, distributes resources, and raises prosperity.",
-    },
-}
-
-TECH_TREE_DEFINITIONS = {
-    "agriculture_1": {"cost": 100, "name": "Efficient Farming", "effect": {"farm_production_rate": 1.5}},
-    "agriculture_2": {
-        "cost": 250,
-        "name": "Advanced Irrigation",
-        "effect": {"farm_production_rate": 2.0},
-        "requires": ["agriculture_1"],
-    },
-    "architecture_1": {"cost": 150, "name": "Improved Housing", "effect": {"house_capacity": 1.5}},
-    "medicine_1": {"cost": 200, "name": "Basic Medicine", "effect": {"disease_recovery_rate": 2.0, "health_regen": 1.0}},
-    "medicine_2": {
-        "cost": 400,
-        "name": "Advanced Healthcare",
-        "effect": {"disease_recovery_rate": 4.0, "health_regen": 2.0},
-        "requires": ["medicine_1"],
-    },
-    "social_1": {"cost": 100, "name": "Community Building", "effect": {"happiness_base": 1.2, "bond_decay": 0.7}},
-    "social_2": {
-        "cost": 300,
-        "name": "Diplomatic Doctrine",
-        "effect": {"happiness_base": 1.4, "bond_decay": 0.5},
-        "requires": ["social_1"],
-    },
-    "exploration_1": {"cost": 150, "name": "Scout Training", "effect": {"praxan_speed": 1.3}},
-    "industry_1": {"cost": 200, "name": "Workshop Efficiency", "effect": {"workshop_bonus": 1.25, "build_speed": 1.2}},
-}
-
-ABILITY_DEFINITIONS = {
-    "speed_burst": {"cost": 50, "duration": 30, "effect": {"praxan_speed": 2.0}},
-    "workers_focus": {"cost": 75, "duration": 60, "effect": {"gather_rate": 1.5, "build_speed": 1.3}},
-    "heal_wave": {"cost": 100, "instant": True},
-    "resource_blessing": {"cost": 80, "instant": True},
-}
 
 LEGACY_BONUS_DEFINITIONS = {
     "head_start": {"unlocked": False, "effect": "Start with 5 praxans"},
@@ -192,11 +95,11 @@ MOOD_DEFS = {
 
 
 def clone_tech_tree():
-    return deepcopy(TECH_TREE_DEFINITIONS)
+    return {k: dict(v) for k, v in DefDatabase.get_all("TechDef").items()}
 
 
 def clone_abilities():
-    return deepcopy(ABILITY_DEFINITIONS)
+    return {k: dict(v) for k, v in DefDatabase.get_all("AbilityDef").items()}
 
 
 def clone_legacy_bonuses():
@@ -204,7 +107,7 @@ def clone_legacy_bonuses():
 
 
 def get_building_cost(building_type):
-    building_data = BUILDING_DEFINITIONS.get(building_type, {})
+    building_data = DefDatabase.get("BuildingDef", building_type, {})
     cost = building_data.get("cost", {})
     return cost.get("wood", 0), cost.get("stone", 0)
 
@@ -212,7 +115,8 @@ def get_building_cost(building_type):
 def format_building_prompt_lines():
     lines = []
     for building_type in BUILDING_ORDER:
-        building_data = BUILDING_DEFINITIONS[building_type]
+        building_data = DefDatabase.get("BuildingDef", building_type)
+        if not building_data: continue
         wood_cost, stone_cost = get_building_cost(building_type)
         cost_parts = []
         if wood_cost:
@@ -221,7 +125,7 @@ def format_building_prompt_lines():
             cost_parts.append(f"{stone_cost} stone")
         cost_text = ", ".join(cost_parts) if cost_parts else "no cost"
         lines.append(
-            f"- {building_data['name'].upper()} (cost: {cost_text}): {building_data['prompt_summary']}"
+            f"- {building_data.get('name', building_type).upper()} (cost: {cost_text}): {building_data.get('prompt_summary', '')}"
         )
     return lines
 
