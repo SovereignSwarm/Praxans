@@ -233,7 +233,7 @@ ROLE_SKILL_MAP = {
     "builder": "building",
     "explorer": "exploring",
 }
-WORK_TYPES = ['Gathering', 'Building', 'Exploring', 'Hauling', 'Researching']
+WORK_TYPES = ['Gathering', 'Building', 'Exploring', 'Hauling', 'Researching', 'Medical']
 ACTIVE_SCENARIO_PROFILE = get_scenario_profile(DEFAULT_SCENARIO_ID)
 ACTIVE_SCENARIO_ID = ACTIVE_SCENARIO_PROFILE["id"]
 ACTIVE_MUTATION_SCALE = float(ACTIVE_SCENARIO_PROFILE.get("mutation_scale", 1.0))
@@ -1621,6 +1621,16 @@ class RoomStats:
     beauty: float = 0.0
     is_outdoors: bool = True
     tiles: set[tuple[int, int]] = field(default_factory=set)
+
+    @property
+    def impressiveness(self):
+        """Room impressiveness score (0-100) combining beauty, space, and enclosure."""
+        if self.is_outdoors:
+            return 0.0
+        size_score = min(30, self.size * 1.5)  # Caps at 20 tiles
+        beauty_score = max(0, min(40, self.beauty * 2.0))
+        enclosure_bonus = 20  # Bonus for being a proper enclosed room
+        return min(100, size_score + beauty_score + enclosure_bonus)
 
 def detect_room(start_x, start_y, world_width, world_height, buildings):
     """Flood-fill to detect a room from a starting tile coordinates."""
@@ -5744,6 +5754,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     continue
                 try:
                     praxan.update_temperature(delta_time, temperature_grid)
+                    praxan.update_hediffs(delta_time)
                     
                     # Update age and health - check for death
                     if not praxan.update_age_and_health(delta_time, advisor.game_modifiers):
@@ -5786,6 +5797,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     
                     # Update social bonds
                     praxan.update_bonds(praxans, delta_time, advisor.game_modifiers)
+                    praxan.update_opinions(praxans, delta_time)
                 except Exception as e:
                     # Log error but don't crash - skip this praxan for this frame
                     game_logger.log_error(f"Error updating praxan {praxan.id if hasattr(praxan, 'id') else idx}: {str(e)}", exc_info=True)
@@ -5811,7 +5823,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             for praxan in praxans:
                 try:
                     # Update happiness
-                    praxan.update_happiness(buildings, praxans, advisor.game_modifiers, world_map)
+                    praxan.update_happiness(buildings, praxans, advisor.game_modifiers, world_map, rooms=rooms)
                     
                     # Store knowledge when discovering resources
                     for resource in resources:

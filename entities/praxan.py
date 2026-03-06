@@ -26,6 +26,10 @@ class Praxan:
             'hunger': random.uniform(60, 100),
             'energy': random.uniform(60, 100),
             'thirst': random.uniform(60, 100),
+            'beauty': 50.0,
+            'outdoors': 80.0,
+            'social': 80.0,
+            'comfort': 70.0,
         }
         
         # Personality traits (0-1, affect behavior)
@@ -94,8 +98,20 @@ class Praxan:
         self.skills = {
             'gathering': {'level': 1, 'xp': 0},
             'building': {'level': 1, 'xp': 0},
-            'exploring': {'level': 1, 'xp': 0}
+            'exploring': {'level': 1, 'xp': 0},
+            'medical': {'level': 1, 'xp': 0},
+            'crafting': {'level': 1, 'xp': 0},
+            'cooking': {'level': 1, 'xp': 0},
         }
+        
+        # Hediffs (Health Differences) — wounds, infections, scars
+        self.hediffs = []  # List of dicts: {'type', 'part', 'severity', 'tend_quality', 'tended'}
+        
+        # Equipment
+        self.equipment = {'armor': None, 'weapon': None}
+        
+        # Opinions (per-pawn relationship scores)
+        self.opinions = {}  # {pawn_id: opinion_score (-100 to 100)}
         
         # New: Social
         self.bonds = {}  # {praxan_id: bond_strength}
@@ -2011,8 +2027,70 @@ class Praxan:
                 bond_gain = BOND_INCREASE_RATE * delta_time * ((social_cohesion + other_social) / 2.0)
                 self.bonds[other.id] += bond_gain
                 self.bonds[other.id] = min(100, self.bonds[other.id])  # Cap at 100
+
+    def update_opinions(self, other_praxans, delta_time):
+        """Update per-pawn opinion scores based on proximity, faction, and events."""
+        current_time = time.time()
+        nearby_count = 0
+        
+        for other in other_praxans:
+            if other.id == self.id:
+                continue
+            
+            distance = math.sqrt((self.x - other.x)**2 + (self.y - other.y)**2)
+            
+            if other.id not in self.opinions:
+                self.opinions[other.id] = 0
+            
+            # Proximity bonus (being near someone slowly builds opinion)
+            if distance < 60:
+                nearby_count += 1
+                proximity_gain = 0.3 * delta_time * self.personality.get('sociability', 0.5)
+                self.opinions[other.id] = min(100, self.opinions[other.id] + proximity_gain)
+            
+            # Faction bonus (same faction = opinion boost)
+            if self.faction_id and self.faction_id == other.faction_id:
+                self.opinions[other.id] = min(100, self.opinions[other.id] + 0.1 * delta_time)
+            
+            # Mental break insult penalty
+            if other.mental_state in [STATE_INSULTING, STATE_TANTRUM]:
+                if distance < 80:
+                    self.opinions[other.id] = max(-100, self.opinions[other.id] - 5.0 * delta_time)
+            
+            # Natural opinion decay toward neutral
+            if self.opinions[other.id] > 0:
+                self.opinions[other.id] -= 0.02 * delta_time
+            elif self.opinions[other.id] < 0:
+                self.opinions[other.id] += 0.01 * delta_time
+        
+        # Social need: restored by being near others, decays when alone
+        if nearby_count > 0:
+            social_gain = min(5.0, nearby_count * 1.5) * delta_time
+            self.needs['social'] = min(100, self.needs['social'] + social_gain)
+        else:
+            self.needs['social'] = max(0, self.needs['social'] - 0.3 * delta_time)
+        
+        # Lonely moodlet
+        if self.needs['social'] < 30:
+            self.add_moodlet("Lonely", -8, 60, current_time)
+        
+        # Comfort need decays slowly, restored by being in a house
+        self.needs['comfort'] = max(0, self.needs['comfort'] - 0.1 * delta_time)
+
+    def get_relationship_label(self, other_id):
+        """Get a human-readable relationship label for another pawn."""
+        opinion = self.opinions.get(other_id, 0)
+        if opinion >= 80:
+            return "Lover"
+        elif opinion >= 50:
+            return "Friend"
+        elif opinion <= -50:
+            return "Rival"
+        elif opinion <= -20:
+            return "Annoyed"
+        return None
     
-    def update_happiness(self, buildings, other_praxans, modifiers=None, world_map=None):
+    def update_happiness(self, buildings, other_praxans, modifiers=None, world_map=None, rooms=None):
         """Calculate happiness based on various factors"""
         base_happiness = 40
         if modifiers:
@@ -2069,6 +2147,45 @@ class Praxan:
             happiness *= comfort_bonus
             if biome_type == self.favorite_biome:
                 happiness += 8
+        
+        # Room-based mood moodlets
+        if rooms:
+            current_time = time.time()
+            tx, ty = int(self.x // TILE_SIZE), int(self.y // TILE_SIZE)
+            current_room = None
+            for room in rooms:
+                if (tx, ty) in room.tiles:
+                    current_room = room
+                    break
+            
+            if current_room and not current_room.is_outdoors:
+                imp = current_room.impressiveness
+                
+                # Impressive room moodlet (tiered)
+                if imp >= 70:
+                    self.add_moodlet("Impressive room", 8, 120, current_time)
+                elif imp >= 45:
+                    self.add_moodlet("Decent room", 4, 120, current_time)
+                elif imp < 20:
+                    self.add_moodlet("Awful room", -5, 120, current_time)
+                
+                # Cramped room penalty
+                if current_room.size < 4:
+                    self.add_moodlet("Cramped room", -4, 60, current_time)
+                
+                # Shared room check — other pawns in same room
+                roommates = 0
+                for other in other_praxans:
+                    if other.id != self.id:
+                        otx, oty = int(other.x // TILE_SIZE), int(other.y // TILE_SIZE)
+                        if (otx, oty) in current_room.tiles:
+                            roommates += 1
+                if roommates > 0 and current_room.size < 6:
+                    self.add_moodlet("Shared bedroom", -3, 120, current_time)
+                    
+                # Spacious room bonus
+                if current_room.size >= 12:
+                    self.add_moodlet("Spacious room", 3, 120, current_time)
         
         # Clamp happiness
         self.base_mood = max(0, min(100, happiness))
@@ -2354,15 +2471,49 @@ Best next action:"""
         weights = [40, 10, 15, 15, 15, 15, 5] # Torso, head, arms, legs, eyes
         target_part = random.choices(parts, weights=weights, k=1)[0]
         
+        # Armor check
+        armor_def = self.equipment.get('armor')
+        if armor_def:
+            armor_rating = armor_def.get('armor_rating', 0)
+            roll = random.random()
+            if roll < armor_rating * 0.4:  # Deflect
+                if VERBOSE_LOGGING:
+                    print(f"[Armor] Praxan {self.id}: Deflected {amount} damage")
+                return
+            elif roll < armor_rating * 0.7:  # Mitigate
+                amount = amount * 0.5
+        
         self.body_parts[target_part]['health'] -= amount
         self.body_parts[target_part]['health'] = max(0, self.body_parts[target_part]['health'])
         
         if amount > 15:
             self.add_moodlet("In extreme pain", -15, 120, current_time)
+        
+        # Generate wound hediff
+        if amount > 5 and self.body_parts[target_part]['health'] > 0:
+            wound = {
+                'type': 'wound',
+                'part': target_part,
+                'severity': min(1.0, amount / 40.0),
+                'tend_quality': 0.0,
+                'tended': False,
+                'created': current_time,
+            }
+            self.hediffs.append(wound)
+            # Bleeding from significant wounds
+            if amount > 10:
+                self.hediffs.append({
+                    'type': 'bleeding',
+                    'part': target_part,
+                    'severity': min(1.0, amount / 30.0),
+                    'tend_quality': 0.0,
+                    'tended': False,
+                    'created': current_time,
+                })
             
         self.calculate_capacities()
         if VERBOSE_LOGGING:
-            print(f"[Anatomy] Praxan {self.id} took {amount} {damage_type} damage to {target_part}. Health: {self.health:.1f}%")
+            print(f"[Anatomy] Praxan {self.id} took {amount:.1f} {damage_type} damage to {target_part}. Health: {self.health:.1f}%")
 
     def heal_damage(self, amount):
         if not self.alive: return
@@ -2371,5 +2522,123 @@ Best next action:"""
         target_part = random.choice(injured_parts)
         self.body_parts[target_part]['health'] = min(self.body_parts[target_part]['max'], self.body_parts[target_part]['health'] + amount)
         self.calculate_capacities()
+
+    def update_hediffs(self, delta_time):
+        """Progress all hediffs: infections grow, bleeding drains health, scars persist."""
+        if not self.alive or not self.hediffs:
+            return
+        
+        current_time = time.time()
+        hediffs_to_remove = []
+        hediffs_to_add = []
+        
+        for i, hediff in enumerate(self.hediffs):
+            h_type = hediff['type']
+            
+            if h_type == 'bleeding':
+                if hediff['tended']:
+                    # Tended bleeding fades
+                    hediff['severity'] -= 0.05 * delta_time
+                    if hediff['severity'] <= 0:
+                        hediffs_to_remove.append(i)
+                else:
+                    # Untended bleeding drains health
+                    bleed_damage = hediff['severity'] * 2.0 * delta_time
+                    part = hediff['part']
+                    self.body_parts[part]['health'] = max(0, self.body_parts[part]['health'] - bleed_damage)
+                    
+            elif h_type == 'wound':
+                if hediff['tended']:
+                    # Tended wounds heal over time
+                    heal_rate = 0.02 * (1 + hediff['tend_quality']) * delta_time
+                    hediff['severity'] -= heal_rate
+                    if hediff['severity'] <= 0:
+                        hediffs_to_remove.append(i)
+                        # Small chance of scar on healing
+                        if random.random() < 0.15:
+                            hediffs_to_add.append({
+                                'type': 'scar',
+                                'part': hediff['part'],
+                                'severity': 0.2,
+                                'tend_quality': 0.0,
+                                'tended': True,
+                                'created': current_time,
+                            })
+                else:
+                    # Untended wounds can become infected
+                    age = current_time - hediff.get('created', current_time)
+                    if age > 30 and random.random() < 0.001 * delta_time:
+                        hediffs_to_add.append({
+                            'type': 'infection',
+                            'part': hediff['part'],
+                            'severity': 0.05,
+                            'tend_quality': 0.0,
+                            'tended': False,
+                            'created': current_time,
+                        })
+                        
+            elif h_type == 'infection':
+                # Infection grows over time
+                growth_rate = 0.01 * delta_time
+                if hediff['tended']:
+                    growth_rate *= max(0.1, 1.0 - hediff['tend_quality'])
+                hediff['severity'] += growth_rate
+                
+                # Immunity fights infection (based on health %)
+                immunity = (self.health / 100.0) * 0.008 * delta_time
+                hediff['severity'] -= immunity
+                
+                if hediff['severity'] >= 1.0:
+                    # Infection destroys the body part
+                    part = hediff['part']
+                    self.body_parts[part]['health'] = 0
+                    self.add_moodlet(f"Lost {part}", -20, 600, current_time)
+                    hediffs_to_remove.append(i)
+                elif hediff['severity'] <= 0:
+                    # Fought off infection
+                    hediffs_to_remove.append(i)
+                    self.add_moodlet("Fought off infection", 5, 120, current_time)
+                    
+            elif h_type == 'scar':
+                # Scars are permanent — reduce part efficiency
+                part = hediff['part']
+                scar_penalty = hediff['severity'] * 0.25
+                self.body_parts[part]['efficiency'] = max(0.1, self.body_parts[part]['efficiency'] - scar_penalty)
+        
+        # Remove resolved hediffs (reverse order to preserve indices)
+        for i in sorted(hediffs_to_remove, reverse=True):
+            if i < len(self.hediffs):
+                self.hediffs.pop(i)
+        
+        # Add new hediffs
+        self.hediffs.extend(hediffs_to_add)
+        
+        self.calculate_capacities()
+
+    def tend_wound(self, doctor):
+        """Have a doctor pawn tend this pawn's worst untended hediff."""
+        untended = [h for h in self.hediffs if not h['tended'] and h['type'] in ('wound', 'bleeding', 'infection')]
+        if not untended:
+            return False
+        
+        # Tend worst hediff first (highest severity)
+        untended.sort(key=lambda h: h['severity'], reverse=True)
+        target = untended[0]
+        
+        # Calculate tend quality from doctor's stats
+        med_skill = doctor.skills.get('medical', {}).get('level', 1)
+        sight = doctor.capacities.get('sight', 1.0)
+        manipulation = doctor.capacities.get('manipulation', 1.0)
+        tend_quality = min(1.0, (med_skill * sight * manipulation) / 10.0)
+        
+        target['tended'] = True
+        target['tend_quality'] = tend_quality
+        
+        # Doctor gains medical XP
+        doctor.gain_skill_xp('medical', 15)
+        
+        if VERBOSE_LOGGING:
+            print(f"[Medical] Praxan {doctor.id} tended {target['type']} on Praxan {self.id} ({target['part']}). Quality: {tend_quality:.2f}")
+        return True
 
 

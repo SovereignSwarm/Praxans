@@ -124,6 +124,72 @@ GOAL_TYPE_DEFINITIONS = [
     ("rest", "Rest at a house"),
 ]
 
+# ---- Phase 3B: Armor & Weapons ----
+
+ARMOR_DEFS = {
+    "cloth_tunic":   {"name": "Cloth Tunic",   "armor_rating": 0.15, "move_penalty": 0.0,  "cost": {"wood": 0, "stone": 0}},
+    "leather_vest":  {"name": "Leather Vest",  "armor_rating": 0.30, "move_penalty": 0.02, "cost": {"wood": 2, "stone": 0}},
+    "chain_mail":    {"name": "Chain Mail",    "armor_rating": 0.55, "move_penalty": 0.08, "cost": {"wood": 0, "stone": 5}},
+    "plate_armor":   {"name": "Plate Armor",   "armor_rating": 0.75, "move_penalty": 0.15, "cost": {"wood": 0, "stone": 10}},
+}
+
+WEAPON_DEFS = {
+    "fists":        {"name": "Fists",        "damage": 5,  "penetration": 0.0,  "speed": 1.0,  "range": 1},
+    "club":         {"name": "Club",         "damage": 10, "penetration": 0.05, "speed": 0.8,  "range": 1},
+    "spear":        {"name": "Spear",        "damage": 12, "penetration": 0.20, "speed": 0.9,  "range": 2},
+    "sword":        {"name": "Sword",        "damage": 15, "penetration": 0.35, "speed": 1.0,  "range": 1},
+    "short_bow":    {"name": "Short Bow",    "damage": 8,  "penetration": 0.15, "speed": 1.2,  "range": 8},
+}
+
+# ---- Phase 3C: Item Quality & Crafting ----
+
+QUALITY_LEVELS = ['Awful', 'Poor', 'Normal', 'Good', 'Excellent', 'Masterwork', 'Legendary']
+
+QUALITY_MULTIPLIERS = {
+    'Awful':       0.5,
+    'Poor':        0.75,
+    'Normal':      1.0,
+    'Good':        1.15,
+    'Excellent':   1.3,
+    'Masterwork':  1.5,
+    'Legendary':   2.0,
+}
+
+JOB_DEFS = {
+    "CookMeal": {
+        "work_type": "Cooking",
+        "station": "farm",
+        "ingredients": [{"type": "food", "amount": 1}],
+        "output": "meal",
+        "skill_factor": "cooking",
+        "base_work": 400,
+    },
+    "SmithArmor": {
+        "work_type": "Crafting",
+        "station": "workshop",
+        "ingredients": [{"type": "stone", "amount": 5}],
+        "output": "chain_mail",
+        "skill_factor": "crafting",
+        "base_work": 800,
+    },
+    "CraftWeapon": {
+        "work_type": "Crafting",
+        "station": "workshop",
+        "ingredients": [{"type": "wood", "amount": 3}, {"type": "stone", "amount": 2}],
+        "output": "spear",
+        "skill_factor": "crafting",
+        "base_work": 600,
+    },
+}
+
+MOOD_DEFS = {
+    "AteRawFood":         {"mood_offset": -7, "duration": 86400},
+    "AteFineFood":        {"mood_offset": 5,  "duration": 86400},
+    "Catharsis":          {"mood_offset": 30, "duration": 300},
+    "FoughtOffInfection": {"mood_offset": 5,  "duration": 120},
+}
+
+
 
 def clone_tech_tree():
     return deepcopy(TECH_TREE_DEFINITIONS)
