@@ -100,6 +100,11 @@ def apply_council_payload(
         payload.get("strategic_priorities") or []
     )
 
+    # Store building priority for CityPlanner to consume
+    building_priority = list(payload.get("building_priority") or [])
+    advisor_state.setdefault("session_stats", {})["building_priority"] = building_priority
+    advisor_state["json_directives"]["building_priority"] = building_priority
+
     intervened = bool(
         advisor_state["json_directives"].get("individual")
         or advisor_state["json_directives"].get("communal")
@@ -107,6 +112,7 @@ def apply_council_payload(
         or advisor_state["json_directives"].get("team_task")
         or payload.get("faction_goals")
         or directives
+        or building_priority
     )
     return {"intervened": intervened}
 

@@ -114,6 +114,7 @@ COUNCIL_REVIEW_INTERVAL = 12.0
 FACTION_REVIEW_INTERVAL = 18.0
 HISTORIAN_REVIEW_INTERVAL = 20.0
 MEMORY_SUMMARY_INTERVAL = 90.0
+DIPLOMACY_REVIEW_INTERVAL = 25.0
 # Legacy alias kept for any remaining references
 CIVILIZATION_ADVISOR_INTERVAL = COUNCIL_REVIEW_INTERVAL
 
@@ -553,6 +554,68 @@ def summarize_population_evolution(thronglets):
         "avg_traits": avg_traits,
         "trait_drift": trait_drift,
         "lineage_counts": lineage_counts,
+    }
+
+
+# ---- Emergent Culture from Genetics ----------------------------------------
+
+_TRAIT_CULTURE_MAP = {
+    "adaptability":        "Explorer",       # curious, frontier-seeking
+    "learning_affinity":   "Scholar",        # knowledge-driven
+    "immune_strength":     "Stoic",          # hardy, endurance-oriented
+    "fertility_drive":     "Expansionist",   # growth-focused, prolific
+    "social_cohesion":     "Communal",       # cooperation-oriented
+    "metabolism_efficiency": "Resilient",    # resource-efficient, survivors
+}
+
+
+def compute_cultural_profile(avg_traits: dict[str, float]) -> dict[str, Any]:
+    """Derive a cultural identity from population-level genetic averages.
+
+    Returns:
+        {
+            "dominant_culture": "Explorer" | "Scholar" | ...
+            "dominant_trait": "adaptability" | ...
+            "drift_magnitude": float   (how far the dominant trait is from baseline)
+            "profile_summary": "Explorer culture (high adaptability +12%)"
+            "secondary_culture": "Scholar" | None
+        }
+    """
+    if not avg_traits:
+        return {
+            "dominant_culture": "Balanced",
+            "dominant_trait": "",
+            "drift_magnitude": 0.0,
+            "profile_summary": "Balanced culture (no dominant traits)",
+            "secondary_culture": None,
+        }
+
+    # Sort traits by absolute deviation from baseline
+    sorted_traits = sorted(
+        avg_traits.items(),
+        key=lambda item: abs(item[1] - 1.0),
+        reverse=True,
+    )
+
+    top_trait, top_val = sorted_traits[0]
+    drift_pct = round((top_val - 1.0) * 100, 1)
+    dominant = _TRAIT_CULTURE_MAP.get(top_trait, "Balanced")
+
+    secondary = None
+    if len(sorted_traits) > 1:
+        sec_trait, sec_val = sorted_traits[1]
+        if abs(sec_val - 1.0) > 0.03:
+            secondary = _TRAIT_CULTURE_MAP.get(sec_trait)
+
+    sign = "+" if drift_pct >= 0 else ""
+    summary = f"{dominant} culture (high {top_trait.replace('_', ' ')} {sign}{drift_pct}%)"
+
+    return {
+        "dominant_culture": dominant,
+        "dominant_trait": top_trait,
+        "drift_magnitude": abs(top_val - 1.0),
+        "profile_summary": summary,
+        "secondary_culture": secondary,
     }
 
 
@@ -2424,6 +2487,8 @@ class CityPlanner:
         self.current_plan = None
         self.last_plan_update = 0
         self.plan_update_interval = 120  # Update plan every 120 seconds
+        self.building_priority = []  # LLM-recommended building types
+        self.proposed_sites = []  # [(x, y, building_type)] for ghost markers
     
     def update(self, thronglets, buildings, advisor, current_time):
         """Update city planner, check for plan updates"""
@@ -2570,6 +2635,13 @@ class CityPlanner:
         elif building_type == 'storage' and zone_type in ['storage', 'mixed']:
             score += 10
         
+        # LLM building priority bonus — council-recommended buildings score higher
+        if self.building_priority:
+            if building_type == self.building_priority[0]:
+                score += 25  # Top priority
+            elif building_type in self.building_priority:
+                score += 15  # Lower priority
+        
         return max(0, min(100, score))  # Clamp 0-100
     
     def find_best_location(self, building_type, buildings, hazards, search_center, search_radius=150, thronglets=None):
@@ -2598,10 +2670,43 @@ class CityPlanner:
         return best_x, best_y, best_score
     
     def _request_city_plan_from_llm(self, thronglets, buildings, advisor):
-        """Request city plan from LLM via advisor"""
-        # This will be called from advisor.query_llm to generate plan
-        # Store reference for advisor to use
-        pass
+        """Read the LLM council's building_priority and compute proposed sites."""
+        # Pull building priority from the advisor's latest council output
+        bp = list(getattr(advisor, 'session_stats', {}).get('building_priority', []))
+        if not bp:
+            bp = list((getattr(advisor, 'json_directives', {}) or {}).get('building_priority', []))
+        self.building_priority = bp[:3]
+
+        # Generate proposed sites for the top-priority building
+        self.proposed_sites = []
+        if self.building_priority and buildings:
+            target_type = self.building_priority[0]
+            bounds = self.territory_manager.get_territory_bounds()
+            if bounds:
+                search_center = (bounds['center_x'], bounds['center_y'])
+                bx, by, bscore = self.find_best_location(
+                    target_type, buildings, [], search_center,
+                    search_radius=200, thronglets=thronglets,
+                )
+                if bscore > 40:
+                    self.proposed_sites.append((bx, by, target_type))
+
+        if self.building_priority:
+            self.current_plan = {
+                'building_priority': list(self.building_priority),
+                'proposed_sites': list(self.proposed_sites),
+                'rationale': f'Council recommends: {", ".join(self.building_priority)}',
+            }
+
+    def zone_summary(self) -> str:
+        """Compact zone distribution summary for LLM state views."""
+        from collections import Counter
+        counts = Counter(self.zones.values())
+        if not counts:
+            return "(no zones defined yet)"
+        parts = [f"{zt}:{ct}" for zt, ct in counts.most_common()]
+        bp_text = f" | Priority: {', '.join(self.building_priority)}" if self.building_priority else ""
+        return f"Zones: {', '.join(parts)}{bp_text}"
     
     def get_plan_summary(self):
         """Get human-readable summary of current plan"""
@@ -2609,6 +2714,11 @@ class CityPlanner:
             return "No city plan yet"
         
         summary = []
+        if self.building_priority:
+            summary.append(f"Build priority: {', '.join(self.building_priority)}")
+        if self.proposed_sites:
+            for sx, sy, stype in self.proposed_sites:
+                summary.append(f"- Proposed {stype} at ({int(sx)}, {int(sy)})")
         if 'districts' in self.current_plan:
             for district in self.current_plan['districts']:
                 district_text = f"- {district.get('type', 'unknown')} (priority {district.get('priority', 0)}): {district.get('location', 'unknown')}"
@@ -3275,6 +3385,130 @@ class FactionManager:
             if thronglet_id in faction.member_ids:
                 return faction
         return None
+
+
+class TradeSystem:
+    """Inter-faction trade: factions exchange surplus resources when not rivals."""
+
+    TRADE_INTERVAL = 30.0  # seconds between trade rounds
+    SURPLUS_THRESHOLD = 3   # Must have > 3 of a resource to offer it
+    DEFICIT_THRESHOLD = 1   # Will accept if they have <= 1
+
+    def __init__(self):
+        self.last_trade_time = 0.0
+        self.trade_log = []  # [{time, from_faction, to_faction, resource, amount}]
+        self.max_log = 20
+
+    def update(self, faction_manager, thronglets, current_time):
+        """Run a trade round if enough time has passed."""
+        if current_time - self.last_trade_time < self.TRADE_INTERVAL:
+            return
+        self.last_trade_time = current_time
+        if faction_manager is None:
+            return
+
+        # Build per-faction aggregate inventory
+        faction_inventories = {}
+        for faction_id, faction in faction_manager.factions.items():
+            members = faction.get_members(thronglets)
+            agg = {}
+            for m in members:
+                for res, qty in getattr(m, 'inventory', {}).items():
+                    agg[res] = agg.get(res, 0) + qty
+            faction_inventories[faction_id] = agg
+
+        # Attempt trades between non-rival factions
+        faction_ids = list(faction_manager.factions.keys())
+        for i, fid_a in enumerate(faction_ids):
+            fa = faction_manager.factions[fid_a]
+            rival_ids = set(getattr(fa, 'rival_faction_ids', []) or [])
+            inv_a = faction_inventories.get(fid_a, {})
+            for fid_b in faction_ids[i + 1:]:
+                if fid_b in rival_ids:
+                    continue
+                fb = faction_manager.factions[fid_b]
+                if fid_a in set(getattr(fb, 'rival_faction_ids', []) or []):
+                    continue
+                inv_b = faction_inventories.get(fid_b, {})
+                self._try_trade(fa, fb, inv_a, inv_b, thronglets, current_time)
+
+    def _try_trade(self, fa, fb, inv_a, inv_b, thronglets, current_time):
+        """Attempt a single resource exchange between two factions."""
+        # A has surplus, B has deficit
+        for res, qty_a in inv_a.items():
+            if qty_a <= self.SURPLUS_THRESHOLD:
+                continue
+            qty_b = inv_b.get(res, 0)
+            if qty_b > self.DEFICIT_THRESHOLD:
+                continue
+            # Transfer 1 unit: take from a random member of A, give to random member of B
+            amount = 1
+            donors = [m for m in fa.get_members(thronglets) if getattr(m, 'inventory', {}).get(res, 0) > 0]
+            recipients = fb.get_members(thronglets)
+            if donors and recipients:
+                donor = random.choice(donors)
+                recipient = random.choice(recipients)
+                donor.inventory[res] = max(0, donor.inventory.get(res, 0) - amount)
+                recipient.inventory[res] = recipient.inventory.get(res, 0) + amount
+                self.trade_log.append({
+                    'time': current_time,
+                    'from_faction': fa.id,
+                    'to_faction': fb.id,
+                    'resource': res,
+                    'amount': amount,
+                })
+                if len(self.trade_log) > self.max_log:
+                    del self.trade_log[:-self.max_log]
+                return  # One trade per pair per round
+
+    def get_trade_opportunities(self, faction_manager, thronglets):
+        """Return human-readable trade opportunity descriptions for LLM state view."""
+        if faction_manager is None:
+            return []
+        opportunities = []
+        faction_ids = list(faction_manager.factions.keys())
+        for i, fid_a in enumerate(faction_ids):
+            fa = faction_manager.factions[fid_a]
+            members_a = fa.get_members(thronglets)
+            inv_a = {}
+            for m in members_a:
+                for res, qty in getattr(m, 'inventory', {}).items():
+                    inv_a[res] = inv_a.get(res, 0) + qty
+            surplus = [f"{r}={q}" for r, q in inv_a.items() if q > self.SURPLUS_THRESHOLD]
+            if surplus:
+                rival_ids = set(getattr(fa, 'rival_faction_ids', []) or [])
+                for fid_b in faction_ids[i + 1:]:
+                    if fid_b not in rival_ids:
+                        opportunities.append(
+                            f"F{fid_a} surplus ({', '.join(surplus)}) can trade with F{fid_b}"
+                        )
+        return opportunities[:4]
+
+    def get_territory_overlaps(self, faction_manager, thronglets, territory_manager=None):
+        """Return descriptions of territory overlaps between factions."""
+        if faction_manager is None:
+            return []
+        overlaps = []
+        faction_ids = list(faction_manager.factions.keys())
+        for i, fid_a in enumerate(faction_ids):
+            fa = faction_manager.factions[fid_a]
+            centroid_a = fa.get_centroid(thronglets)
+            if centroid_a is None:
+                continue
+            for fid_b in faction_ids[i + 1:]:
+                fb = faction_manager.factions[fid_b]
+                centroid_b = fb.get_centroid(thronglets)
+                if centroid_b is None:
+                    continue
+                dist = math.sqrt(
+                    (centroid_a[0] - centroid_b[0]) ** 2 + (centroid_a[1] - centroid_b[1]) ** 2
+                )
+                if dist < 200:
+                    overlaps.append(f"F{fid_a} and F{fid_b} territory overlap (dist={int(dist)}px)")
+        return overlaps[:4]
+
+    def serialize(self):
+        return {'trade_log': list(self.trade_log[-10:])}
 
 
 class Thronglet:
@@ -10279,6 +10513,17 @@ def main(runtime_config=RUNTIME_CONFIG):
     
     # Initialize narrative panel
     narrative_panel = NarrativePanel()
+    
+    # Initialize event bus and narrative cascades
+    from events.bus import EventBus
+    from events.cascades import TitleCardQueue, CameraFocusQueue, attach_default_cascades
+    event_bus = EventBus(max_log=100)
+    title_cards = TitleCardQueue(max_display_time=4.0)
+    camera_focus_queue = CameraFocusQueue()
+    attach_default_cascades(event_bus, title_cards, camera_focus_queue, narrative_panel)
+    
+    # Initialize trade system
+    trade_system = TradeSystem()
     
     # Initialize tooltip system
     tooltip_system = TooltipSystem()

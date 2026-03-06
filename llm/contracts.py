@@ -104,6 +104,12 @@ _VALID_DISTRICTS = {
 _VALID_CRISIS_POSTURES = {"stabilize", "expand", "recover", "fortify", "consolidate"}
 
 
+_VALID_BUILDING_TYPES = {
+    "house", "farm", "workshop", "storage", "hospital", "school", "shrine",
+    "watchtower", "well", "market",
+}
+
+
 def council_payload_defaults() -> dict[str, Any]:
     return {
         "doctrine": {
@@ -119,6 +125,7 @@ def council_payload_defaults() -> dict[str, Any]:
         "team_task": {},
         "conditions": {},
         "faction_goals": [],
+        "building_priority": [],
         "event_framing": "",
     }
 
@@ -220,6 +227,15 @@ def _normalize_faction_goals(raw: Any, valid_doctrines: set[str] | None = None) 
     return goals
 
 
+def _normalize_building_priority(raw: Any) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    return [
+        bt for bt in (str(b).strip().lower() for b in raw[:3])
+        if bt in _VALID_BUILDING_TYPES
+    ]
+
+
 def parse_council_payload(
     response_text: str | None,
     valid_doctrines: set[str] | None = None,
@@ -243,6 +259,9 @@ def parse_council_payload(
     payload["conditions"] = _normalize_conditions(parsed.get("conditions"))
     payload["faction_goals"] = _normalize_faction_goals(
         parsed.get("faction_goals"), valid_doctrines
+    )
+    payload["building_priority"] = _normalize_building_priority(
+        parsed.get("building_priority")
     )
     payload["event_framing"] = _safe_str(parsed.get("event_framing"), 220)
     return payload

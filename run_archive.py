@@ -380,6 +380,9 @@ def build_run_archive(
     archive["llm_memory"] = (
         getattr(advisor, "llm_memory", None) and advisor.llm_memory.serialize() or {}
     )
+    # Emergent culture derived from genetic drift
+    evo_summary = dict(archive.get("observer_report", {}).get("trait_outliers", [{}])[0] if archive.get("observer_report", {}).get("trait_outliers") else {})
+    archive["cultural_profile"] = getattr(advisor, "session_stats", {}).get("cultural_profile", {})
     return archive
 
 

@@ -32,6 +32,8 @@ def build_council_view(
     memory_civ_digest: str,
     memory_faction_digest: str,
     building_prompt_lines: list[str],
+    zone_summary: str = "",
+    cultural_profile: str = "",
 ) -> str:
     bldg = ", ".join(f"{k}:{v}" for k, v in buildings.items())
     res_map = ", ".join(f"{k}={v}" for k, v in resources_on_map.items())
@@ -65,6 +67,7 @@ Colony:
 - District: {settlement.get('district_identity', 'homestead')}
 - Prosperity: {int(settlement.get('prosperity_score', 0) * 100)}%
 - Culture: {int(settlement.get('culture_score', 0) * 100)}%
+- Identity: {cultural_profile or 'Balanced'}
 
 Factions:
 {faction_lines}
@@ -74,6 +77,9 @@ Thronglets:
 
 Buildings:
 {chr(10).join(building_prompt_lines)}
+
+City zones:
+{zone_summary or '(no zones defined yet)'}
 
 Civilization memory:
 {memory_civ_digest}
@@ -122,6 +128,43 @@ Recent faction events:
 
 Faction memory:
 {faction_digest}"""
+
+
+# ---------------------------------------------------------------------------
+# Diplomacy view (inter-faction relations)
+# ---------------------------------------------------------------------------
+
+def build_diplomacy_view(
+    *,
+    faction_summaries: list[dict[str, Any]],
+    territory_overlaps: list[str],
+    trade_opportunities: list[str],
+    memory_civ_digest: str,
+    colony_population: int,
+) -> str:
+    faction_lines = "\n".join(
+        f"- F{f.get('id', '?')}: doctrine={f.get('doctrine', '?')}, "
+        f"cohesion={f.get('cohesion', 0):.0f}, members={f.get('member_count', 0)}, "
+        f"rivals={f.get('rivals', [])}"
+        for f in faction_summaries[:6]
+    ) or "- none"
+
+    overlaps = "\n".join(territory_overlaps[:4]) or "- none"
+    trades = "\n".join(trade_opportunities[:4]) or "- none"
+
+    return f"""Colony population: {colony_population}
+
+Active factions:
+{faction_lines}
+
+Territory overlaps:
+{overlaps}
+
+Trade opportunities:
+{trades}
+
+Civilization memory:
+{memory_civ_digest}"""
 
 
 # ---------------------------------------------------------------------------

@@ -45,6 +45,7 @@ Never invent technologies, abilities, modifiers, or rule mutations.
   "faction_goals": [
     {{"faction_id": 0, "goal": "secure water", "reasoning": "brief", "doctrine_key": "security"}}
   ],
+  "building_priority": ["farm", "house"],
   "event_framing": "One short council sentence for the observer log."
 }}
 
@@ -99,8 +100,51 @@ Intent:"""
 
 
 # ---------------------------------------------------------------------------
+# Diplomacy prompt
+# ---------------------------------------------------------------------------
+
+def build_diplomacy_prompt(state_view: str, model_name: str = "qwen3.5:9b") -> str:
+    return f"""You are the diplomat for a local colony simulation with multiple factions.
+Target model: {model_name}
+
+=== RESPONSE CONTRACT ===
+Return either the exact text `No changes` OR one raw JSON object.
+No markdown fences. No prose. No <think> tags.
+
+=== MISSION ===
+Evaluate relationships between factions and recommend stance changes.
+Positive delta = cooperate, negative delta = rivalry.
+Set frontier policy for settlement expansion and route security.
+Do not invent new mechanics or create factions.
+
+=== CURRENT STATE ===
+{state_view}
+
+=== JSON SCHEMA ===
+{{
+  "stance_changes": [
+    {{"faction_a": 0, "faction_b": 1, "delta": -0.5, "reason": "territorial dispute"}}
+  ],
+  "frontier_policy": {{
+    "corridor_preference": "north|south|east|west|nearest|safest",
+    "settlement_expansion": "aggressive|cautious|hold",
+    "route_security": "patrol|ignore|fortify"
+  }}
+}}
+
+Constraints:
+- Max 6 stance changes.
+- delta range: -1.0 to 1.0.
+- reason max 120 chars.
+- If relations are stable, return No changes.
+
+Assessment:"""
+
+
+# ---------------------------------------------------------------------------
 # Historian prompt
 # ---------------------------------------------------------------------------
+
 
 def build_historian_prompt(state_view: str, model_name: str = "qwen3.5:9b") -> str:
     return f"""You are the chronicler of a local colony simulation.
