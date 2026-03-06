@@ -1,0 +1,766 @@
+﻿py : C:\Users\jorqu\AppData\Local\Programs\Python\Python313\Lib\site-packages\pygame\pkgdata.py:25: UserWarning: 
+pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources 
+package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+At C:\Users\jorqu\AppData\Local\Temp\ps-script-218812eb-7c34-419f-95c0-40c4fb4b46af.ps1:87 char:1
++ py thronglets_game.py 2>&1 | Out-File -FilePath "test_run.txt" -Encod ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\jorqu\... Setuptools<81.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  from pkg_resources import resource_stream, resource_exists
+pygame 2.6.1 (SDL 2.28.4, Python 3.13.6)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Initializing game systems...
+Asset manager created
+World map created with 12 chunks
+Camera initialized
+Thronglets game started! Watch the AI-powered creatures make decisions...
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|build 1 house immediately|population is 2, and 1 house supports 2 thronglets; ensures energy restoration and prevents overcrowding. Critical for long-term stability.
+
+8|build 1 farm immediately|population needs sustainable food supply; farms auto-produce food and reduce hunger pressure. 2 farms would be optimal once population grows.
+
+7|assign 1 thronglet to gather wood|need 2 wood for 1 farm and 2 wood for 1 house; wood is abundant on map (35 wild), so early collection is efficient.
+
+6|build 1 storage immediately|population is 2, so 1 storage is sufficient; prevents resource overflow and prepares for future growth.
+
+5|explore south territory|map resources are limited (50 wild food, 35 wild wood, 15 stone), and expansion ensures long-term sustainability and access to more raw materials.
+
+4|research agriculture_1|increases farm production rate by 50%, essential for feeding growing population and reducing hunger pressure.
+
+3|research social_1|boosts happiness and reduces bond decay, improving social cohesion and reproduction rates.
+
+2|build 1 well|critical for thirst needs and disease prevention; 1 well supports up to 10 thronglets, and weÆre at 2, so early investment is wise.
+
+1|assign 1 thronglet to gather stone|need 1 stone for 1 well and 2 stone for 1 workshop; stone is scarce (15 wild), so early collection is important.
+
+[Directive] Priority 9: build 1 house immediately - population is 2, and 1 house supports 2 thronglets; ensures energy restoration and prevents overcrowding. Critical for long-term stability.
+[Directive] Priority 8: build 1 farm immediately - population needs sustainable food supply; farms auto-produce food and reduce hunger pressure. 2 farms would be optimal once population grows.
+[Directive] Priority 7: assign 1 thronglet to gather wood - need 2 wood for 1 farm and 2 wood for 1 house; wood is abundant on map (35 wild), so early collection is efficient.
+[Directive] Priority 6: build 1 storage immediately - population is 2, so 1 storage is sufficient; prevents resource overflow and prepares for future growth.
+[Directive] Priority 5: explore south territory - map resources are limited (50 wild food, 35 wild wood, 15 stone), and expansion ensures long-term sustainability and access to more raw materials.
+[Directive] Priority 4: research agriculture_1 - increases farm production rate by 50%, essential for feeding growing population and reducing hunger pressure.
+[Directive] Priority 3: research social_1 - boosts happiness and reduces bond decay, improving social cohesion and reproduction rates.
+[Directive] Priority 2: build 1 well - critical for thirst needs and disease prevention; 1 well supports up to 10 thronglets, and weÆre at 2, so early investment is wise.
+[Directive] Priority 1: assign 1 thronglet to gather stone - need 1 stone for 1 well and 2 stone for 1 workshop; stone is scarce (15 wild), so early collection is important.
+Thronglet chose role: builder
+Thronglet chose role: builder
+Thronglet -> BUILDING storage! Following directive: build 1 storage immediately
+Thronglet -> BUILDING storage! Following directive: build 1 storage immediately
+Thronglet -> BUILDING storage! Following directive: build 1 storage immediately
+
+[STATUS 10s] 92 resources left, Total inventory: 2 food, 0 wood, Buildings: 3
+   Thronglet 0: pos=(1007, 497), inv={'food': 0, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1174, 1014), inv={'food': 2, 'wood': 0, 'stone': 0}
+
+Thronglet -> BUILDING storage! Following directive: build 1 storage immediately
+Thronglet -> BUILDING well! Following directive: build 1 well
+Thronglet leveled up building to level 2!
+Thronglet -> BUILDING well! Following directive: build 1 well
+
+[STATUS 20s] 86 resources left, Total inventory: 5 food, 0 wood, Buildings: 6
+   Thronglet 0: pos=(1086, 333), inv={'food': 1, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1313, 1018), inv={'food': 4, 'wood': 0, 'stone': 0}
+
+Thronglet leveled up gathering to level 2!
+Thronglet -> BUILDING storage! Following directive: build 1 storage immediately
+Thronglet -> BUILDING well! Following directive: build 1 well
+Thronglet leveled up gathering to level 2!
+Thronglet -> BUILDING storage! Following directive: build 1 storage immediately
+Thronglet leveled up building to level 2!
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|build 1 farm immediately|population is 2, and farms produce 1 food every 10 seconds. With current food reserves at 13 (9 in storage + 4 carried), we can sustain 13/1 = 13 seconds of population consumption. Immediate farm construction ensures long-term food stability and prevents starvation.
+
+8|assign 1 thronglet to gather wood|need 2 wood for 1 farm, and 2 wood for 1 house. With 29 wild wood on map, gathering 2 wood now will allow us to build both a farm and a house in the next 20 seconds, supporting population growth and energy restoration.
+
+7|research agriculture_1|costs 100 points, increases farm production rate by 50%. With 1 farm already built and 1 more planned, this research will double the food output, significantly improving sustainability and reducing risk of famine during population growth.
+
+[Directive] Priority 9: build 1 farm immediately - population is 2, and farms produce 1 food every 10 seconds. With current food reserves at 13 (9 in storage + 4 carried), we can sustain 13/1 = 13 seconds of population consumption. Immediate farm construction ensures long-term food stability and prevents starvation.
+[Directive] Priority 8: assign 1 thronglet to gather wood - need 2 wood for 1 farm, and 2 wood for 1 house. With 29 wild wood on map, gathering 2 wood now will allow us to build both a farm and a house in the next 20 seconds, supporting population growth and energy restoration.
+[Directive] Priority 7: research agriculture_1 - costs 100 points, increases farm production rate by 50%. With 1 farm already built and 1 more planned, this research will double the food output, significantly improving sustainability and reducing risk of famine during population growth.
+
+[STATUS 31s] 77 resources left, Total inventory: 5 food, 0 wood, Buildings: 9
+   Thronglet 0: pos=(1200, 139), inv={'food': 4, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(847, 1011), inv={'food': 1, 'wood': 0, 'stone': 0}
+
+Thronglet -> BUILDING farm! Following directive: build 1 farm immediately
+
+[STATUS 41s] 77 resources left, Total inventory: 6 food, 0 wood, Buildings: 10
+   Thronglet 0: pos=(895, 50), inv={'food': 4, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(388, 1221), inv={'food': 2, 'wood': 0, 'stone': 2}
+
+Thronglet -> BUILDING farm! Following directive: build 1 farm immediately
+
+[STATUS 51s] 77 resources left, Total inventory: 8 food, 0 wood, Buildings: 11
+   Thronglet 0: pos=(925, 208), inv={'food': 4, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(462, 1252), inv={'food': 4, 'wood': 0, 'stone': 2}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|build 1 house immediately|population is 2, and with 1 well already built, we can support 2 thronglets in a house. Houses are critical for energy restoration and population growth. Current house count (0) is insufficient for population of 2.
+
+8|research agriculture_1|farm production rate is key to sustaining population growth. With 2 farms producing ~0.2 food/sec, increasing farm output will significantly reduce food stress and allow faster expansion.
+
+7|assign 1 thronglet to gather wood|we have 2 stone and 10 food in storage, but need 2 wood for 1 more farm to match population growth. 1 wood is needed for 1 more workshop to boost production efficiency. Gathering wood now will support future building needs.
+
+[Directive] Priority 9: build 1 house immediately - population is 2, and with 1 well already built, we can support 2 thronglets in a house. Houses are critical for energy restoration and population growth. Current house count (0) is insufficient for population of 2.
+[Directive] Priority 8: research agriculture_1 - farm production rate is key to sustaining population growth. With 2 farms producing ~0.2 food/sec, increasing farm output will significantly reduce food stress and allow faster expansion.
+[Directive] Priority 7: assign 1 thronglet to gather wood - we have 2 stone and 10 food in storage, but need 2 wood for 1 more farm to match population growth. 1 wood is needed for 1 more workshop to boost production efficiency. Gathering wood now will support future building needs.
+
+[STATUS 61s] 80 resources left, Total inventory: 10 food, 0 wood, Buildings: 11
+   Thronglet 0: pos=(648, 138), inv={'food': 6, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(558, 1313), inv={'food': 4, 'wood': 0, 'stone': 2}
+
+
+[STATUS 71s] 76 resources left, Total inventory: 6 food, 0 wood, Buildings: 11
+   Thronglet 0: pos=(818, 554), inv={'food': 1, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(722, 1449), inv={'food': 5, 'wood': 0, 'stone': 2}
+
+
+[STATUS 81s] 73 resources left, Total inventory: 10 food, 1 wood, Buildings: 11
+   Thronglet 0: pos=(1208, 370), inv={'food': 4, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1241, 1336), inv={'food': 6, 'wood': 1, 'stone': 2}
+
+Thronglet -> BUILDING house! Following directive: build 1 house immediately
+Thronglet -> BUILDING house! Following directive: build 1 house immediately
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|build 1 farm immediately|population is 2, and current farm production (~0.2/sec) is insufficient to sustain growth or meet hunger demands. With 2 thronglets, 1 farm provides minimal food buffer; building a second farm ensures food stability and supports future population expansion.
+
+8|research agriculture_1|farm production rate boost (1.5x) will significantly increase food output per farm, reducing reliance on wild resources and enabling sustainable growth. Already have 100 points available, this is a low-risk, high-impact upgrade.
+
+7|assign 1 thronglet to gather wood|need 4 wood total to build 2 more farms (for 4 population support), and current wood supply is low (1 carried + 20 wild = 21 total). One thronglet should gather wood to avoid bottlenecking future expansion.
+
+[Directive] Priority 9: build 1 farm immediately - population is 2, and current farm production (~0.2/sec) is insufficient to sustain growth or meet hunger demands. With 2 thronglets, 1 farm provides minimal food buffer; building a second farm ensures food stability and supports future population expansion.
+[Directive] Priority 8: research agriculture_1 - farm production rate boost (1.5x) will significantly increase food output per farm, reducing reliance on wild resources and enabling sustainable growth. Already have 100 points available, this is a low-risk, high-impact upgrade.
+[Directive] Priority 7: assign 1 thronglet to gather wood - need 4 wood total to build 2 more farms (for 4 population support), and current wood supply is low (1 carried + 20 wild = 21 total). One thronglet should gather wood to avoid bottlenecking future expansion.
+
+[STATUS 91s] 71 resources left, Total inventory: 11 food, 0 wood, Buildings: 13
+   Thronglet 0: pos=(1081, 345), inv={'food': 5, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1301, 1486), inv={'food': 6, 'wood': 0, 'stone': 2}
+
+
+[STATUS 101s] 71 resources left, Total inventory: 15 food, 0 wood, Buildings: 13
+   Thronglet 0: pos=(1349, 50), inv={'food': 6, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1191, 970), inv={'food': 9, 'wood': 0, 'stone': 2}
+
+Thronglet leveled up gathering to level 3!
+
+[STATUS 111s] 73 resources left, Total inventory: 17 food, 1 wood, Buildings: 13
+   Thronglet 0: pos=(1623, 194), inv={'food': 6, 'wood': 1, 'stone': 0}
+   Thronglet 1: pos=(1285, 1207), inv={'food': 11, 'wood': 0, 'stone': 2}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|build 1 farm immediately|population is 2, and current farm production (~0.2/sec) is insufficient to sustain growth or meet hunger demands. With 2 thronglets, 1 farm provides minimal food buffer; building a second farm will help stabilize food supply and reduce hunger pressure.
+
+8|assign 1 thronglet to gather wood|need 2 wood for 1 workshop (to craft tools and boost production), and 2 more wood for 1 additional house to support potential population growth. Current wood reserves are low (2 carried + 1 in storage = 3 total), so gathering is critical.
+
+7|research agriculture_1|efficiency gain of 1.5x farm production directly addresses current food shortage. With 2 farms producing ~0.2/sec, increasing output will significantly improve sustainability and reduce hunger levels. This unlocks immediately after spending 100 points.
+
+[Directive] Priority 9: build 1 farm immediately - population is 2, and current farm production (~0.2/sec) is insufficient to sustain growth or meet hunger demands. With 2 thronglets, 1 farm provides minimal food buffer; building a second farm will help stabilize food supply and reduce hunger pressure.
+[Directive] Priority 8: assign 1 thronglet to gather wood - need 2 wood for 1 workshop (to craft tools and boost production), and 2 more wood for 1 additional house to support potential population growth. Current wood reserves are low (2 carried + 1 in storage = 3 total), so gathering is critical.
+[Directive] Priority 7: research agriculture_1 - efficiency gain of 1.5x farm production directly addresses current food shortage. With 2 farms producing ~0.2/sec, increasing output will significantly improve sustainability and reduce hunger levels. This unlocks immediately after spending 100 points.
+
+[STATUS 121s] 70 resources left, Total inventory: 21 food, 2 wood, Buildings: 13
+   Thronglet 0: pos=(1867, 434), inv={'food': 9, 'wood': 1, 'stone': 1}
+   Thronglet 1: pos=(1596, 1359), inv={'food': 12, 'wood': 1, 'stone': 2}
+
+Thronglet -> BUILDING farm! Following directive: build 1 farm immediately
+Thronglet leveled up gathering to level 3!
+Thronglet -> BUILDING farm! Following directive: build 1 farm immediately
+Thronglet -> BUILDING farm! Following directive: build 1 farm immediately
+
+[STATUS 131s] 74 resources left, Total inventory: 21 food, 2 wood, Buildings: 16
+   Thronglet 0: pos=(1689, 267), inv={'food': 9, 'wood': 1, 'stone': 3}
+   Thronglet 1: pos=(1445, 1486), inv={'food': 12, 'wood': 1, 'stone': 2}
+
+
+[STATUS 141s] 75 resources left, Total inventory: 22 food, 2 wood, Buildings: 16
+   Thronglet 0: pos=(1239, 217), inv={'food': 10, 'wood': 1, 'stone': 3}
+   Thronglet 1: pos=(1372, 1486), inv={'food': 12, 'wood': 1, 'stone': 2}
+
+Thronglet -> BUILDING farm! Following directive: build 1 farm immediately
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|research agriculture_1|farm production rate needs immediate boost; current 6 farms generate ~0.6/sec, insufficient for growth. 100 points spent unlocks 1.5x farm efficiency, supporting population expansion.
+
+8|build 1 workshop|workshops enable crafting tools, repairs, and boost production. With 2 thronglets and 3 wells, workshop is next critical infrastructure for efficiency gains and skill development.
+
+7|assign 1 thronglet to gather stone|need 3 stone for shrine (4 wood + 3 stone) and 1 stone for next well (1 stone). Stone is scarce; prioritize gathering to avoid bottleneck.
+
+6|research medicine_1|health avg 2.6/100, high disease risk from overpopulation and poor hygiene. 200 points unlocks disease recovery and health regen, vital for long-term survival.
+
+5|build 1 shrine|shrines boost happiness, reproduction, and social bonds. With 1 ready-to-reproduce thronglet and low happiness (38.2), shrine increases chance of successful reproduction and stability.
+
+4|assign 1 thronglet to gather wood|need 2 wood for 1 house and 3 wood for 1 workshop. Current stock is low (1 wood in storage, 1 carried), so gathering is essential for infrastructure expansion.
+
+3|research social_1|low happiness (38.2) and no social bonds formed yet. 100 points unlocks +20% happiness and reduced bond decay, improving morale and cooperation.
+
+2|build 1 well|1 well per 10 population recommended, but 3 wells support 25 population. With 2 thronglets, 1 well is sufficient for thirst and disease prevention, but 1 more ensures safety margin.
+
+1|evolve farm_production_rate|temporary 2-minute boost to farm efficiency (1.5x) to maximize food output during critical growth phase. Critical for reducing hunger and enabling reproduction.
+
+0|assign 1 thronglet to explore east|map is small (45 wild food, 20 wild wood, 10 stone), but expansion needed to sustain growth. Scout for new resources before building more infrastructure.
+
+0|build 1 house|houses are at 2/4 capacity. With 2 thronglets, 1 house is sufficient. No immediate need to build more, as 2 houses already support population. Focus on other priorities first.
+
+[Directive] Priority 9: research agriculture_1 - farm production rate needs immediate boost; current 6 farms generate ~0.6/sec, insufficient for growth. 100 points spent unlocks 1.5x farm efficiency, supporting population expansion.
+[Directive] Priority 8: build 1 workshop - workshops enable crafting tools, repairs, and boost production. With 2 thronglets and 3 wells, workshop is next critical infrastructure for efficiency gains and skill development.
+[Directive] Priority 7: assign 1 thronglet to gather stone - need 3 stone for shrine (4 wood + 3 stone) and 1 stone for next well (1 stone). Stone is scarce; prioritize gathering to avoid bottleneck.
+[Directive] Priority 6: research medicine_1 - health avg 2.6/100, high disease risk from overpopulation and poor hygiene. 200 points unlocks disease recovery and health regen, vital for long-term survival.
+[Directive] Priority 5: build 1 shrine - shrines boost happiness, reproduction, and social bonds. With 1 ready-to-reproduce thronglet and low happiness (38.2), shrine increases chance of successful reproduction and stability.
+[Directive] Priority 4: assign 1 thronglet to gather wood - need 2 wood for 1 house and 3 wood for 1 workshop. Current stock is low (1 wood in storage, 1 carried), so gathering is essential for infrastructure expansion.
+[Directive] Priority 3: research social_1 - low happiness (38.2) and no social bonds formed yet. 100 points unlocks +20% happiness and reduced bond decay, improving morale and cooperation.
+[Directive] Priority 2: build 1 well - 1 well per 10 population recommended, but 3 wells support 25 population. With 2 thronglets, 1 well is sufficient for thirst and disease prevention, but 1 more ensures safety margin.
+[Directive] Priority 1: evolve farm_production_rate - temporary 2-minute boost to farm efficiency (1.5x) to maximize food output during critical growth phase. Critical for reducing hunger and enabling reproduction.
+[Directive] Priority 0: assign 1 thronglet to explore east - map is small (45 wild food, 20 wild wood, 10 stone), but expansion needed to sustain growth. Scout for new resources before building more infrastructure.
+[Directive] Priority 0: build 1 house - houses are at 2/4 capacity. With 2 thronglets, 1 house is sufficient. No immediate need to build more, as 2 houses already support population. Focus on other priorities first.
+Thronglet -> BUILDING well! Following directive: build 1 well
+Thronglet -> BUILDING well! Following directive: build 1 well
+
+[STATUS 152s] 75 resources left, Total inventory: 26 food, 1 wood, Buildings: 19
+   Thronglet 0: pos=(1318, 395), inv={'food': 13, 'wood': 1, 'stone': 2}
+   Thronglet 1: pos=(1337, 1108), inv={'food': 13, 'wood': 0, 'stone': 1}
+
+Thronglet -> BUILDING well! Following directive: build 1 well
+Thronglet -> BUILDING well! Following directive: build 1 well
+Thronglet leveled up building to level 3!
+Thronglet -> BUILDING well! Following directive: build 1 well
+Thronglet -> BUILDING well! Following directive: build 1 well
+
+[STATUS 163s] 74 resources left, Total inventory: 14 food, 1 wood, Buildings: 23
+   Thronglet 0: pos=(918, 363), inv={'food': 1, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1645, 1118), inv={'food': 13, 'wood': 1, 'stone': 0}
+
+Thronglet -> BUILDING house! Following directive: build 1 house
+
+[STATUS 173s] 70 resources left, Total inventory: 19 food, 1 wood, Buildings: 24
+   Thronglet 0: pos=(1083, 630), inv={'food': 4, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1646, 916), inv={'food': 15, 'wood': 1, 'stone': 0}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|research agriculture_1|Farm production rate is critical for sustaining growth; current 6 farms generate ~0.6/sec, insufficient for population expansion. 100 points spent unlocks 1.5x farm efficiency, supporting population growth.
+
+8|build 1 workshop|Workshops enable crafting tools, repairing buildings, and boosting production. With 3 wood available and 2 stone, workshop construction is feasible and will improve long-term infrastructure efficiency.
+
+7|assign 1 thronglet to gather stone|Need 2 stone for workshop, and 10 stone for future shrine construction. Stone is scarce on map; securing it now prevents delays in key upgrades.
+
+6|build 1 shrine|Shrines increase happiness and boost reproduction, which is needed to grow population beyond current 2. With 4 wood and 3 stone available, shrine construction is affordable and supports social stability.
+
+5|upgrade 1 house to 1.5 capacity|Current houses hold 2 thronglets each; with 3 houses, capacity is 6. Upgrading to 1.5x capacity (3 thronglets per house) will support future population growth without overbuilding.
+
+4|explore west territory|Map resources are depleting; new territory may contain wood, stone, or food. Scout training (exploration_1) is unlocked and will improve movement speed for exploration.
+
+3|assign 1 thronglet to gather food|Population is hungry (avg 98/100), and farms are not producing enough to meet demand. Immediate food gathering will reduce hunger and prevent health decline.
+
+2|build 1 well|Thronglets are at risk of dying from thirst; 9 wells exist but may not be evenly distributed. Building 1 more well ensures access to water and reduces disease risk.
+
+1|research medicine_1|Health is critically low (avg 1.8/100), and disease is a major threat. Medicine_1 unlocks disease recovery and health regeneration, which will improve survival rates and overall civilization stability.
+
+[Directive] Priority 9: research agriculture_1 - Farm production rate is critical for sustaining growth; current 6 farms generate ~0.6/sec, insufficient for population expansion. 100 points spent unlocks 1.5x farm efficiency, supporting population growth.
+[Directive] Priority 8: build 1 workshop - Workshops enable crafting tools, repairing buildings, and boosting production. With 3 wood available and 2 stone, workshop construction is feasible and will improve long-term infrastructure efficiency.
+[Directive] Priority 7: assign 1 thronglet to gather stone - Need 2 stone for workshop, and 10 stone for future shrine construction. Stone is scarce on map; securing it now prevents delays in key upgrades.
+[Directive] Priority 6: build 1 shrine - Shrines increase happiness and boost reproduction, which is needed to grow population beyond current 2. With 4 wood and 3 stone available, shrine construction is affordable and supports social stability.
+[Directive] Priority 5: upgrade 1 house to 1.5 capacity - Current houses hold 2 thronglets each; with 3 houses, capacity is 6. Upgrading to 1.5x capacity (3 thronglets per house) will support future population growth without overbuilding.
+[Directive] Priority 4: explore west territory - Map resources are depleting; new territory may contain wood, stone, or food. Scout training (exploration_1) is unlocked and will improve movement speed for exploration.
+[Directive] Priority 3: assign 1 thronglet to gather food - Population is hungry (avg 98/100), and farms are not producing enough to meet demand. Immediate food gathering will reduce hunger and prevent health decline.
+[Directive] Priority 2: build 1 well - Thronglets are at risk of dying from thirst; 9 wells exist but may not be evenly distributed. Building 1 more well ensures access to water and reduces disease risk.
+[Directive] Priority 1: research medicine_1 - Health is critically low (avg 1.8/100), and disease is a major threat. Medicine_1 unlocks disease recovery and health regeneration, which will improve survival rates and overall civilization stability.
+
+[STATUS 183s] 73 resources left, Total inventory: 18 food, 2 wood, Buildings: 24
+   Thronglet 0: pos=(1105, 445), inv={'food': 0, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1606, 509), inv={'food': 18, 'wood': 2, 'stone': 0}
+
+Thronglet -> BUILDING well! Following directive: build 1 well
+
+[STATUS 193s] 71 resources left, Total inventory: 21 food, 3 wood, Buildings: 25
+   Thronglet 0: pos=(1408, 198), inv={'food': 3, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1826, 691), inv={'food': 18, 'wood': 3, 'stone': 0}
+
+
+[STATUS 203s] 72 resources left, Total inventory: 25 food, 5 wood, Buildings: 25
+   Thronglet 0: pos=(1408, 106), inv={'food': 3, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1712, 309), inv={'food': 22, 'wood': 5, 'stone': 0}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|research agriculture_1|Farm production rate is critical for sustaining growth; current 6 farms generate ~0.6/sec, insufficient for population expansion. 100 points spent unlocks 1.5x farm efficiency, directly addressing food shortage and enabling population growth.
+
+8|build 1 workshop|Workshops enable tool crafting, building repairs, and production boosts. With 3 wood and 2 stone available, workshop construction is feasible and will improve overall efficiency and resource utilization.
+
+7|assign 1 thronglet to gather stone|Need 1 stone for workshop construction, and 10 stone total is required to maintain current farm output. Stone gathering is critical to prevent production bottlenecks.
+
+[Directive] Priority 9: research agriculture_1 - Farm production rate is critical for sustaining growth; current 6 farms generate ~0.6/sec, insufficient for population expansion. 100 points spent unlocks 1.5x farm efficiency, directly addressing food shortage and enabling population growth.
+[Directive] Priority 8: build 1 workshop - Workshops enable tool crafting, building repairs, and production boosts. With 3 wood and 2 stone available, workshop construction is feasible and will improve overall efficiency and resource utilization.
+[Directive] Priority 7: assign 1 thronglet to gather stone - Need 1 stone for workshop construction, and 10 stone total is required to maintain current farm output. Stone gathering is critical to prevent production bottlenecks.
+
+[STATUS 213s] 73 resources left, Total inventory: 27 food, 5 wood, Buildings: 25
+   Thronglet 0: pos=(1408, 50), inv={'food': 3, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1616, 579), inv={'food': 24, 'wood': 5, 'stone': 0}
+
+
+[STATUS 223s] 75 resources left, Total inventory: 28 food, 5 wood, Buildings: 25
+   Thronglet 0: pos=(1376, 50), inv={'food': 3, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1359, 221), inv={'food': 25, 'wood': 5, 'stone': 0}
+
+Thronglet leveled up gathering to level 4!
+New thronglet born! Population: 3
+Thronglet chose role: builder
+
+[STATUS 233s] 75 resources left, Total inventory: 32 food, 6 wood, Buildings: 25
+   Thronglet 0: pos=(1303, 518), inv={'food': 3, 'wood': 0, 'stone': 0}
+   Thronglet 1: pos=(1309, 558), inv={'food': 29, 'wood': 6, 'stone': 0}
+   Thronglet 2: pos=(1245, 342), inv={'food': 0, 'wood': 0, 'stone': 0}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|research agriculture_1|Farm production rate is critical for sustaining growth; current 6 farms generate ~0.6/sec, insufficient for population expansion. 100 points spent unlocks 1.5x farm efficiency, directly addressing hunger and food surplus needs.
+
+8|build 1 workshop|Workshops enable crafting tools, repair buildings, and boost production. With 3 thronglets and 6 storage units already built, workshop efficiency will accelerate resource processing and support future expansion.
+
+7|assign 1 thronglet to gather wood|Need 2 more wood to build 1 additional farm (or 1 workshop), and current wood supply is low (6 carried + 22 wild = 28 total). Prioritizing wood gathering ensures sustainable resource accumulation.
+
+[Directive] Priority 9: research agriculture_1 - Farm production rate is critical for sustaining growth; current 6 farms generate ~0.6/sec, insufficient for population expansion. 100 points spent unlocks 1.5x farm efficiency, directly addressing hunger and food surplus needs.
+[Directive] Priority 8: build 1 workshop - Workshops enable crafting tools, repair buildings, and boost production. With 3 thronglets and 6 storage units already built, workshop efficiency will accelerate resource processing and support future expansion.
+[Directive] Priority 7: assign 1 thronglet to gather wood - Need 2 more wood to build 1 additional farm (or 1 workshop), and current wood supply is low (6 carried + 22 wild = 28 total). Prioritizing wood gathering ensures sustainable resource accumulation.
+
+[STATUS 243s] 73 resources left, Total inventory: 36 food, 6 wood, Buildings: 25
+   Thronglet 0: pos=(1195, 890), inv={'food': 4, 'wood': 0, 'stone': 1}
+   Thronglet 1: pos=(1734, 927), inv={'food': 30, 'wood': 6, 'stone': 1}
+   Thronglet 2: pos=(1841, 379), inv={'food': 2, 'wood': 0, 'stone': 0}
+
+Thronglet -> BUILDING workshop! Following directive: build 1 workshop
+
+[STATUS 253s] 66 resources left, Total inventory: 44 food, 4 wood, Buildings: 26
+   Thronglet 0: pos=(1133, 1103), inv={'food': 7, 'wood': 0, 'stone': 1}
+   Thronglet 1: pos=(1792, 1268), inv={'food': 32, 'wood': 4, 'stone': 0}
+   Thronglet 2: pos=(1730, 564), inv={'food': 5, 'wood': 0, 'stone': 0}
+
+
+[STATUS 263s] 64 resources left, Total inventory: 64 food, 5 wood, Buildings: 26
+   Thronglet 0: pos=(1005, 1450), inv={'food': 9, 'wood': 1, 'stone': 2}
+   Thronglet 1: pos=(1548, 1435), inv={'food': 34, 'wood': 4, 'stone': 0}
+   Thronglet 2: pos=(1607, 818), inv={'food': 21, 'wood': 0, 'stone': 1}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|research agriculture_1|Farm production rate is critical for sustaining growth; current 6 farms generate ~0.6/sec, insufficient for population expansion. 100 points spent unlocks 1.5x farm efficiency, directly addressing the core food bottleneck.
+
+8|build 1 shrine immediately|Health is critically low (avg 1.3/100), and happiness is only 45.6/100. Shrines boost both happiness and reproduction rates, essential for population stability and growth.
+
+7|assign 1 thronglet to gather stone|Need 3 stone for 1 workshop upgrade (industry_1), which will improve build speed and workshop efficiency. Also required for future well construction to meet thirst needs.
+
+[Directive] Priority 9: research agriculture_1 - Farm production rate is critical for sustaining growth; current 6 farms generate ~0.6/sec, insufficient for population expansion. 100 points spent unlocks 1.5x farm efficiency, directly addressing the core food bottleneck.
+[Directive] Priority 8: build 1 shrine immediately - Health is critically low (avg 1.3/100), and happiness is only 45.6/100. Shrines boost both happiness and reproduction rates, essential for population stability and growth.
+[Directive] Priority 7: assign 1 thronglet to gather stone - Need 3 stone for 1 workshop upgrade (industry_1), which will improve build speed and workshop efficiency. Also required for future well construction to meet thirst needs.
+
+[STATUS 273s] 67 resources left, Total inventory: 81 food, 5 wood, Buildings: 26
+   Thronglet 0: pos=(1430, 1486), inv={'food': 9, 'wood': 1, 'stone': 2}
+   Thronglet 1: pos=(1796, 1434), inv={'food': 50, 'wood': 4, 'stone': 0}
+   Thronglet 2: pos=(1741, 1036), inv={'food': 22, 'wood': 0, 'stone': 1}
+
+Thronglet leveled up gathering to level 2!
+
+[STATUS 283s] 74 resources left, Total inventory: 59 food, 5 wood, Buildings: 26
+   Thronglet 0: pos=(1798, 1486), inv={'food': 9, 'wood': 1, 'stone': 2}
+   Thronglet 1: pos=(1837, 1467), inv={'food': 50, 'wood': 4, 'stone': 0}
+   Thronglet 2: pos=(1392, 708), inv={'food': 0, 'wood': 0, 'stone': 0}
+
+
+[STATUS 293s] 79 resources left, Total inventory: 60 food, 5 wood, Buildings: 26
+   Thronglet 0: pos=(1681, 1483), inv={'food': 9, 'wood': 1, 'stone': 2}
+   Thronglet 1: pos=(1627, 1280), inv={'food': 51, 'wood': 4, 'stone': 0}
+   Thronglet 2: pos=(1477, 830), inv={'food': 0, 'wood': 0, 'stone': 0}
+
+A thronglet has died. Population: 2
+A thronglet has died. Population: 1
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|research medicine_1|Population health is critically low (avg 0.1/100), and recent deaths indicate vulnerability to disease. Medicine_1 unlocks disease resistance and health regeneration, directly addressing survival risks and enabling sustainable growth.
+
+8|build 1 shrine|Happiness is extremely low (20/100), and social bonds are essential for reproduction and productivity. Shrines boost happiness and reproduction rates, critical for population expansion and civilization stability.
+
+7|assign 1 thronglet to gather stone|Need 3 stone for 1 workshop upgrade (industry_1) and 3 stone for 1 shrine. Stone is scarce, and workshop efficiency will boost production and build speed, supporting long-term growth.
+
+[Directive] Priority 9: research medicine_1 - Population health is critically low (avg 0.1/100), and recent deaths indicate vulnerability to disease. Medicine_1 unlocks disease resistance and health regeneration, directly addressing survival risks and enabling sustainable growth.
+[Directive] Priority 8: build 1 shrine - Happiness is extremely low (20/100), and social bonds are essential for reproduction and productivity. Shrines boost happiness and reproduction rates, critical for population expansion and civilization stability.
+[Directive] Priority 7: assign 1 thronglet to gather stone - Need 3 stone for 1 workshop upgrade (industry_1) and 3 stone for 1 shrine. Stone is scarce, and workshop efficiency will boost production and build speed, supporting long-term growth.
+
+[STATUS 303s] 78 resources left, Total inventory: 1 food, 0 wood, Buildings: 26
+   Thronglet 0: pos=(1938, 796), inv={'food': 1, 'wood': 0, 'stone': 1}
+
+
+[STATUS 313s] 75 resources left, Total inventory: 3 food, 2 wood, Buildings: 26
+   Thronglet 0: pos=(1903, 992), inv={'food': 3, 'wood': 2, 'stone': 1}
+
+
+[STATUS 323s] 75 resources left, Total inventory: 4 food, 2 wood, Buildings: 26
+   Thronglet 0: pos=(1450, 860), inv={'food': 4, 'wood': 2, 'stone': 1}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock medicine_1|Population health is critically low (avg 0.0/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, directly addressing the core survival threat.
+
+8|build 1 well immediately|Thronglets need water to survive and prevent disease. With 10 wells already built but likely insufficient for current population needs, prioritizing one more well will reduce thirst-related mortality and improve overall hygiene.
+
+7|assign 1 thronglet to gather stone|Need 1 stone for 1 workshop upgrade or shrine construction, which will boost happiness and reproduction. Stone is currently at 1 carried and 10 in storage, so gathering is needed to support future building projects.
+
+[Directive] Priority 9: unlock medicine_1 - Population health is critically low (avg 0.0/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, directly addressing the core survival threat.
+[Directive] Priority 8: build 1 well immediately - Thronglets need water to survive and prevent disease. With 10 wells already built but likely insufficient for current population needs, prioritizing one more well will reduce thirst-related mortality and improve overall hygiene.
+[Directive] Priority 7: assign 1 thronglet to gather stone - Need 1 stone for 1 workshop upgrade or shrine construction, which will boost happiness and reproduction. Stone is currently at 1 carried and 10 in storage, so gathering is needed to support future building projects.
+Thronglet -> BUILDING well! Following directive: build 1 well immediately
+
+[STATUS 333s] 74 resources left, Total inventory: 7 food, 2 wood, Buildings: 27
+   Thronglet 0: pos=(1168, 990), inv={'food': 7, 'wood': 2, 'stone': 0}
+
+Thronglet -> BUILDING well! Following directive: build 1 well immediately
+
+[STATUS 343s] 73 resources left, Total inventory: 2 food, 0 wood, Buildings: 28
+   Thronglet 0: pos=(765, 948), inv={'food': 2, 'wood': 0, 'stone': 0}
+
+
+[STATUS 353s] 72 resources left, Total inventory: 1 food, 0 wood, Buildings: 28
+   Thronglet 0: pos=(1131, 1271), inv={'food': 1, 'wood': 0, 'stone': 0}
+
+Thronglet -> BUILDING well! Following directive: build 1 well immediately
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock medicine_1|Population health is critically low (avg 0.1/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival and population stability.
+
+8|build 1 workshop immediately|Workshops are needed to craft tools, repair buildings, and boost production. With 1 workshop already built and 1 stone available, this is an ideal time to construct another to increase efficiency and support future growth.
+
+7|assign 1 thronglet to gather stone|Need 2 stone for next workshop, and 10 stone for 1 shrine (which boosts reproduction and happiness). Prioritizing stone gathering now will ensure we can expand infrastructure and improve population health.
+
+[Directive] Priority 9: unlock medicine_1 - Population health is critically low (avg 0.1/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival and population stability.
+[Directive] Priority 8: build 1 workshop immediately - Workshops are needed to craft tools, repair buildings, and boost production. With 1 workshop already built and 1 stone available, this is an ideal time to construct another to increase efficiency and support future growth.
+[Directive] Priority 7: assign 1 thronglet to gather stone - Need 2 stone for next workshop, and 10 stone for 1 shrine (which boosts reproduction and happiness). Prioritizing stone gathering now will ensure we can expand infrastructure and improve population health.
+
+[STATUS 363s] 73 resources left, Total inventory: 3 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1181, 952), inv={'food': 3, 'wood': 0, 'stone': 0}
+
+Thronglet leveled up gathering to level 3!
+
+[STATUS 373s] 74 resources left, Total inventory: 5 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1105, 1193), inv={'food': 5, 'wood': 0, 'stone': 0}
+
+
+[STATUS 383s] 75 resources left, Total inventory: 6 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1352, 1121), inv={'food': 6, 'wood': 0, 'stone': 0}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock medicine_1|Population health is critically low (avg 1.8/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival and population stability.
+
+8|build 1 workshop immediately|Workshops are needed to craft tools, repair buildings, and boost production. With 1 workshop already built, upgrading production capacity or enabling repairs is critical for long-term growth.
+
+7|assign 1 thronglet to gather wood|Need 2 wood for 1 farm to sustain population, and 1 wood for 1 house. With current resources (5 wood in storage), gathering wood is necessary to support expansion and meet future building needs.
+
+[Directive] Priority 9: unlock medicine_1 - Population health is critically low (avg 1.8/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival and population stability.
+[Directive] Priority 8: build 1 workshop immediately - Workshops are needed to craft tools, repair buildings, and boost production. With 1 workshop already built, upgrading production capacity or enabling repairs is critical for long-term growth.
+[Directive] Priority 7: assign 1 thronglet to gather wood - Need 2 wood for 1 farm to sustain population, and 1 wood for 1 house. With current resources (5 wood in storage), gathering wood is necessary to support expansion and meet future building needs.
+
+[STATUS 393s] 76 resources left, Total inventory: 7 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1630, 888), inv={'food': 7, 'wood': 0, 'stone': 0}
+
+
+[STATUS 403s] 76 resources left, Total inventory: 9 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1917, 927), inv={'food': 9, 'wood': 0, 'stone': 0}
+
+
+[STATUS 413s] 74 resources left, Total inventory: 12 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1864, 971), inv={'food': 12, 'wood': 0, 'stone': 0}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock medicine_1|Population health is critically low (avg 1.0/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival as population grows.
+
+8|build 1 shrine immediately|Happiness is low (40.4/100) and social bonds are critical for reproduction and efficiency. Shrines boost happiness and reproduction rates, supporting long-term growth.
+
+7|assign 1 thronglet to gather wood|Need 2 wood for 1 farm to sustain food production, and current wood reserves are low (5 carried + 20 wild = 25 total). Prioritize wood to maintain farm output and prevent food shortages.
+
+[Directive] Priority 9: unlock medicine_1 - Population health is critically low (avg 1.0/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival as population grows.
+[Directive] Priority 8: build 1 shrine immediately - Happiness is low (40.4/100) and social bonds are critical for reproduction and efficiency. Shrines boost happiness and reproduction rates, supporting long-term growth.
+[Directive] Priority 7: assign 1 thronglet to gather wood - Need 2 wood for 1 farm to sustain food production, and current wood reserves are low (5 carried + 20 wild = 25 total). Prioritize wood to maintain farm output and prevent food shortages.
+
+[STATUS 423s] 75 resources left, Total inventory: 12 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1998, 682), inv={'food': 12, 'wood': 0, 'stone': 0}
+
+
+[STATUS 433s] 77 resources left, Total inventory: 12 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1998, 1162), inv={'food': 12, 'wood': 0, 'stone': 0}
+
+
+[STATUS 443s] 78 resources left, Total inventory: 14 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1777, 1243), inv={'food': 14, 'wood': 0, 'stone': 0}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock medicine_1|Population health is critically low (avg 1.0/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for long-term survival and population stability.
+
+8|build 1 workshop immediately|Workshops are critical for crafting tools, repairing buildings, and boosting production. With 1 workshop already built and 3 wood available, this can be done quickly to support future expansion and efficiency.
+
+7|assign 1 thronglet to gather wood|Need 2 wood for 1 farm to sustain population growth and reduce reliance on wild resources. Gathering wood now will help maintain food production and prepare for future building needs.
+
+[Directive] Priority 9: unlock medicine_1 - Population health is critically low (avg 1.0/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for long-term survival and population stability.
+[Directive] Priority 8: build 1 workshop immediately - Workshops are critical for crafting tools, repairing buildings, and boosting production. With 1 workshop already built and 3 wood available, this can be done quickly to support future expansion and efficiency.
+[Directive] Priority 7: assign 1 thronglet to gather wood - Need 2 wood for 1 farm to sustain population growth and reduce reliance on wild resources. Gathering wood now will help maintain food production and prepare for future building needs.
+
+[STATUS 453s] 76 resources left, Total inventory: 16 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1395, 1486), inv={'food': 16, 'wood': 0, 'stone': 0}
+
+
+[STATUS 463s] 76 resources left, Total inventory: 16 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(1094, 1384), inv={'food': 16, 'wood': 0, 'stone': 0}
+
+
+[STATUS 473s] 76 resources left, Total inventory: 1 food, 0 wood, Buildings: 29
+   Thronglet 0: pos=(816, 1057), inv={'food': 1, 'wood': 0, 'stone': 0}
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock medicine_1|Population health is critically low (avg 0.3/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival and population stability.
+
+8|build 1 well immediately|Thronglets are at risk of dying from thirst, and 1 well per 10 population is the minimum target. With 1 thronglet, 1 well is needed to prevent dehydration and reduce disease risk.
+
+7|assign 1 thronglet to gather food|Average hunger is extremely high (99.9/100), and current food reserves are insufficient to sustain population growth or health. Immediate food gathering is required to reduce hunger and improve health.
+
+[Directive] Priority 9: unlock medicine_1 - Population health is critically low (avg 0.3/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival and population stability.
+[Directive] Priority 8: build 1 well immediately - Thronglets are at risk of dying from thirst, and 1 well per 10 population is the minimum target. With 1 thronglet, 1 well is needed to prevent dehydration and reduce disease risk.
+[Directive] Priority 7: assign 1 thronglet to gather food - Average hunger is extremely high (99.9/100), and current food reserves are insufficient to sustain population growth or health. Immediate food gathering is required to reduce hunger and improve health.
+
+[STATUS 483s] 75 resources left, Total inventory: 4 food, 1 wood, Buildings: 29
+   Thronglet 0: pos=(803, 752), inv={'food': 4, 'wood': 1, 'stone': 0}
+
+Thronglet -> BUILDING well! Following directive: build 1 well immediately
+Thronglet leveled up building to level 2!
+Thronglet -> BUILDING well! Following directive: build 1 well immediately
+
+[STATUS 493s] 73 resources left, Total inventory: 6 food, 1 wood, Buildings: 31
+   Thronglet 0: pos=(699, 594), inv={'food': 6, 'wood': 1, 'stone': 0}
+
+Thronglet -> BUILDING well! Following directive: build 1 well immediately
+
+[STATUS 503s] 73 resources left, Total inventory: 8 food, 2 wood, Buildings: 32
+   Thronglet 0: pos=(234, 339), inv={'food': 8, 'wood': 2, 'stone': 0}
+
+Thronglet leveled up gathering to level 4!
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock medicine_1|Population health is critically low (avg 1.4/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival as population grows.
+
+8|build 1 shrine|Happiness is very low (44.8/100), and shrines boost happiness, reproduction, and social bonds. With only 1 thronglet, improving social infrastructure early will support future growth and stability.
+
+7|assign 1 thronglet to gather wood and stone|Need 3 wood and 2 stone for 1 workshop, which is required to craft tools, repair buildings, and boost production efficiency. Workshop is critical for scaling beyond early-stage survival.
+
+[Directive] Priority 9: unlock medicine_1 - Population health is critically low (avg 1.4/100) and two thronglets have died, indicating vulnerability to disease. Medicine_1 provides disease resistance and health regeneration, which is essential for survival as population grows.
+[Directive] Priority 8: build 1 shrine - Happiness is very low (44.8/100), and shrines boost happiness, reproduction, and social bonds. With only 1 thronglet, improving social infrastructure early will support future growth and stability.
+[Directive] Priority 7: assign 1 thronglet to gather wood and stone - Need 3 wood and 2 stone for 1 workshop, which is required to craft tools, repair buildings, and boost production efficiency. Workshop is critical for scaling beyond early-stage survival.
+
+[STATUS 513s] 74 resources left, Total inventory: 10 food, 3 wood, Buildings: 32
+   Thronglet 0: pos=(50, 703), inv={'food': 10, 'wood': 3, 'stone': 0}
+
+
+[STATUS 523s] 74 resources left, Total inventory: 12 food, 3 wood, Buildings: 32
+   Thronglet 0: pos=(391, 878), inv={'food': 12, 'wood': 3, 'stone': 0}
+
+A thronglet has died. Population: 0
+
+[STATUS 533s] 75 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+10|unlock agriculture_1|Farms are producing only ~0.6 food/sec, and with no population, food is not being consumed. agriculture_1 will increase farm output by 50%, helping prepare for future growth and ensuring sustainable food supply.
+
+9|build 1 house immediately|Population is 0, but houses are needed for future reproduction and to support population growth. 1 house is sufficient for now to prepare for thronglet arrival and to maintain capacity for 2 thronglets.
+
+8|unlock medicine_1|Average health is 100/100 now, but population is 0 and no thronglets are present to benefit from disease resistance yet. However, this is a critical defensive tech for future population health and survival. It will also help reduce death rate from disease, which is key for long-term sustainability.
+
+[Directive] Priority 10: unlock agriculture_1 - Farms are producing only ~0.6 food/sec, and with no population, food is not being consumed. agriculture_1 will increase farm output by 50%, helping prepare for future growth and ensuring sustainable food supply.
+[Directive] Priority 9: build 1 house immediately - Population is 0, but houses are needed for future reproduction and to support population growth. 1 house is sufficient for now to prepare for thronglet arrival and to maintain capacity for 2 thronglets.
+[Directive] Priority 8: unlock medicine_1 - Average health is 100/100 now, but population is 0 and no thronglets are present to benefit from disease resistance yet. However, this is a critical defensive tech for future population health and survival. It will also help reduce death rate from disease, which is key for long-term sustainability.
+
+[STATUS 543s] 79 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 553s] 81 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 563s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock agriculture_1|Farms are currently producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm output by 50%, which will help scale production when population grows and prevent food waste.
+
+8|build 1 house immediately|Population is 0, but we have 3 houses already built with capacity for 6 thronglets. Building 1 more house now prepares for early population growth and ensures we can support 2 more thronglets once we begin reproducing.
+
+7|assign 1 thronglet to gather wood|We have 6 wood in storage, but need 2 wood per farm and 3 wood per workshop. With 6 farms and 1 workshop, we need at least 15 wood for future expansion. Assigning a thronglet to gather wood now prevents resource bottlenecks later.
+
+[Directive] Priority 9: unlock agriculture_1 - Farms are currently producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm output by 50%, which will help scale production when population grows and prevent food waste.
+[Directive] Priority 8: build 1 house immediately - Population is 0, but we have 3 houses already built with capacity for 6 thronglets. Building 1 more house now prepares for early population growth and ensures we can support 2 more thronglets once we begin reproducing.
+[Directive] Priority 7: assign 1 thronglet to gather wood - We have 6 wood in storage, but need 2 wood per farm and 3 wood per workshop. With 6 farms and 1 workshop, we need at least 15 wood for future expansion. Assigning a thronglet to gather wood now prevents resource bottlenecks later.
+
+[STATUS 573s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 583s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 593s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock agriculture_1|Farms are currently producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help utilize excess food and prepare for future population growth.
+
+8|build 1 house immediately|Population is 0, but we have 3 houses built with capacity for 6 thronglets. Building 1 house now ensures we can support early population growth and prevents waste from overbuilding storage or other structures.
+
+7|assign 2 thronglets to gather wood|We have 6 wood in storage and 22 wild wood on map. Need 2 wood for 1 farm (to sustain population) and 3 wood for 1 workshop (for future tool crafting). Gathering wood now ensures we can expand production without delay.
+
+[Directive] Priority 9: unlock agriculture_1 - Farms are currently producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help utilize excess food and prepare for future population growth.
+[Directive] Priority 8: build 1 house immediately - Population is 0, but we have 3 houses built with capacity for 6 thronglets. Building 1 house now ensures we can support early population growth and prevents waste from overbuilding storage or other structures.
+[Directive] Priority 7: assign 2 thronglets to gather wood - We have 6 wood in storage and 22 wild wood on map. Need 2 wood for 1 farm (to sustain population) and 3 wood for 1 workshop (for future tool crafting). Gathering wood now ensures we can expand production without delay.
+
+[STATUS 603s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 613s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 623s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+10|unlock agriculture_1|Farms are producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help balance food output with growing population needs.
+
+8|assign 2 thronglets to gather wood|Need 4 wood for 2 farms to sustain population. Current wood reserves are low (6 wood in storage), and we must prepare for future building needs. 2 gatherers will ensure steady wood supply while avoiding overbuilding storage.
+
+7|explore east territory|Map resources are running low (only 50 wild food, 22 wild wood, 10 stone), and we have 16 wells already built. Exploring new areas will provide fresh resources and expand our territory for future expansion.
+
+[Directive] Priority 10: unlock agriculture_1 - Farms are producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help balance food output with growing population needs.
+[Directive] Priority 8: assign 2 thronglets to gather wood - Need 4 wood for 2 farms to sustain population. Current wood reserves are low (6 wood in storage), and we must prepare for future building needs. 2 gatherers will ensure steady wood supply while avoiding overbuilding storage.
+[Directive] Priority 7: explore east territory - Map resources are running low (only 50 wild food, 22 wild wood, 10 stone), and we have 16 wells already built. Exploring new areas will provide fresh resources and expand our territory for future expansion.
+
+[STATUS 633s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 643s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 653s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock agriculture_1|Farms are producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help balance food output with future population growth.
+
+8|build 1 house immediately|Population is 0, but we have 3 houses built already. We need to prepare for the first thronglet's arrival, and 1 house supports 2 thronglets. With 16 wells and 6 storage, we're well-prepared for expansion once population starts growing.
+
+7|assign 1 thronglet to gather wood|We have 6 wood in storage and 22 wild wood on map. Need at least 2 wood for 1 farm (to produce 1 food every 10 sec) and 1 more for future expansion. This ensures sustainable resource gathering as population grows.
+
+[Directive] Priority 9: unlock agriculture_1 - Farms are producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help balance food output with future population growth.
+[Directive] Priority 8: build 1 house immediately - Population is 0, but we have 3 houses built already. We need to prepare for the first thronglet's arrival, and 1 house supports 2 thronglets. With 16 wells and 6 storage, we're well-prepared for expansion once population starts growing.
+[Directive] Priority 7: assign 1 thronglet to gather wood - We have 6 wood in storage and 22 wild wood on map. Need at least 2 wood for 1 farm (to produce 1 food every 10 sec) and 1 more for future expansion. This ensures sustainable resource gathering as population grows.
+
+[STATUS 663s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 673s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 683s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+10|unlock agriculture_1|Farms are producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help utilize excess food and prepare for future growth.
+
+9|build 1 house immediately|Population is currently 0, but we have 3 houses built with capacity for 6 thronglets. We need to prepare for reproduction, which will occur when needs are met. Building one house now ensures we have space when the first thronglets are born.
+
+8|assign 1 thronglet to gather wood|We have 6 wood in storage and 22 wild wood on the map. Need 2 wood to build 1 farm (which will be needed soon). Assigning a gatherer now will allow us to start building farms as soon as we have enough resources, supporting future population growth.
+
+[Directive] Priority 10: unlock agriculture_1 - Farms are producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help utilize excess food and prepare for future growth.
+[Directive] Priority 9: build 1 house immediately - Population is currently 0, but we have 3 houses built with capacity for 6 thronglets. We need to prepare for reproduction, which will occur when needs are met. Building one house now ensures we have space when the first thronglets are born.
+[Directive] Priority 8: assign 1 thronglet to gather wood - We have 6 wood in storage and 22 wild wood on the map. Need 2 wood to build 1 farm (which will be needed soon). Assigning a gatherer now will allow us to start building farms as soon as we have enough resources, supporting future population growth.
+
+[STATUS 693s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 704s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 714s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock agriculture_1|Farms are producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help utilize excess food and prepare for future population growth.
+
+8|assign 1 thronglet to gather wood|Need 2 wood for 1 farm to sustain population, and 3 wood for 1 workshop. With 6 farms and 1 workshop already built, we need to secure resources for expansion.
+
+7|build 1 house immediately|Population is currently 0, but we have 3 houses already built with capacity for 6 thronglets. Building 1 more house ensures we can support population growth without overbuilding storage or other infrastructure.
+
+6|explore east territory|Map resources are running low, especially wood. Exploring east will help us locate new resource deposits to support future population growth and building projects.
+
+5|unlock social_1|With no population yet, happiness is at 100%, but we want to maintain a strong foundation for community building. social_1 increases happiness base by 20% and reduces bond decay, preparing for future social dynamics.
+
+4|assign 1 thronglet to gather stone|We have 10 stone available, but need 2 stone for 1 workshop and 3 stone for 1 shrine. Gathering stone now will allow us to build these critical structures for reproduction and health.
+
+3|unlock medicine_1|We have 3 deaths from old age, indicating a need for better health management. medicine_1 increases disease recovery rate by 100% and health regeneration by 100%, which will help maintain population stability.
+
+2|build 1 shrine|Shrines boost happiness and reproduction, and we're currently at 100% happiness. Building a shrine will prepare for reproduction and social bonds, especially since we have 3 houses and 1 workshop already built.
+
+1|unlock architecture_1|We have 3 houses already built with capacity for 6 thronglets. architecture_1 increases house capacity by 50%, allowing us to support more thronglets per house, which will be crucial as population grows.
+
+Note: The strategy focuses on preparing for population growth while avoiding overbuilding storage and maintaining resource balance. The current population is 0, so we're essentially setting up the infrastructure for future expansion.
+
+[Directive] Priority 9: unlock agriculture_1 - Farms are producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help utilize excess food and prepare for future population growth.
+[Directive] Priority 8: assign 1 thronglet to gather wood - Need 2 wood for 1 farm to sustain population, and 3 wood for 1 workshop. With 6 farms and 1 workshop already built, we need to secure resources for expansion.
+[Directive] Priority 7: build 1 house immediately - Population is currently 0, but we have 3 houses already built with capacity for 6 thronglets. Building 1 more house ensures we can support population growth without overbuilding storage or other infrastructure.
+[Directive] Priority 6: explore east territory - Map resources are running low, especially wood. Exploring east will help us locate new resource deposits to support future population growth and building projects.
+[Directive] Priority 5: unlock social_1 - With no population yet, happiness is at 100%, but we want to maintain a strong foundation for community building. social_1 increases happiness base by 20% and reduces bond decay, preparing for future social dynamics.
+[Directive] Priority 4: assign 1 thronglet to gather stone - We have 10 stone available, but need 2 stone for 1 workshop and 3 stone for 1 shrine. Gathering stone now will allow us to build these critical structures for reproduction and health.
+[Directive] Priority 3: unlock medicine_1 - We have 3 deaths from old age, indicating a need for better health management. medicine_1 increases disease recovery rate by 100% and health regeneration by 100%, which will help maintain population stability.
+[Directive] Priority 2: build 1 shrine - Shrines boost happiness and reproduction, and we're currently at 100% happiness. Building a shrine will prepare for reproduction and social bonds, especially since we have 3 houses and 1 workshop already built.
+[Directive] Priority 1: unlock architecture_1 - We have 3 houses already built with capacity for 6 thronglets. architecture_1 increases house capacity by 50%, allowing us to support more thronglets per house, which will be crucial as population grows.
+
+[STATUS 724s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 734s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[STATUS 744s] 82 resources left, Total inventory: 0 food, 0 wood, Buildings: 32
+
+
+[Civilization Advisor] Querying LLM for strategic guidance...
+[Civilization Advisor] LLM Response:
+9|unlock agriculture_1|Farms are producing only ~0.6 food/sec with no population to consume, but with 287 food ready-to-harvest and 6 farms, we're already overproducing. agriculture_1 increases farm production rate by 50%, which will help utilize excess food and prepare for future population growth.
+
+8|build 1 house immediately|Population is 0, but we have 3 houses already built (capacity 6). We need to prepare for reproduction and incoming thronglets. Building 1 house now ensures we can support 2 thronglets when they arrive.
+
+7|assign 1 thronglet to gather wood|Need 2 wood for 1 farm to sustain population, and we have 6 farms producing food. Gathering wood now will allow us to build more farms or workshops in the near future.

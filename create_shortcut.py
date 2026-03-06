@@ -1,0 +1,50 @@
+"""
+Create a desktop shortcut for Thronglets game
+Double-click the shortcut to play!
+"""
+import os
+import sys
+
+try:
+    from win32com.client import Dispatch
+    HAS_PYWIN32 = True
+except ImportError:
+    HAS_PYWIN32 = False
+
+def create_shortcut():
+    """Create desktop shortcut to start the game"""
+    # Get paths
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
+    
+    if HAS_PYWIN32:
+        # Use pywin32 to create shortcut
+        shell = Dispatch('WScript.Shell')
+        shortcut = shell.CreateShortCut(os.path.join(desktop, 'Thronglets.lnk'))
+        shortcut.Targetpath = 'cmd.exe'
+        shortcut.Arguments = '/k py thronglets_game.py'
+        shortcut.WorkingDirectory = script_dir
+        shortcut.IconLocation = sys.executable
+        shortcut.Description = "AI-Powered Civilization Simulator"
+        shortcut.save()
+        print("✓ Shortcut created on Desktop!")
+        return True
+    else:
+        # Fallback: create a batch file on desktop
+        batch_file = os.path.join(desktop, 'Start Thronglets.bat')
+        with open(batch_file, 'w') as f:
+            f.write(f'''@echo off
+cd /d "{script_dir}"
+py thronglets_game.py
+pause
+''')
+        print("✓ Batch file created on Desktop!")
+        print("  Install pywin32 for a proper shortcut: pip install pywin32")
+        return True
+
+if __name__ == '__main__':
+    print("Creating Thronglets launcher...")
+    if create_shortcut():
+        print("\nDone! You can now double-click to start the game.")
+    else:
+        print("\nFailed to create shortcut.")
