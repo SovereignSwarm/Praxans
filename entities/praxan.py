@@ -138,6 +138,8 @@ class Praxan:
         # State Machine
         self.state = STATE_IDLE
         self.state_history = []  # Track state transitions for debugging
+        self.game_ref = None     # Reference to main game object/loop
+        self.schedule = ["Anything"] * 24  # 24-hour schedule slots
         self.state_entry_time = time.time()  # When current state was entered
         self.previous_state = None
         
@@ -159,6 +161,11 @@ class Praxan:
         
         # Behavior Tree - lazy initialization in decide_action()
         self.behavior_tree = None
+
+        # Work Priorities (1: Highest, 4: Lowest, 0: Disabled)
+        self.work_priorities = {work_type: 3 for work_type in WORK_TYPES}
+        self.hauling_target_resource = None
+        self.hauling_target_storage = None
     
     def add_moodlet(self, name, value, duration, current_time):
         for m in self.moodlets:
@@ -254,6 +261,147 @@ class Praxan:
             self.vx, self.vy = PRAXAN_SPEED, 0
             self.current_action = "Giving up and leaving"
         
+        return None
+
+    def find_nearest_haulable(self, resources):
+        """Find the nearest uncollected resource."""
+        best_dist = float('inf')
+        best_res = None
+        for res in resources:
+            if not res.collected:
+                dist = math.sqrt((res.x - self.x)**2 + (res.y - self.y)**2)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_res = res
+        return best_res
+
+    def find_best_storage(self, buildings, stockpile_zones, resource_type):
+        """Find the nearest valid storage for a resource type."""
+        best_dist = float('inf')
+        best_storage = None
+        
+        # Check storage buildings
+        for b in buildings:
+            if b.building_type == 'storage':
+                dist = math.sqrt((b.x - self.x)**2 + (b.y - self.y)**2)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_storage = b
+        
+        # Check stockpile zones
+        for z in stockpile_zones:
+            if z.is_valid_for(resource_type):
+                dist = math.sqrt((z.rect.centerx - self.x)**2 + (z.rect.centery - self.y)**2)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_storage = z
+        
+        return best_storage
+
+    def haul_resources(self, resources, buildings, stockpile_zones):
+        """Logic for hauling task."""
+        # 1. If carrying nothing, find a resource to pick up
+        if sum(self.inventory.values()) == 0:
+            if not self.hauling_target_resource or self.hauling_target_resource.collected:
+                self.hauling_target_resource = self.find_nearest_haulable(resources)
+            
+            if self.hauling_target_resource:
+                self.current_action = f"Hauling: Going to {self.hauling_target_resource.resource_type}"
+                dx, dy = self.hauling_target_resource.x - self.x, self.hauling_target_resource.y - self.y
+                dist = math.sqrt(dx**2 + dy**2)
+                if dist < 10:
+                    # Pick up
+                    self.hauling_target_resource.collected = True
+                    self.inventory[self.hauling_target_resource.resource_type] += 1
+                    self.hauling_target_resource = None
+                else:
+                    self.vx = (dx/dist) * PRAXAN_SPEED
+                    self.vy = (dy/dist) * PRAXAN_SPEED
+            else:
+                self.current_action = "Hauling: No resources found"
+                self.state = STATE_IDLE
+        
+        # 2. If carrying something, find storage to drop off
+        else:
+            res_type = next(k for k, v in self.inventory.items() if v > 0)
+            if not self.hauling_target_storage:
+                self.hauling_target_storage = self.find_best_storage(buildings, stockpile_zones, res_type)
+            
+            if self.hauling_target_storage:
+                self.current_action = f"Hauling: Dropping off {res_type}"
+                tx, ty = (self.hauling_target_storage.x, self.hauling_target_storage.y) if hasattr(self.hauling_target_storage, 'x') else self.hauling_target_storage.get_center()
+                dx, dy = tx - self.x, ty - self.y
+                dist = math.sqrt(dx**2 + dy**2)
+                if dist < 20:
+                    # Drop off
+                    self.hauling_target_storage.stored_resources[res_type] += self.inventory[res_type]
+                    self.inventory[res_type] = 0
+                    self.hauling_target_storage = None
+                else:
+                    self.vx = (dx/dist) * PRAXAN_SPEED
+                    self.vy = (dy/dist) * PRAXAN_SPEED
+            else:
+                self.current_action = "Hauling: No storage found"
+                # If no storage, wander or drop on ground? For now just idle
+                self.state = STATE_IDLE
+        
+        return None
+
+    def gather_resources(self, resources):
+        """Logic for gathering task (priority based)."""
+        target, dist = self.find_nearest_resource(resources)
+        if target:
+            self.current_action = f"Gathering: Going to {target.resource_type}"
+            dx, dy = target.x - self.x, target.y - self.y
+            if dist < 10:
+                # Start gathering
+                self.gathering_resource = target
+                self.gathering_start_time = time.time()
+                self.vx, self.vy = 0, 0
+            else:
+                self.vx = (dx/dist) * PRAXAN_SPEED
+                self.vy = (dy/dist) * PRAXAN_SPEED
+        else:
+            self.current_action = "Gathering: No resources"
+            self.state = STATE_IDLE
+        return None
+
+    def build_structure(self, buildings, resources, other_praxans, city_planner, territory_manager, hazards):
+        """Logic for building task (priority based)."""
+        # For now, simplistic building logic: find a building type we can afford and build it nearby
+        # (In a real scenario, this would check pending blueprints if we had them)
+        
+        # Check if we have a target building type to work on
+        building_type = getattr(self, 'building_target_type', 'house') 
+        
+        base_wood, base_stone = get_building_cost(building_type)
+        building_bonus = self.get_building_bonus()
+        required_wood = max(1, int(base_wood / building_bonus))
+        required_stone = max(1, int(base_stone / building_bonus))
+        
+        available_wood, available_stone = self.calculate_pooled_resources(other_praxans)
+        
+        if available_wood >= required_wood and available_stone >= required_stone:
+            # Find location and build
+            if city_planner:
+                best_x, best_y, _ = city_planner.find_best_location(building_type, buildings, hazards, (self.x, self.y))
+                dist = math.sqrt((best_x - self.x)**2 + (best_y - self.y)**2)
+                if dist < 20:
+                    if self.consume_pooled_resources(required_wood, required_stone, other_praxans):
+                        self.build_message = f"Built {building_type}!"
+                        self.build_message_time = time.time()
+                        self.next_build_location = (best_x, best_y)
+                        return building_type
+                else:
+                    dx, dy = best_x - self.x, best_y - self.y
+                    self.vx = (dx/dist) * PRAXAN_SPEED
+                    self.vy = (dy/dist) * PRAXAN_SPEED
+                    self.current_action = f"Building: Moving to {building_type} site"
+        else:
+            # Not enough resources, maybe switch to gathering? 
+            # For now, just idle or let the priority grid handle it
+            self.current_action = "Building: Insufficient resources"
+            self.state = STATE_IDLE
         return None
 
 
@@ -969,8 +1117,8 @@ class Praxan:
             if VERBOSE_LOGGING:
                 print(f"[Praxan {self.id}] State transition: {self.previous_state} -> {new_state}")
     
-    def decide_action(self, resources, buildings, delta_time, directives=None, is_night=False, other_praxans=None, group_tasks=None, conditional_behaviors=None, territory_manager=None, city_planner=None, hazards=None, world_map=None):
-        """Autonomous decision-making based on needs and personality using state machine and behavior tree"""
+    def decide_action(self, resources, buildings, delta_time, directives=None, is_night=False, other_praxans=None, group_tasks=None, conditional_behaviors=None, territory_manager=None, city_planner=None, hazards=None, world_map=None, game_hour=0, rooms=None):
+        """AI decision making for the praxan needs and personality using state machine and behavior tree"""
         current_time = time.time()
         self.update_mood(current_time, delta_time)
         
@@ -1005,7 +1153,8 @@ class Praxan:
                 'territory_manager': territory_manager,
                 'city_planner': city_planner,
                 'hazards': hazards,
-                'world_map': world_map
+                'world_map': world_map,
+                'game_hour': game_hour
             }
             try:
                 self.behavior_tree.tick(context)
@@ -1082,6 +1231,31 @@ class Praxan:
             0,
             self.needs['thirst'] - ((thirst_decay * decay_multiplier * delta_time) / max(0.75, metabolism_efficiency)),
         )
+
+        # Environment: Outdoors & Beauty
+        current_room = None
+        if rooms:
+            tx, ty = int(self.x // TILE_SIZE), int(self.y // TILE_SIZE)
+            for room in rooms:
+                if (tx, ty) in room.tiles:
+                    current_room = room
+                    break
+        
+        if current_room:
+            # Outdoors need
+            if current_room.is_outdoors:
+                self.needs['outdoors'] = min(100, self.needs['outdoors'] + 2.0 * delta_time)
+            else:
+                self.needs['outdoors'] = max(0, self.needs['outdoors'] - 0.5 * delta_time)
+            
+            # Beauty restoration from room itself (size/layout) + decay
+            # Spacious rooms give a small beauty boost
+            room_beauty_bonus = (current_room.beauty / 10.0) + (min(50, current_room.size) / 50.0)
+            self.needs['beauty'] = clamp(self.needs['beauty'] + (room_beauty_bonus - 0.2) * delta_time, 0.0, 100.0)
+        else:
+            # Fallback for no room detected (should be rare)
+            self.needs['outdoors'] = min(100, self.needs['outdoors'] + 1.0 * delta_time)
+            self.needs['beauty'] = max(0, self.needs['beauty'] - 0.1 * delta_time)
         
         # Priority 0: Auto-eat if hungry and carrying food
         if self.needs['hunger'] < 70 and self.inventory['food'] > 0:
@@ -1368,283 +1542,25 @@ class Praxan:
                     
                     # Handle gathering directive
                     if 'gather' in action or 'collect' in action:
-                        # Check for multiple resource types in directive (e.g., "gather wood and stone")
-                        desired_types = []
-                        if 'wood' in action:
-                            desired_types.append('wood')
-                        if 'food' in action:
-                            desired_types.append('food')
-                        if 'stone' in action:
-                            desired_types.append('stone')
-                        
-                        # If no specific types mentioned, gather any resource
-                        if not desired_types:
-                            desired_type = None
-                        else:
-                            desired_type = desired_types[0]  # Start with first mentioned
-                        
-                        closest_resource = None
-                        closest_distance = float('inf')
-                        
-                        # Try to find closest resource of any desired type
-                        for resource in resources:
-                            if not resource.collected:
-                                # Match any desired type, or any type if none specified
-                                if desired_type is None or resource.resource_type in desired_types or resource.resource_type == desired_type:
-                                    distance = math.sqrt((resource.x - self.x)**2 + (resource.y - self.y)**2)
-                                    if distance < closest_distance:
-                                        closest_distance = distance
-                                        closest_resource = resource
-                        
-                        # Execute gathering directive if resource is found (even if far)
-                        if closest_resource:
-                            dx = closest_resource.x - self.x
-                            dy = closest_resource.y - self.y
-                            distance = math.sqrt(dx**2 + dy**2)
-                            if distance > 0:
-                                # Use pathfinding for distant resources, direct movement for close ones
-                                if distance > 100:
-                                    path = self.calculate_path(closest_resource.x, closest_resource.y, buildings if buildings else [], None, None, other_praxans)
-                                    if len(path) > 1:
-                                        self.path = path
-                                        self.current_waypoint_index = 1
-                                        waypoint = path[1]
-                                        dx = waypoint[0] - self.x
-                                        dy = waypoint[1] - self.y
-                                        distance = math.sqrt(dx**2 + dy**2)
-                                        if distance > 0:
-                                            self.vx = (dx / distance) * PRAXAN_SPEED
-                                            self.vy = (dy / distance) * PRAXAN_SPEED
-                                            resource_type_name = closest_resource.resource_type
-                                            self.current_action = f"directive: moving to {resource_type_name}"
-                                            directive_executed = True
-                                            return None
-                                # Direct movement for close resources
-                                self.vx = (dx / distance) * PRAXAN_SPEED
-                                self.vy = (dy / distance) * PRAXAN_SPEED
-                                resource_type_name = closest_resource.resource_type if closest_resource else (desired_type if desired_type else 'resources')
-                                self.current_action = f"directive: gather {resource_type_name}"
-                                directive_executed = True
-                                return None
+                        self.gather_resources(resources)
+                        directive_executed = True
+                        return None
                     
                     # Handle building directive
                     elif 'build' in action:
-                        building_type = None
-                        if 'farm' in action:
-                            building_type = 'farm'
-                        elif 'storage' in action:
-                            building_type = 'storage'
-                        elif 'house' in action:
-                            building_type = 'house'
-                        elif 'workshop' in action:
-                            building_type = 'workshop'
-                        elif 'shrine' in action:
-                            building_type = 'shrine'
-                        elif 'well' in action:
-                            building_type = 'well'
-                        elif 'hospital' in action:
-                            building_type = 'hospital'
-                        elif 'school' in action:
-                            building_type = 'school'
-                        elif 'watchtower' in action:
-                            building_type = 'watchtower'
-                        elif 'market' in action:
-                            building_type = 'market'
-                        
-                        if building_type:
-                            base_wood, base_stone = get_building_cost(building_type)
-                            building_bonus = self.get_building_bonus()
-                            builder_discount = BUILDER_COST_REDUCTION if self.role == 'builder' else 1.0
-                            required_wood = 0 if base_wood <= 0 else max(1, int(base_wood * builder_discount / building_bonus))
-                            required_stone = 0 if base_stone <= 0 else max(1, int(base_stone * builder_discount / building_bonus))
-                            
-                            # Use city planner to find best location if available
-                            if city_planner and hazards is not None:
-                                best_x, best_y, score = city_planner.find_best_location(
-                                    building_type, buildings, hazards, 
-                                    (self.x, self.y), search_radius=150
-                                )
-                                
-                                # Apply soft penalty if outside territory
-                                if territory_manager and not territory_manager.is_claimed(best_x, best_y, threshold=40):
-                                    required_wood = int(required_wood * 1.3)  # 30% cost increase
-                                    required_stone = int(required_stone * 1.3)
-                                
-                                # Check if we have enough resources with potential penalty (using pooled resources)
-                                available_wood, available_stone = self.calculate_pooled_resources(other_praxans)
-                                if available_wood >= required_wood and available_stone >= required_stone:
-                                    # Move to best location if not already there
-                                    distance_to_location = math.sqrt((best_x - self.x)**2 + (best_y - self.y)**2)
-                                    if distance_to_location > 10:
-                                        # Pathfind to location
-                                        path = self.calculate_path(best_x, best_y, buildings, None, None, other_praxans)
-                                        if len(path) > 1:
-                                            self.path = path
-                                            self.current_waypoint_index = 1
-                                            self.current_action = "directive: moving to build location"
-                                            return None
-                                    
-                                    # At location, build (consume pooled resources)
-                                    self.vx = 0
-                                    self.vy = 0
-                                    self.current_action = "directive: build"
-                                    if self.consume_pooled_resources(required_wood, required_stone, other_praxans):
-                                        self.build_message = f"Built {building_type}! ({int(best_x)}, {int(best_y)})"
-                                        self.build_message_time = time.time()
-                                        self.next_build_location = (best_x, best_y)
-                                        # Clear building resource goal since we successfully built
-                                        self.building_resource_goal = None
-                                        directive_executed = True
-                                        return building_type
-                                else:
-                                    # Not enough resources - try to gather what's needed first
-                                    wood_needed = max(0, required_wood - available_wood)
-                                    stone_needed = max(0, required_stone - available_stone)
-                                    
-                                    if wood_needed > 0 or stone_needed > 0:
-                                        # Find closest resource of needed type
-                                        target_resource = None
-                                        target_distance = float('inf')
-                                        for resource in resources:
-                                            if not resource.collected:
-                                                if (wood_needed > 0 and resource.resource_type == 'wood') or \
-                                                   (stone_needed > 0 and resource.resource_type == 'stone'):
-                                                    distance = math.sqrt((resource.x - self.x)**2 + (resource.y - self.y)**2)
-                                                    if distance < target_distance:
-                                                        target_distance = distance
-                                                        target_resource = resource
-                                        
-                                        if target_resource:
-                                            dx = target_resource.x - self.x
-                                            dy = target_resource.y - self.y
-                                            distance = math.sqrt(dx**2 + dy**2)
-                                            if distance > 0:
-                                                if distance > 100:
-                                                    path = self.calculate_path(target_resource.x, target_resource.y, buildings if buildings else [], None, None, other_praxans)
-                                                    if len(path) > 1:
-                                                        self.path = path
-                                                        self.current_waypoint_index = 1
-                                                        waypoint = path[1]
-                                                        dx = waypoint[0] - self.x
-                                                        dy = waypoint[1] - self.y
-                                                        distance = math.sqrt(dx**2 + dy**2)
-                                                if distance > 0:
-                                                    self.vx = (dx / distance) * PRAXAN_SPEED
-                                                    self.vy = (dy / distance) * PRAXAN_SPEED
-                                                    self.current_action = f"directive: gathering {target_resource.resource_type} for building"
-                                                    directive_executed = True
-                                                    return None
-                                    
-                                    if VERBOSE_LOGGING:
-                                        print(f"[Praxan {self.id}] Building directive (city planner) requires {required_wood} wood, {required_stone} stone. Available: {available_wood}, {available_stone}")
-                            else:
-                                # No city planner, use old logic (build at current location)
-                                # Check pooled resources instead of individual inventory
-                                available_wood, available_stone = self.calculate_pooled_resources(other_praxans)
-                                if available_wood >= required_wood and available_stone >= required_stone:
-                                    self.vx = 0
-                                    self.vy = 0
-                                    self.current_action = "directive: build"
-                                    # Consume pooled resources (from self + nearby allies)
-                                    if self.consume_pooled_resources(required_wood, required_stone, other_praxans):
-                                        self.build_message = f"Built {building_type}! ({int(self.x)}, {int(self.y)})"
-                                        self.build_message_time = time.time()
-                                        # Clear building resource goal since we successfully built
-                                        self.building_resource_goal = None
-                                        directive_executed = True
-                                        return building_type
-                                else:
-                                    # Not enough resources - try to gather what's needed first
-                                    # Check what we need to gather
-                                    wood_needed = max(0, required_wood - available_wood)
-                                    stone_needed = max(0, required_stone - available_stone)
-                                    
-                                    # Set building resource goal so we persist in gathering mode
-                                    self.building_resource_goal = {'wood': required_wood, 'stone': required_stone}
-                                    
-                                    # If we need resources, temporarily switch to gathering mode
-                                    if wood_needed > 0 or stone_needed > 0:
-                                        # Find closest resource of needed type
-                                        target_resource = None
-                                        target_distance = float('inf')
-                                        for resource in resources:
-                                            if not resource.collected:
-                                                # Prioritize wood if we need it more, otherwise stone
-                                                resource_priority = 0
-                                                if wood_needed > 0 and resource.resource_type == 'wood':
-                                                    resource_priority = 10 - (wood_needed - (required_wood - available_wood))
-                                                elif stone_needed > 0 and resource.resource_type == 'stone':
-                                                    resource_priority = 10 - (stone_needed - (required_stone - available_stone))
-                                                
-                                                if resource_priority > 0:
-                                                    distance = math.sqrt((resource.x - self.x)**2 + (resource.y - self.y)**2)
-                                                    # Prefer closer resources, but also consider priority
-                                                    adjusted_distance = distance - (resource_priority * 10)
-                                                    if adjusted_distance < target_distance:
-                                                        target_distance = adjusted_distance
-                                                        target_resource = resource
-                                        
-                                        if target_resource:
-                                            # Move toward needed resource
-                                            dx = target_resource.x - self.x
-                                            dy = target_resource.y - self.y
-                                            distance = math.sqrt(dx**2 + dy**2)
-                                            if distance > 0:
-                                                if distance > 100:
-                                                    path = self.calculate_path(target_resource.x, target_resource.y, buildings if buildings else [], None, None, other_praxans)
-                                                    if len(path) > 1:
-                                                        self.path = path
-                                                        self.current_waypoint_index = 1
-                                                        waypoint = path[1]
-                                                        dx = waypoint[0] - self.x
-                                                        dy = waypoint[1] - self.y
-                                                        distance = math.sqrt(dx**2 + dy**2)
-                                                if distance > 0:
-                                                    self.vx = (dx / distance) * PRAXAN_SPEED
-                                                    self.vy = (dy / distance) * PRAXAN_SPEED
-                                                    self.current_action = f"directive: gathering {target_resource.resource_type} for building ({required_wood - available_wood} wood, {required_stone - available_stone} stone needed)"
-                                                    directive_executed = True
-                                                    return None
-                                    
-                                    if VERBOSE_LOGGING:
-                                        print(f"[Praxan {self.id}] Building directive requires {required_wood} wood, {required_stone} stone. Available: {available_wood}, {available_stone}")
-                
-                    # Handle explore/scout directive
-                    elif 'explore' in action or 'scout' in action:
-                        # Determine direction if specified
-                        direction = None
-                        if 'north' in action or 'up' in action:
-                            direction = 'north'
-                            # Check if already at boundary (y near 0) - if so, explore perpendicular
-                            if self.y < 100:
-                                # At north boundary, explore east/west instead
-                                direction = 'east' if random.random() > 0.5 else 'west'
-                                self.vx = PRAXAN_SPEED if direction == 'east' else -PRAXAN_SPEED
-                                self.vy = 0
-                            else:
-                                self.vy = -PRAXAN_SPEED
-                                self.vx = 0
-                        elif 'south' in action or 'down' in action:
-                            direction = 'south'
-                            self.vy = PRAXAN_SPEED
-                            self.vx = 0
-                        elif 'east' in action or 'right' in action:
-                            direction = 'east'
-                            self.vx = PRAXAN_SPEED
-                            self.vy = 0
-                        elif 'west' in action or 'left' in action:
-                            direction = 'west'
-                            self.vx = -PRAXAN_SPEED
-                            self.vy = 0
-                        else:
-                            # No specific direction, use random exploration
-                            self.set_random_direction()
-                        
-                        self.current_action = f"directive: {direction if direction else 'exploring'}"
-                        self.transition_to_state(STATE_EXPLORE)
+                        # Extract building type from action string if possible
+                        building_type = 'house'
+                        for b_type in ['farm', 'storage', 'house', 'workshop', 'shrine', 'well', 'hospital', 'school', 'watchtower', 'market']:
+                            if b_type in action:
+                                building_type = b_type
+                                break
+                        self.building_target_type = building_type
+                        res = self.build_structure(buildings, resources, other_praxans, city_planner, territory_manager, hazards)
+                        if res: # Successfully built or started building
+                            directive_executed = True
+                            return res
                         directive_executed = True
                         return None
-                
                 # If no directive was executed, transition to idle
                 if not directive_executed:
                     if VERBOSE_LOGGING:
@@ -1750,7 +1666,21 @@ class Praxan:
                                 self.vy = (dy / distance) * PRAXAN_SPEED
                                 self.current_action = "goal: seeking mate"
                                 return None
-        # Priority 3: Claim tile state (low priority for explorers)
+        # Priority 3: Manual Work Tasks (RimWorld style)
+        if self.state == STATE_HAUL:
+            # Need to pass stockpile_zones. We'll assume they are in context or buildings
+            stockpile_zones = [] # Fallback
+            if hasattr(self, 'game_ref'):
+                stockpile_zones = getattr(self.game_ref, 'stockpile_zones', [])
+            return self.haul_resources(resources, buildings, stockpile_zones)
+            
+        elif self.state == STATE_GATHER:
+            return self.gather_resources(resources)
+            
+        elif self.state == STATE_BUILD:
+            return self.build_structure(buildings, resources, other_praxans, city_planner, territory_manager, hazards)
+
+        # Priority 3.2: Claim tile state (low priority for explorers)
         if self.state == STATE_CLAIM_TILE:
             # Explorers wander toward unclaimed areas
             if territory_manager:

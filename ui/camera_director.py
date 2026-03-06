@@ -74,9 +74,9 @@ class CameraDirector:
             return None
         if manual_override:
             return self.current_cue.label
-        target_cam_x = float(self.current_cue.x) - (float(window_size[0]) / (2.0 * max(0.01, float(camera.zoom))))
-        target_cam_y = float(self.current_cue.y) - (float(window_size[1]) / (2.0 * max(0.01, float(camera.zoom))))
-        camera.x += (target_cam_x - float(camera.x)) * 0.08
-        camera.y += (target_cam_y - float(camera.y)) * 0.08
-        camera.clamp_camera()
+            
+        # Set targets for the camera to glide to
+        camera.target_x = float(self.current_cue.x) - (float(window_size[0]) / (2.0 * max(0.01, float(camera.target_zoom))))
+        camera.target_y = float(self.current_cue.y) - (float(window_size[1]) / (2.0 * max(0.01, float(camera.target_zoom))))
+        camera.clamp_camera(window_size[0], window_size[1])
         return self.current_cue.label

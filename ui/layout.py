@@ -15,6 +15,8 @@ class RunLayout:
     world_view: pygame.Rect
     modal: pygame.Rect
     overlay_chip: pygame.Rect
+    pawn_roster: pygame.Rect
+    bottom_spine: pygame.Rect
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,8 @@ def compute_run_layout(width: int, height: int) -> RunLayout:
         world_view=pygame.Rect(world_left, world_top, max(240, world_right - world_left - margin), max(240, world_bottom - world_top)),
         modal=modal,
         overlay_chip=pygame.Rect(margin + 16, margin + 50, 154, 24),
+        pawn_roster=pygame.Rect(world_left, margin, world_right - world_left - margin, 40),
+        bottom_spine=pygame.Rect(world_left, world_bottom + 10, world_right - world_left - margin, transport_h),
     )
 
 

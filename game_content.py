@@ -9,51 +9,61 @@ BUILDING_DEFINITIONS = {
     "house": {
         "name": "House",
         "cost": {"wood": 4, "stone": 0},
+        "beauty": 5,
         "prompt_summary": "Base capacity 2 praxans, capacity scales with building level, restores energy while inside.",
     },
     "farm": {
         "name": "Farm",
         "cost": {"wood": 5, "stone": 0},
+        "beauty": 2,
         "prompt_summary": "Auto-produces food over time and becomes stronger inside developed districts.",
     },
     "storage": {
         "name": "Storage",
         "cost": {"wood": 3, "stone": 0},
+        "beauty": -2,
         "prompt_summary": "Stores gathered resources and supports industrial districts.",
     },
     "workshop": {
         "name": "Workshop",
         "cost": {"wood": 6, "stone": 4},
+        "beauty": 1,
         "prompt_summary": "Boosts production and inspiration in developed districts.",
     },
     "shrine": {
         "name": "Shrine",
         "cost": {"wood": 8, "stone": 5},
+        "beauty": 15,
         "prompt_summary": "Raises happiness, morale, inspiration, and cultural growth.",
     },
     "well": {
         "name": "Well",
         "cost": {"wood": 0, "stone": 3},
+        "beauty": 3,
         "prompt_summary": "Supports thirst management and lowers hygiene pressure.",
     },
     "hospital": {
         "name": "Hospital",
         "cost": {"wood": 10, "stone": 8},
+        "beauty": 8,
         "prompt_summary": "Greatly accelerates disease recovery and passively restores health.",
     },
     "school": {
         "name": "School",
         "cost": {"wood": 12, "stone": 6},
+        "beauty": 10,
         "prompt_summary": "Accelerates skill acquisition and experience gain for nearby praxans.",
     },
     "watchtower": {
         "name": "Watchtower",
         "cost": {"wood": 15, "stone": 15},
+        "beauty": 5,
         "prompt_summary": "Expands territory claims significantly and provides massive visibility radius.",
     },
     "market": {
         "name": "Market",
         "cost": {"wood": 20, "stone": 10},
+        "beauty": 12,
         "prompt_summary": "Boosts faction cohesion, distributes resources, and raises prosperity.",
     },
 }

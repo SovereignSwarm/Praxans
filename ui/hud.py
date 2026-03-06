@@ -24,7 +24,15 @@ _NOTE_COLOR_MAP = {
     "milestone": "note_discovery",
     "death": "note_crisis",
     "schism": "note_faction",
+    "order": "note_discovery",
 }
+
+_ARCHITECT_MENU_ITEMS = [
+    ("Orders", "architect_sub:orders"),
+    ("Zone", "architect_sub:zone"),
+    ("Structure", "architect_sub:structure"),
+    ("Production", "architect_sub:production"),
+]
 
 _OVERLAYS = ("biome", "elevation", "water", "claims", "hazards", "routes", "fog", "bookmarks", "districts", "migration")
 
@@ -93,6 +101,85 @@ def _draw_transport_bar(surface: pygame.Surface, theme: UITheme, layout, registr
         registry.register(action, rect, action=action, layer=6)
         draw_button(surface, rect, theme, label, hotkey=hotkey, active=active, accent=accent, subtle=True)
         x += button_w + 10
+
+
+def _draw_pawn_roster(surface: pygame.Surface, theme: UITheme, layout, registry, praxans: list[Any]) -> None:
+    if not praxans:
+        return
+    x = layout.pawn_roster.x
+    y = layout.pawn_roster.y
+    badge_w = 120
+    badge_h = 32
+    for praxan in praxans[:8]:
+        rect = pygame.Rect(x, y, badge_w, badge_h)
+        registry.register(f"jump_to_pawn:{praxan.id}", rect, action="jump_to_pawn", payload=praxan.id, layer=6)
+        
+        # Color based on health
+        fill = theme.palette.panel_fill_alt
+        if getattr(praxan, "health", 100) < 30:
+            fill = theme.palette.danger
+        
+        draw_badge(surface, theme, rect, f"P#{praxan.id}", fill=fill)
+        x += badge_w + 8
+
+
+def _draw_bottom_spine(surface: pygame.Surface, theme: UITheme, layout, registry, ui_state) -> None:
+    draw_panel(surface, layout.bottom_spine, theme, fill=(22, 27, 29), alpha=236, radius=theme.radius_large)
+    buttons = [
+        ("architect", "Architect", "B"),
+        ("work", "Work", "W"),
+        ("schedule", "Schedule", "H"),
+        ("research", "Research", "R"),
+    ]
+    button_w = 140
+    button_h = 42
+    x = layout.bottom_spine.x + 14
+    y = layout.bottom_spine.y + 14
+    for action, label, hotkey in buttons:
+        rect = pygame.Rect(x, y, button_w, button_h)
+        registry.register(f"spine_{action}", rect, action=action, layer=6)
+        active = (action == "architect" and ui_state.architect_mode is not None)
+        draw_button(surface, rect, theme, label, hotkey=hotkey, active=active, accent=theme.palette.ochre if active else theme.palette.slate_soft)
+        x += button_w + 10
+    
+    # Draw sub-menu if architect is active
+    if ui_state.architect_mode:
+        sub_x = layout.bottom_spine.x + 14
+        sub_y = layout.bottom_spine.y - 48
+        for label, action in _ARCHITECT_MENU_ITEMS:
+            rect = pygame.Rect(sub_x, sub_y, 110, 36)
+            registry.register(action, rect, action=action, layer=7)
+            draw_button(surface, rect, theme, label, active=ui_state.architect_mode == action.split(":")[1], accent=theme.palette.moss, subtle=True)
+            sub_x += 120
+
+
+def _draw_context_menu(surface: pygame.Surface, theme: UITheme, registry, ui_state) -> None:
+    if not ui_state.context_menu_pos or not ui_state.context_menu_items:
+        return
+    
+    pos = ui_state.context_menu_pos
+    items = ui_state.context_menu_items
+    item_h = 32
+    menu_w = 180
+    menu_h = len(items) * item_h + 10
+    
+    rect = pygame.Rect(pos[0], pos[1], menu_w, menu_h)
+    # Ensure menu stays on screen
+    if rect.right > surface.get_width() - 20: rect.x -= rect.w
+    if rect.bottom > surface.get_height() - 20: rect.y -= rect.h
+    
+    draw_panel(surface, rect, theme, fill=theme.palette.ink, alpha=250, radius=theme.radius_small)
+    
+    y = rect.y + 5
+    for item in items:
+        item_rect = pygame.Rect(rect.x + 5, y, menu_w - 10, item_h - 4)
+        registry.register(f"context_item:{item['id']}", item_rect, action="context_action", payload=item, layer=100)
+        
+        # Hover effect if possible? Input router doesn't track hover for context items yet, but we can draw simple
+        pygame.draw.rect(surface, theme.palette.slate, item_rect, border_radius=theme.radius_small)
+        text = theme.fonts.caption.render(item["label"], True, theme.palette.bright_text)
+        surface.blit(text, (item_rect.x + 8, item_rect.y + item_rect.h // 2 - text.get_height() // 2))
+        y += item_h
 
 
 def _draw_notes(surface: pygame.Surface, theme: UITheme, layout, registry, field_notes: list[FieldNote]) -> None:
@@ -313,3 +400,9 @@ def draw_run_hud(
     _draw_notes(surface, theme, layout, registry, field_notes)
     _draw_transport_bar(surface, theme, layout, registry, ui_state, current_speed_index)
     _draw_minimap(surface, theme, layout, registry, ui_state, minimap_context)
+    
+    # New Layers
+    praxans = minimap_context.get("praxans", [])
+    _draw_pawn_roster(surface, theme, layout, registry, praxans)
+    _draw_bottom_spine(surface, theme, layout, registry, ui_state)
+    _draw_context_menu(surface, theme, registry, ui_state)

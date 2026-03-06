@@ -36,6 +36,15 @@ class UIState:
     settings_active_input: str | None = None
     settings_dirty: bool = False
 
+    # Context Menu and Architect state
+    context_menu_pos: tuple[int, int] | None = None
+    context_menu_items: list[dict[str, Any]] = field(default_factory=list)
+    architect_mode: str | None = None  # Current sub-menu open in architect
+    placement_ghost: str | None = None  # Building ID being placed
+    designation_mode: str | None = None  # Current designation tool (e.g. 'mine')
+    show_work_priority: bool = False  # Whether the work priority grid is visible
+    show_schedule: bool = False
+
 
 @dataclass(frozen=True)
 class RegisteredRect:
@@ -79,6 +88,7 @@ class UIRectRegistry:
         candidates = [entry for entry in self._entries if entry.rect.collidepoint(pos)]
         if not candidates:
             return None
+        # Always return the top-most layer
         candidates.sort(key=lambda entry: entry.layer, reverse=True)
         return candidates[0]
 

@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 import traceback
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 
 from llm.contracts import council_payload_defaults as advisory_payload_defaults, parse_council_payload as parse_advisory_payload
@@ -98,6 +98,14 @@ BUILDING_SIZE = 32  # Half scale of new 64 tile size, but larger overall
 RESOURCE_RADIUS_FOOD = 8  # Larger, more visible resources
 RESOURCE_RADIUS_WOOD = 10  # Larger, more visible resources
 # Map system constants
+CHUNK_SIZE = 1024  # Size of a terrain chunk in pixels
+INITIAL_CHUNKS_X = 2  # 2x2 initial grid for 2048x2048 world
+INITIAL_CHUNKS_Y = 2
+
+# RimWorld-inspired Time System
+TICKS_PER_HOUR = 2500
+TICKS_PER_DAY = 60000
+game_ticks = 0
 CHUNK_SIZE = 512  # Pixels per chunk (512x512) -> This will now be 8x8 tiles instead of 16x16
 TILE_SIZE = 64  # Size of each tile (doubled for higher detail)
 INITIAL_CHUNKS_X = 64  # Massive planetary scale world width in chunks
@@ -199,6 +207,9 @@ STATE_SOCIALIZE = 'socialize'
 STATE_REST = 'rest'
 STATE_EXPLORE = 'explore'
 STATE_CLAIM_TILE = 'claim_tile'
+STATE_HAUL = 'haul'
+STATE_GATHER = 'gather'
+STATE_BUILD = 'build'
 
 # Mental Break States
 STATE_BINGE = 'binge'
@@ -222,6 +233,7 @@ ROLE_SKILL_MAP = {
     "builder": "building",
     "explorer": "exploring",
 }
+WORK_TYPES = ['Gathering', 'Building', 'Exploring', 'Hauling', 'Researching']
 ACTIVE_SCENARIO_PROFILE = get_scenario_profile(DEFAULT_SCENARIO_ID)
 ACTIVE_SCENARIO_ID = ACTIVE_SCENARIO_PROFILE["id"]
 ACTIVE_MUTATION_SCALE = float(ACTIVE_SCENARIO_PROFILE.get("mutation_scale", 1.0))
@@ -1457,6 +1469,61 @@ class SelectionManager:
             pygame.draw.circle(surface, WHITE, (int(entity.x), int(entity.y)), size, 2)
 
 
+class WorkPriorityPanel:
+    """RimWorld-style manual priority grid for praxans."""
+    def __init__(self, ui_theme):
+        self.theme = ui_theme
+        self.rect = pygame.Rect(100, 100, 800, 500)
+        self.scroll_y = 0
+        self.row_height = 40
+        self.col_width = 100
+        self.headers = ["Pawn", "Gathering", "Building", "Exploring", "Hauling", "Researching"]
+
+    def draw(self, surface, praxans, ui_registry):
+        if not praxans: return
+        
+        # Draw background panel
+        draw_panel(surface, self.rect, self.theme, fill=(25, 30, 32), alpha=245, radius=self.theme.radius_large)
+        
+        # Draw Headers
+        header_y = self.rect.y + 15
+        for i, header in enumerate(self.headers):
+            text = self.theme.fonts.label.render(header, True, self.theme.palette.parchment)
+            x = self.rect.x + 20 + i * self.col_width
+            surface.blit(text, (x, header_y))
+        
+        # Draw Pawn Rows
+        content_rect = self.rect.inflate(-40, -80)
+        content_rect.y += 40
+        
+        y = content_rect.y
+        for praxan in praxans:
+            if y + self.row_height > self.rect.bottom - 20: break
+            
+            # Pawn Name/ID
+            name_text = self.theme.fonts.caption.render(f"P#{praxan.id}", True, WHITE)
+            surface.blit(name_text, (self.rect.x + 20, y + 10))
+            
+            # Priority Boxes
+            for i, work_type in enumerate(WORK_TYPES):
+                box_x = self.rect.x + 20 + (i + 1) * self.col_width
+                box_rect = pygame.Rect(box_x, y + 5, 30, 30)
+                
+                priority = praxan.work_priorities.get(work_type, 3)
+                priority_text = self.theme.fonts.label.render(str(priority), True, GOLD if priority < 3 else (200, 200, 200))
+                
+                # Register hit area
+                ui_registry.register(f"cycle_priority:{praxan.id}:{work_type}", box_rect, action="cycle_priority", payload={"pawn_id": praxan.id, "work_type": work_type}, layer=10)
+                
+                # Draw box
+                pygame.draw.rect(surface, (40, 45, 47), box_rect, border_radius=4)
+                pygame.draw.rect(surface, self.theme.palette.slate, box_rect, 1, border_radius=4)
+                
+                # Center text in box
+                tw, th = priority_text.get_size()
+                surface.blit(priority_text, (box_rect.x + (30-tw)//2, box_rect.y + (30-th)//2))
+                
+            y += self.row_height
 
 
 
@@ -1470,6 +1537,186 @@ class SelectionManager:
 
 
 
+
+
+
+
+class SchedulePanel:
+    """RimWorld-style daily schedule grid for praxans."""
+    def __init__(self, ui_theme):
+        self.theme = ui_theme
+        self.rect = pygame.Rect(50, 100, 1260, 500)
+        self.row_height = 40
+        self.col_width = 45 # for 24 hours
+        self.categories = ["Anything", "Work", "Sleep"]
+        self.colors = {
+            "Anything": (100, 100, 100),
+            "Work": (120, 60, 120),
+            "Sleep": (60, 60, 180)
+        }
+        self.selected_category = "Anything"
+
+    def draw(self, surface, praxans, registry, game_hour):
+        # Draw panel background
+        draw_panel(surface, self.rect, self.theme, fill=(25, 30, 35), alpha=245, radius=10)
+        
+        # Draw title
+        title = self.theme.fonts.heading.render("DAILY SCHEDULE", True, self.theme.palette.parchment)
+        surface.blit(title, (self.rect.x + 20, self.rect.y + 15))
+        
+        # Draw Current Time helper
+        time_text = self.theme.fonts.label.render(f"Current Hour: {game_hour}:00", True, self.theme.palette.frost)
+        surface.blit(time_text, (self.rect.centerx - time_text.get_width()//2, self.rect.y + 15))
+        
+        # Draw category selector (paint tool)
+        cx = self.rect.x + 20
+        cy = self.rect.y + 55
+        for cat in self.categories:
+            cat_rect = pygame.Rect(cx, cy, 100, 30)
+            active = (self.selected_category == cat)
+            draw_panel(surface, cat_rect, self.theme, fill=self.colors[cat] if active else (40, 45, 50), alpha=255)
+            registry.register(f"select_schedule_cat:{cat}", cat_rect, action="select_schedule_cat", payload=cat, layer=10)
+            txt = self.theme.fonts.caption.render(cat, True, (255, 255, 255))
+            surface.blit(txt, (cat_rect.centerx - txt.get_width()//2, cat_rect.centery - txt.get_height()//2))
+            cx += 110
+
+        # Draw Hours Header
+        hx = self.rect.x + 150
+        hy = self.rect.y + 95
+        for h in range(24):
+            # Highlight current hour
+            is_now = (h == game_hour)
+            color = self.theme.palette.frost if is_now else self.theme.palette.muted_text
+            h_text = self.theme.fonts.caption.render(str(h), True, color)
+            surface.blit(h_text, (hx + (self.col_width // 2) - h_text.get_width()//2, hy))
+            hx += self.col_width
+
+        # Draw rows
+        ry = self.rect.y + 120
+        for p in praxans[:10]: # Limit for UI visibility
+            # Pawn name
+            p_rect = pygame.Rect(self.rect.x + 20, ry, 120, self.row_height - 5)
+            draw_panel(surface, p_rect, self.theme, fill=(45, 50, 55), alpha=230)
+            p_name = self.theme.fonts.caption.render(f"P#{p.id}", True, self.theme.palette.parchment)
+            surface.blit(p_name, (p_rect.x + 10, p_rect.y + 10))
+            
+            # 24 hour slots
+            sx = self.rect.x + 150
+            for h in range(24):
+                slot_rect = pygame.Rect(sx, ry, self.col_width - 2, self.row_height - 5)
+                cat = p.schedule[h]
+                pygame.draw.rect(surface, self.colors.get(cat, (100,100,100)), slot_rect)
+                if h == game_hour:
+                    pygame.draw.rect(surface, (255, 255, 255), slot_rect, 2) # Highlight current
+                
+                registry.register(f"set_schedule:{p.id}:{h}", slot_rect, action="cycle_schedule", payload=(p.id, h), layer=10)
+                sx += self.col_width
+            
+            ry += self.row_height
+
+@dataclass
+class RoomStats:
+    id: int
+    size: int = 0
+    beauty: float = 0.0
+    is_outdoors: bool = True
+    tiles: set[tuple[int, int]] = field(default_factory=set)
+
+def detect_room(start_x, start_y, world_width, world_height, buildings):
+    """Flood-fill to detect a room from a starting tile coordinates."""
+    # Convert pixels to tile coordinates
+    tx, ty = int(start_x // TILE_SIZE), int(start_y // TILE_SIZE)
+    
+    # Track wall positions (tiles occupied by buildings that block passage)
+    wall_tiles = set()
+    for b in buildings:
+        # Most buildings block passage and act as walls
+        if b.building_type in ['house', 'workshop', 'lab', 'temple', 'school', 'storage', 'well']:
+            bx, by = int(b.x // TILE_SIZE), int(b.y // TILE_SIZE)
+            wall_tiles.add((bx, by))
+
+    if (tx, ty) in wall_tiles:
+        return None # Can't start inside a wall
+
+    # Flood fill
+    q = [(tx, ty)]
+    room_tiles = {(tx, ty)}
+    is_outdoors = False
+    
+    max_room_tiles = 400 # Safety limit for "indoors"
+    
+    # Grid dimensions in tiles
+    w_tiles = world_width // TILE_SIZE
+    h_tiles = world_height // TILE_SIZE
+
+    while q:
+        cx, cy = q.pop(0)
+        
+        # Check if we hit map edge
+        if cx <= 0 or cy <= 0 or cx >= w_tiles - 1 or cy >= h_tiles - 1:
+            is_outdoors = True
+            # We don't break immediately if we want to find the full "outdoor" area, 
+            # but for performance we limit it.
+            if len(room_tiles) > max_room_tiles: break
+            
+        for dx, dy in [(0,1), (0,-1), (1,0), (-1,0)]:
+            nx, ny = cx + dx, cy + dy
+            if (nx, ny) not in room_tiles and (nx, ny) not in wall_tiles:
+                if 0 <= nx < w_tiles and 0 <= ny < h_tiles:
+                    room_tiles.add((nx, ny))
+                    q.append((nx, ny))
+                    if len(room_tiles) > max_room_tiles:
+                        is_outdoors = True
+                        q = [] # Stop fill
+                        break
+    
+    # Calculate beauty
+    beauty = 0.0
+    for b in buildings:
+        bx, by = int(b.x // TILE_SIZE), int(b.y // TILE_SIZE)
+        if (bx, by) in room_tiles:
+            beauty += BUILDING_DEFINITIONS.get(b.building_type, {}).get('beauty', 0)
+            
+    return RoomStats(
+        id=random.randint(1000, 9999), 
+        size=len(room_tiles), 
+        beauty=beauty, 
+        is_outdoors=is_outdoors, 
+        tiles=room_tiles
+    )
+
+def update_rooms(rooms, buildings, world_width, world_height):
+    """Update the global list of rooms based on building positions."""
+    rooms.clear()
+    visited_tiles = set()
+    
+    # Grid dimensions in tiles
+    w_tiles = world_width // TILE_SIZE
+    h_tiles = world_height // TILE_SIZE
+
+    for b in buildings:
+        # Check adjacent tiles of wall-buildings for potential rooms
+        if b.building_type in ['house', 'workshop', 'lab', 'temple', 'school', 'storage', 'well']:
+            for dx, dy in [(TILE_SIZE, 0), (-TILE_SIZE, 0), (0, TILE_SIZE), (0, -TILE_SIZE)]:
+                nx, ny = b.x + dx, b.y + dy
+                # Skip if fuera de límites
+                if nx < 0 or ny < 0 or nx >= world_width or ny >= world_height: continue
+                
+                tile_coords = (int(nx // TILE_SIZE), int(ny // TILE_SIZE))
+                if tile_coords not in visited_tiles:
+                    # Check if this tile is a wall itself
+                    is_wall = False
+                    for b2 in buildings:
+                        if b2.building_type in ['house', 'workshop', 'lab', 'temple', 'school', 'storage', 'well']:
+                            if int(b2.x // TILE_SIZE) == tile_coords[0] and int(b2.y // TILE_SIZE) == tile_coords[1]:
+                                is_wall = True
+                                break
+                    
+                    if not is_wall:
+                        room = detect_room(nx, ny, world_width, world_height, buildings)
+                        if room:
+                            rooms.append(room)
+                            visited_tiles.update(room.tiles)
 
 class ParticleSystem:
     """Manages particle effects for visual feedback"""
@@ -1692,7 +1939,7 @@ class BehaviorTree:
     
     def _build_tree(self):
         """Build the behavior tree structure"""
-        # Survival Check (Priority) - maps to STATE_SEEK_NEED
+        # 1. Survival Check (Absolute Priority)
         survival_check = BehaviorTreeNode(
             BT_NODE_CONDITION,
             'survival_check',
@@ -1713,15 +1960,33 @@ class BehaviorTree:
             children=[survival_check, survival_action]
         )
         
-        # Directive Execution - maps to STATE_EXECUTE_DIRECTIVE
+        # 1.5 Schedule-based Rest (High Priority during Sleep hours)
+        is_sleep_hour = BehaviorTreeNode(
+            BT_NODE_CONDITION,
+            'is_sleep_hour',
+            condition_func=lambda t, ctx: (
+                t.schedule[ctx.get('game_hour', 0)] == "Sleep" and 
+                t.needs['energy'] < 90
+            )
+        )
+        sleep_action = BehaviorTreeNode(
+            BT_NODE_ACTION,
+            'go_to_sleep',
+            action_func=lambda t, ctx: self._transition_to_state(t, 'STATE_REST')
+        )
+        schedule_rest_node = BehaviorTreeNode(
+            BT_NODE_SEQUENCE,
+            'scheduled_rest',
+            children=[is_sleep_hour, sleep_action]
+        )
+        
+        # 2. Manual Directive Override (Player Command)
         has_directives = BehaviorTreeNode(
             BT_NODE_CONDITION,
             'has_directives',
             condition_func=lambda t, ctx: (
                 ctx.get('directives') and 
-                len(ctx['directives']) > 0 and
-                t.needs['hunger'] > 50 and 
-                t.needs['energy'] > 50
+                len(ctx['directives']) > 0
             )
         )
         directive_action = BehaviorTreeNode(
@@ -1731,31 +1996,42 @@ class BehaviorTree:
         )
         directive_node = BehaviorTreeNode(
             BT_NODE_SEQUENCE,
-            'directive_execution',
+            'manual_directive',
             children=[has_directives, directive_action]
         )
         
-        # Group Task Check (Parallel)
-        has_group_task = BehaviorTreeNode(
-            BT_NODE_CONDITION,
-            'has_group_task',
-            condition_func=lambda t, ctx: (
-                ctx.get('group_tasks') and
-                any(t.id in task.assigned_praxans for task in ctx['group_tasks'])
+        # 3. Work Priority Node (RimWorld-style)
+        def work_decision(t, ctx):
+            # Sort WORK_TYPES by priority (1: High, 4: Low, 0: Disabled)
+            if not hasattr(t, 'work_priorities'):
+                return 'FAILURE'
+                
+            prioritized_work = sorted(
+                [w for w in t.work_priorities if t.work_priorities[w] > 0],
+                key=lambda w: t.work_priorities[w]
             )
-        )
-        group_task_action = BehaviorTreeNode(
+            
+            for work in prioritized_work:
+                if work == 'Gathering':
+                    if ctx.get('resources') and any(not r.collected for r in ctx['resources']):
+                        return self._transition_to_state(t, 'STATE_GATHER')
+                elif work == 'Building':
+                    if ctx.get('buildings'): # Simple check for now
+                        return self._transition_to_state(t, 'STATE_BUILD')
+                elif work == 'Hauling':
+                    if ctx.get('resources') and any(not r.collected for r in ctx['resources']):
+                        return self._transition_to_state(t, 'STATE_HAUL')
+                elif work == 'Exploring':
+                    return self._transition_to_state(t, 'STATE_EXPLORE')
+            return 'FAILURE'
+
+        work_node = BehaviorTreeNode(
             BT_NODE_ACTION,
-            'join_group_task',
-            action_func=lambda t, ctx: self._transition_to_state(t, 'STATE_EXECUTE_DIRECTIVE')
-        )
-        group_task_node = BehaviorTreeNode(
-            BT_NODE_SEQUENCE,
-            'group_task_execution',
-            children=[has_group_task, group_task_action]
+            'work_priority_logic',
+            action_func=work_decision
         )
         
-        # Socialization - maps to STATE_SOCIALIZE
+        # 4. Socialization & Leisure
         can_socialize = BehaviorTreeNode(
             BT_NODE_CONDITION,
             'can_socialize',
@@ -1777,18 +2053,18 @@ class BehaviorTree:
             children=[can_socialize, socialize_action]
         )
         
-        # Idle Behavior - maps to STATE_IDLE
+        # 5. Idle
         idle_action = BehaviorTreeNode(
             BT_NODE_ACTION,
             'idle',
             action_func=lambda t, ctx: self._transition_to_state(t, 'STATE_IDLE')
         )
         
-        # Root selector: Try each behavior in priority order
+        # Root selector
         self.root = BehaviorTreeNode(
             BT_NODE_SELECTOR,
             'root',
-            children=[survival_node, directive_node, group_task_node, socialize_node, idle_action]
+            children=[survival_node, schedule_rest_node, directive_node, work_node, socialize_node, idle_action]
         )
     
     def _transition_to_state(self, praxan, state_name):
@@ -1799,7 +2075,11 @@ class BehaviorTree:
             'STATE_EXECUTE_DIRECTIVE': STATE_EXECUTE_DIRECTIVE,
             'STATE_SOCIALIZE': STATE_SOCIALIZE,
             'STATE_IDLE': STATE_IDLE,
-            'STATE_REST': STATE_REST
+            'STATE_REST': STATE_REST,
+            'STATE_HAUL': STATE_HAUL,
+            'STATE_GATHER': STATE_GATHER,
+            'STATE_BUILD': STATE_BUILD,
+            'STATE_EXPLORE': STATE_EXPLORE
         }
         if state_name in state_map:
             praxan.transition_to_state(state_map[state_name])
@@ -1974,6 +2254,34 @@ class NPC:
             if self.npc_type in ['trader', 'rival_tribe']:
                 pulse = int(2 * math.sin(time.time() * 2))
                 pygame.draw.circle(surface, color, (int(self.x), int(self.y)), icon_size // 2 + pulse, 1)
+
+
+class StockpileZone:
+    """A zone designated for resource storage with filters and priority."""
+    def __init__(self, x, y, width, height, zone_id):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.id = zone_id
+        self.allowed_resources = {'food', 'wood', 'stone'}
+        self.priority = 1  # 1 (Low) to 4 (Critical)
+        self.stored_resources = {'food': 0, 'wood': 0, 'stone': 0}
+
+    def is_valid_for(self, resource_type):
+        return resource_type in self.allowed_resources
+
+    def get_center(self):
+        return self.rect.centerx, self.rect.centery
+
+    def draw(self, surface):
+        # Draw translucent blue overlay for the stockpile
+        overlay = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
+        color = (*BLUE, 60) # Soft blue with transparency
+        pygame.draw.rect(overlay, color, (0, 0, self.rect.width, self.rect.height))
+        surface.blit(overlay, (self.rect.x, self.rect.y))
+        # Border
+        pygame.draw.rect(surface, (*BLUE, 150), self.rect, 2)
+        # Label
+        label = font_small.render(f"Stockpile #{self.id}", True, WHITE)
+        surface.blit(label, (self.rect.x + 5, self.rect.y + 5))
 
 
 class Resource:
@@ -2251,135 +2559,146 @@ def load_legacy_data():
 
 
 class Camera:
-    """Camera system for viewing the world"""
+    """Advanced Director system for fluid, momentum-based world viewing."""
     def __init__(self, world_width, world_height):
-        self.x = 0
-        self.y = 0
-        self.zoom_levels = tuple(float(level) for level in SNAP_ZOOM_LEVELS)
-        self.zoom = 1.5
-        self.min_zoom = min(self.zoom_levels)
-        self.max_zoom = 3.0
+        # Actual state (current frame)
+        self.x = 0.0
+        self.y = 0.0
+        self.zoom = 1.0
+        
+        # Target state (where we are gliding to)
+        self.target_x = 0.0
+        self.target_y = 0.0
+        self.target_zoom = 1.0
+        
+        # Momentum
+        self.vel_x = 0.0
+        self.vel_y = 0.0
+        self.friction = 0.88
+        
+        # Constraints
+        self.min_zoom = 0.1
+        self.max_zoom = 12.0
         self.world_width = world_width
         self.world_height = world_height
+        
+        # Lerp settings
+        self.lerp_speed_pos = 12.0  # Positional glide speed
+        self.lerp_speed_zoom = 10.0 # Zoom glide speed
+        
         self.panning = False
-        self.last_pan_pos = (0, 0)
-        self.key_pan_speed = 200  # pixels per second at zoom 1.0
-        self.smooth_factor = 0.15  # lerp interpolation
-        self.follow_mode = False  # Auto-follow enabled
-        self.follow_target_x = 0
-        self.follow_target_y = 0
-    
+        self.follow_mode = False
+        
     def world_to_screen(self, world_x, world_y):
-        """Transform world coordinates to screen coordinates"""
-        screen_x = (world_x - self.x) * self.zoom
-        screen_y = (world_y - self.y) * self.zoom
-        return (screen_x, screen_y)
+        return (world_x - self.x) * self.zoom, (world_y - self.y) * self.zoom
     
     def screen_to_world(self, screen_x, screen_y):
-        """Transform screen coordinates to world coordinates"""
-        world_x = (screen_x / self.zoom) + self.x
-        world_y = (screen_y / self.zoom) + self.y
-        return (world_x, world_y)
+        return (screen_x / self.zoom) + self.x, (screen_y / self.zoom) + self.y
     
-    def start_pan(self, screen_x, screen_y):
-        """Start camera panning"""
-        self.follow_mode = False  # Disable follow on manual control
-        self.panning = True
-        self.last_pan_pos = (screen_x, screen_y)
-    
-    def update_pan(self, screen_x, screen_y):
-        """Update camera position during pan"""
+    def update(self, delta_time, screen_w, screen_h):
+        """Update camera state using lerp and momentum."""
         if self.panning:
-            dx = (screen_x - self.last_pan_pos[0]) / self.zoom
-            dy = (screen_y - self.last_pan_pos[1]) / self.zoom
-            self.x -= dx
-            self.y -= dy
-            self.last_pan_pos = (screen_x, screen_y)
-            self.clamp_camera()
-    
+            # While dragging, momentum is reset
+            self.vel_x = 0
+            self.vel_y = 0
+        else:
+            # Apply momentum
+            self.target_x += self.vel_x * delta_time
+            self.target_y += self.vel_y * delta_time
+            self.vel_x *= self.friction
+            self.vel_y *= self.friction
+
+        # Glide actual values toward targets
+        self.x += (self.target_x - self.x) * min(1.0, self.lerp_speed_pos * delta_time)
+        self.y += (self.target_y - self.y) * min(1.0, self.lerp_speed_pos * delta_time)
+        self.zoom += (self.target_zoom - self.zoom) * min(1.0, self.lerp_speed_zoom * delta_time)
+        
+        self.clamp_camera(screen_w, screen_h)
+
+    def adjust_zoom(self, factor, mouse_pos=None, screen_w=None, screen_h=None):
+        """Scale target zoom. If mouse_pos is provided, zoom toward it (Rimworld-style)."""
+        old_zoom = self.target_zoom
+        self.target_zoom = max(self.min_zoom, min(self.max_zoom, self.target_zoom * factor))
+        
+        if mouse_pos and screen_w and screen_h:
+            # Calculate world point under mouse before zoom
+            mx, my = mouse_pos
+            world_m_x = (mx / old_zoom) + self.target_x
+            world_m_y = (my / old_zoom) + self.target_y
+            
+            # Adjust target_x/y so that the same world point stays under the mouse at new zoom
+            self.target_x = world_m_x - (mx / self.target_zoom)
+            self.target_y = world_m_y - (my / self.target_zoom)
+            
+        self.clamp_camera(screen_w, screen_h)
+
+    def start_pan(self, screen_pos):
+        self.follow_mode = False
+        self.panning = True
+        self.last_mouse_pos = screen_pos
+
+    def update_pan(self, screen_pos):
+        if self.panning:
+            dx = (screen_pos[0] - self.last_mouse_pos[0]) / self.zoom
+            dy = (screen_pos[1] - self.last_mouse_pos[1]) / self.zoom
+            
+            # Apply direct displacement to targets
+            self.target_x -= dx
+            self.target_y -= dy
+            
+            # Capture velocity for momentum release
+            self.vel_x = -dx * 20.0
+            self.vel_y = -dy * 20.0
+            
+            self.last_mouse_pos = screen_pos
+
     def stop_pan(self):
-        """Stop camera panning"""
         self.panning = False
-    
-    def clamp_camera(self):
-        """Keep camera within world bounds"""
-        # Calculate max camera position based on zoom and world size
-        if self.world_width <= WINDOW_WIDTH / self.zoom:
-            max_x = 0
-        else:
-            max_x = self.world_width - WINDOW_WIDTH / self.zoom
+
+    def clamp_camera(self, screen_w, screen_h):
+        """Keep camera within world bounds accounting for window size and zoom."""
+        sw = screen_w or 1920
+        sh = screen_h or 1080
         
-        if self.world_height <= WINDOW_HEIGHT / self.zoom:
-            max_y = 0
-        else:
-            max_y = self.world_height - WINDOW_HEIGHT / self.zoom
+        # Max bounds for target
+        max_x = max(0, self.world_width - (sw / self.target_zoom))
+        max_y = max(0, self.world_height - (sh / self.target_zoom))
+        self.target_x = max(0, min(self.target_x, max_x))
+        self.target_y = max(0, min(self.target_y, max_y))
         
-        self.x = max(0, min(self.x, max_x))
-        self.y = max(0, min(self.y, max_y))
+        # Max bounds for actual
+        max_ax = max(0, self.world_width - (sw / self.zoom))
+        max_ay = max(0, self.world_height - (sh / self.zoom))
+        self.x = max(0, min(self.x, max_ax))
+        self.y = max(0, min(self.y, max_ay))
 
-    def _snap_zoom(self, zoom):
-        zoom = max(self.min_zoom, min(self.max_zoom, float(zoom)))
-        return min(self.zoom_levels, key=lambda candidate: abs(candidate - zoom))
-
-    def set_zoom(self, zoom):
-        """Set zoom level"""
-        self.zoom = self._snap_zoom(zoom)
-        self.clamp_camera()
-
-    def adjust_zoom(self, delta):
-        """Adjust zoom by delta"""
-        levels = [level for level in self.zoom_levels if self.min_zoom <= level <= self.max_zoom]
-        current = self._snap_zoom(self.zoom)
-        if delta > 0:
-            for level in levels:
-                if level > current:
-                    self.zoom = level
-                    self.clamp_camera()
-                    return
-        elif delta < 0:
-            for level in reversed(levels):
-                if level < current:
-                    self.zoom = level
-                    self.clamp_camera()
-                    return
-        self.zoom = current
-        self.clamp_camera()
-    
-    def update_key_pan(self, keys_pressed, delta_time):
-        """Smooth continuous panning with held keys"""
-        if self.follow_mode:
-            return  # Don't pan manually when in follow mode
-        speed = self.key_pan_speed / self.zoom * delta_time
-        if keys_pressed[pygame.K_w] or keys_pressed[pygame.K_UP]:
-            self.y -= speed
-        if keys_pressed[pygame.K_s] or keys_pressed[pygame.K_DOWN]:
-            self.y += speed
-        if keys_pressed[pygame.K_a] or keys_pressed[pygame.K_LEFT]:
-            self.x -= speed
-        if keys_pressed[pygame.K_d] or keys_pressed[pygame.K_RIGHT]:
-            self.x += speed
-        self.clamp_camera()
-    
-    def update_follow(self, praxans):
-        """Update camera to follow civilization center"""
-        if not self.follow_mode or not praxans:
+    def update_follow(self, entities, delta_time, screen_w, screen_h):
+        if not self.follow_mode or not entities:
             return
         
-        # Calculate mean position
-        mean_x = sum(t.x for t in praxans) / len(praxans)
-        mean_y = sum(t.y for t in praxans) / len(praxans)
+        mean_x = sum(e.x for e in entities) / len(entities)
+        mean_y = sum(e.y for e in entities) / len(entities)
         
-        # Smooth follow (lerp)
-        self.follow_target_x = mean_x
-        self.follow_target_y = mean_y
+        self.target_x = mean_x - screen_w / (2 * self.target_zoom)
+        self.target_y = mean_y - screen_h / (2 * self.target_zoom)
+        self.clamp_camera(screen_w, screen_h)
+
+    def handle_keys(self, keys, delta_time):
+        """Standard keyboard panning."""
+        if self.follow_mode: return
         
-        target_cam_x = mean_x - WINDOW_WIDTH / (2 * self.zoom)
-        target_cam_y = mean_y - WINDOW_HEIGHT / (2 * self.zoom)
+        speed = 400.0 / self.zoom # Pixels per second at 1.0 zoom
+        move_x = 0
+        move_y = 0
+        if keys[pygame.K_w] or keys[pygame.K_UP]: move_y -= 1
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]: move_y += 1
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]: move_x -= 1
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]: move_x += 1
         
-        # Smooth interpolation
-        self.x += (target_cam_x - self.x) * 0.05
-        self.y += (target_cam_y - self.y) * 0.05
-        self.clamp_camera()
+        if move_x or move_y:
+            self.target_x += move_x * speed * delta_time
+            self.target_y += move_y * speed * delta_time
+            self.follow_mode = False
 
 
 class MapChunk:
@@ -4566,6 +4885,8 @@ def main(runtime_config=RUNTIME_CONFIG):
         session_id=game_logger.session_id,
         force=True,
     )
+    rooms = []
+    last_room_update = 0
     restored_elapsed_seconds = 0.0
     if snapshot_resume_path:
         try:
@@ -4659,6 +4980,8 @@ def main(runtime_config=RUNTIME_CONFIG):
         camera_mode="follow" if camera.follow_mode else "free",
         map_overlay="biome",
     )
+    work_panel = WorkPriorityPanel(ui_theme)
+    schedule_panel = SchedulePanel(ui_theme)
     camera_director = CameraDirector()
     graphics_config = GraphicsConfig(target_fps=FPS)
     scene_renderer = SceneRenderer(graphics_config, asset_root=os.path.join(os.path.dirname(__file__), "assets"))
@@ -4742,6 +5065,49 @@ def main(runtime_config=RUNTIME_CONFIG):
             ui_state.active_modal = "archive"
             ui_state.end_summary_open = False
             return
+
+        if action_name == "work":
+            ui_state.show_work_priority = not ui_state.show_work_priority
+            if ui_state.show_work_priority:
+                ui_state.show_schedule = False
+            return
+        
+        if action_name == "schedule":
+            ui_state.show_schedule = not ui_state.show_schedule
+            if ui_state.show_schedule:
+                ui_state.show_work_priority = False
+            return
+        
+        if action_name == "architect":
+            # Toggle architect mode; default to orders if opening
+            if ui_state.architect_mode:
+                ui_state.architect_mode = None
+            else:
+                ui_state.architect_mode = "orders"
+            return
+
+        if action_name.startswith("architect_sub:"):
+            ui_state.architect_mode = action_name.split(":")[1]
+            return
+
+        if action_name == "cycle_priority":
+            p_id, w_type = payload if isinstance(payload, (list, tuple)) else (payload.get("pawn_id"), payload.get("work_type"))
+            target = next((p for p in praxans if p.id == p_id), None)
+            if target:
+                prio = target.work_priorities.get(w_type, 3)
+                target.work_priorities[w_type] = (prio + 1) % 5
+            return
+
+        if action_name == "select_schedule_cat":
+            schedule_panel.selected_category = payload
+            return
+
+        if action_name == "cycle_schedule":
+            p_id, hour = payload
+            target = next((p for p in praxans if p.id == p_id), None)
+            if target:
+                target.schedule[hour] = schedule_panel.selected_category
+            return
         if action_name == "end_resume":
             post_run_action = "resume_latest"
             running = False
@@ -4749,6 +5115,30 @@ def main(runtime_config=RUNTIME_CONFIG):
         if action_name == "end_new_run":
             post_run_action = "new_run"
             running = False
+            return
+        if action_name == "architect":
+            ui_state.architect_mode = "orders" if ui_state.architect_mode is None else None
+            return
+        if action_name.startswith("architect_sub:"):
+            ui_state.architect_mode = action_name.split(":")[1]
+            return
+        if action_name == "work":
+            _toggle_modal("analytics") # Placeholder or new modal
+            ui_state.analytics_section = "culture" # Use as placeholder for work
+            return
+        if action_name == "jump_to_pawn":
+            p_id = payload
+            target = next((p for p in praxans if p.id == p_id), None)
+            if target:
+                camera.target_x = target.x - WINDOW_WIDTH / (2 * camera.zoom)
+                camera.target_y = target.y - WINDOW_HEIGHT / (2 * camera.zoom)
+                camera.follow_mode = True
+                selection_manager.select(target, "praxan")
+            return
+        if action_name == "context_action":
+            # Handle context specific orders
+            ui_state.context_menu_pos = None
+            ui_state.context_menu_items = []
             return
     
     game_start_time = time.time() - restored_elapsed_seconds
@@ -4783,7 +5173,13 @@ def main(runtime_config=RUNTIME_CONFIG):
         debug_log("main:loop_start", "Main loop started", {"frame_count": frame_count, "running": running}, "H1")
         # #endregion
         while running:
+            delta_time = clock.tick(FPS) / 1000.0 * TIME_SPEED_OPTIONS[time_speed_index]
             frame_count += 1
+            
+            # Update game time
+            global game_ticks
+            game_ticks += int(60 * delta_time) # Assume 60 ticks per real second at 1x speed
+            game_hour = (game_ticks // TICKS_PER_HOUR) % 24
             # #region agent log
             if frame_count == 1:
                 debug_log("main:first_frame", "First frame started", {"frame_count": frame_count}, "H2")
@@ -4819,9 +5215,9 @@ def main(runtime_config=RUNTIME_CONFIG):
                     elif event.key == pygame.K_f:
                         _handle_ui_action("toggle_follow")
                     elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
-                        camera.adjust_zoom(-0.1)
+                        camera.adjust_zoom(0.9, screen_w=WINDOW_WIDTH, screen_h=WINDOW_HEIGHT)
                     elif event.key == pygame.K_EQUALS or event.key == pygame.K_KP_PLUS:
-                        camera.adjust_zoom(0.1)
+                        camera.adjust_zoom(1.1, screen_w=WINDOW_WIDTH, screen_h=WINDOW_HEIGHT)
                     elif event.key == pygame.K_r:
                         _handle_ui_action("toggle_modal_research")
                     elif event.key == pygame.K_s:
@@ -4833,9 +5229,15 @@ def main(runtime_config=RUNTIME_CONFIG):
                     elif event.key == pygame.K_SPACE:
                         _handle_ui_action("focus_latest_event")
                 elif event.type == pygame.MOUSEBUTTONDOWN:
+                    run_layout = compute_run_layout(WINDOW_WIDTH, WINDOW_HEIGHT)
+                    ui_hit = ui_registry.hit_test(event.pos)
+                    
+                    # Clear context menu unless we clicked inside it
+                    if ui_hit is None or not ui_hit.id.startswith("context_item:"):
+                        ui_state.context_menu_pos = None
+                        ui_state.context_menu_items = []
+
                     if event.button == 1:  # Left mouse
-                        run_layout = compute_run_layout(WINDOW_WIDTH, WINDOW_HEIGHT)
-                        ui_hit = ui_registry.hit_test(event.pos)
                         if ui_hit is not None:
                             if ui_hit.action == "minimap_jump":
                                 map_x = run_layout.minimap.x + 10
@@ -4849,9 +5251,9 @@ def main(runtime_config=RUNTIME_CONFIG):
                                     minimap_scale_y = map_h / max(1, camera.world_height)
                                     world_click_x = click_x_on_map / minimap_scale_x
                                     world_click_y = click_y_on_map / minimap_scale_y
-                                    camera.x = max(0, min(world_click_x - WINDOW_WIDTH / (2 * max(0.01, camera.zoom)), camera.world_width - WINDOW_WIDTH / max(0.01, camera.zoom)))
-                                    camera.y = max(0, min(world_click_y - WINDOW_HEIGHT / (2 * max(0.01, camera.zoom)), camera.world_height - WINDOW_HEIGHT / max(0.01, camera.zoom)))
-                                    camera.clamp_camera()
+                                    camera.target_x = max(0, min(world_click_x - WINDOW_WIDTH / (2 * max(0.01, camera.target_zoom)), camera.world_width - WINDOW_WIDTH / max(0.01, camera.target_zoom)))
+                                    camera.target_y = max(0, min(world_click_y - WINDOW_HEIGHT / (2 * max(0.01, camera.target_zoom)), camera.world_height - WINDOW_HEIGHT / max(0.01, camera.target_zoom)))
+                                    camera.clamp_camera(WINDOW_WIDTH, WINDOW_HEIGHT)
                             else:
                                 _handle_ui_action(ui_hit.action or ui_hit.id, ui_hit.payload)
                         else:
@@ -4880,9 +5282,26 @@ def main(runtime_config=RUNTIME_CONFIG):
                                 ui_state.inspect_tab = "overview"
                                 ui_state.inspect_scroll = 0
                             else:
-                                camera.start_pan(event.pos[0], event.pos[1])
+                                camera.start_pan(event.pos)
+                    elif event.button == 3:  # Right mouse
+                        if ui_hit is None:
+                            # Open context menu at world position
+                            ui_state.context_menu_pos = event.pos
+                            world_x, world_y = camera.screen_to_world(event.pos[0], event.pos[1])
+                            
+                            # Simple logic for now: if pawn selected, give orders
+                            selected = selection_manager.selected_entity
+                            if selected and selection_manager.selected_type == "praxan":
+                                ui_state.context_menu_items = [
+                                    {"id": "move", "label": f"Move P#{selected.id} here", "pos": (world_x, world_y)},
+                                    {"id": "work", "label": "Prioritize Work", "pos": (world_x, world_y)},
+                                ]
+                            else:
+                                ui_state.context_menu_items = [
+                                    {"id": "cancel", "label": "Cancel orders"},
+                                ]
                     elif event.button == 2:  # Middle mouse button - always pan
-                        camera.start_pan(event.pos[0], event.pos[1])
+                        camera.start_pan(event.pos)
                     elif event.button == 4:  # Scroll up
                         scroll_target = ui_registry.scroll_target(mouse_screen_pos)
                         if scroll_target and scroll_target.id == "inspect_drawer":
@@ -4890,7 +5309,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                         elif scroll_target and scroll_target.id == "modal_frame" and ui_state.active_modal == "archive":
                             ui_state.archive_scroll = max(0, ui_state.archive_scroll - 32)
                         else:
-                            camera.adjust_zoom(0.1)
+                            camera.adjust_zoom(1.1, mouse_pos=event.pos, screen_w=WINDOW_WIDTH, screen_h=WINDOW_HEIGHT)
                     elif event.button == 5:  # Scroll down
                         scroll_target = ui_registry.scroll_target(mouse_screen_pos)
                         if scroll_target and scroll_target.id == "inspect_drawer":
@@ -4898,9 +5317,9 @@ def main(runtime_config=RUNTIME_CONFIG):
                         elif scroll_target and scroll_target.id == "modal_frame" and ui_state.active_modal == "archive":
                             ui_state.archive_scroll += 32
                         else:
-                            camera.adjust_zoom(-0.1)
+                            camera.adjust_zoom(0.9, mouse_pos=event.pos, screen_w=WINDOW_WIDTH, screen_h=WINDOW_HEIGHT)
                 elif event.type == pygame.MOUSEMOTION:
-                    camera.update_pan(event.pos[0], event.pos[1])
+                    camera.update_pan(event.pos)
                     # Track mouse position for tooltips
                     mouse_screen_pos = event.pos
                 elif event.type == pygame.MOUSEBUTTONUP:
@@ -5035,10 +5454,11 @@ def main(runtime_config=RUNTIME_CONFIG):
             
             # Smooth camera panning with held keys
             keys = pygame.key.get_pressed()
-            camera.update_key_pan(keys, delta_time)
+            camera.handle_keys(keys, delta_time)
             
-            # Update camera follow
-            camera.update_follow(praxans)
+            # Update camera and follow
+            camera.update(delta_time, WINDOW_WIDTH, WINDOW_HEIGHT)
+            camera.update_follow(praxans, delta_time, WINDOW_WIDTH, WINDOW_HEIGHT)
             
             # Skip heavy updates on first frame to ensure immediate rendering
             if frame_count > 1:
@@ -5381,6 +5801,11 @@ def main(runtime_config=RUNTIME_CONFIG):
                 world_height,
                 current_time,
             )
+
+            # Periodically update room detection (every 5 seconds)
+            if current_time - last_room_update > 5.0:
+                update_rooms(rooms, buildings, world_width, world_height)
+                last_room_update = current_time
             
             # Update happiness (move outside loop for efficiency)
             for praxan in praxans:
@@ -5530,7 +5955,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     try:
                         # Filter out None or invalid praxans for safety
                         safe_praxans = [t for t in praxans if t is not None and hasattr(t, 'id') and hasattr(t, 'inventory')]
-                        building_type = praxan.decide_action(resources, buildings, delta_time, combined_directives, is_night, safe_praxans, advisor.group_tasks, conditional_behaviors, territory_manager, city_planner, world_map.hazards if world_map else [], world_map)
+                        building_type = praxan.decide_action(resources, buildings, delta_time, combined_directives, is_night, safe_praxans, advisor.group_tasks, conditional_behaviors, territory_manager, city_planner, world_map.hazards if world_map else [], world_map, game_hour=game_hour, rooms=rooms)
                     except Exception as e:
                         game_logger.log_error(f"Error in praxan {praxan.id if hasattr(praxan, 'id') else 'unknown'} decide_action: {str(e)}", exc_info=True)
                         building_type = None  # Skip this praxan for this frame
@@ -6161,6 +6586,12 @@ def main(runtime_config=RUNTIME_CONFIG):
                 current_time_speed,
                 minimap_context,
             )
+
+            if ui_state.show_work_priority:
+                work_panel.draw(screen, praxans, ui_registry)
+            
+            if ui_state.show_schedule:
+                schedule_panel.draw(screen, praxans, ui_registry, game_hour)
             inspect_model = build_inspect_view_model(
                 selection_manager.selected_entity,
                 selection_manager.selected_type,
