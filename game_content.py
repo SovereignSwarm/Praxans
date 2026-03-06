@@ -55,6 +55,12 @@ TECH_TREE_DEFINITIONS = {
         "requires": ["medicine_1"],
     },
     "social_1": {"cost": 100, "name": "Community Building", "effect": {"happiness_base": 1.2, "bond_decay": 0.7}},
+    "social_2": {
+        "cost": 300,
+        "name": "Diplomatic Doctrine",
+        "effect": {"happiness_base": 1.4, "bond_decay": 0.5},
+        "requires": ["social_1"],
+    },
     "exploration_1": {"cost": 150, "name": "Scout Training", "effect": {"thronglet_speed": 1.3}},
     "industry_1": {"cost": 200, "name": "Workshop Efficiency", "effect": {"workshop_bonus": 1.25, "build_speed": 1.2}},
 }
@@ -71,6 +77,8 @@ LEGACY_BONUS_DEFINITIONS = {
     "wise_elders": {"unlocked": False, "effect": "Start with level 2 skills"},
     "prepared": {"unlocked": False, "effect": "Start with 10 food, 5 wood"},
     "architect": {"unlocked": False, "effect": "Start with 1 house, 1 storage"},
+    "iron_stomach": {"unlocked": False, "effect": "Start with 10% disease resistance"},
+    "sprinter": {"unlocked": False, "effect": "Start with +10 base speed"},
 }
 
 GOAL_TYPE_DEFINITIONS = [
