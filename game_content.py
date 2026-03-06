@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 
-BUILDING_ORDER = ["house", "farm", "storage", "workshop", "shrine", "well"]
+BUILDING_ORDER = ["house", "farm", "storage", "workshop", "shrine", "well", "hospital", "school", "watchtower", "market"]
 
 BUILDING_DEFINITIONS = {
     "house": {
@@ -35,6 +35,26 @@ BUILDING_DEFINITIONS = {
         "name": "Well",
         "cost": {"wood": 0, "stone": 3},
         "prompt_summary": "Supports thirst management and lowers hygiene pressure.",
+    },
+    "hospital": {
+        "name": "Hospital",
+        "cost": {"wood": 10, "stone": 8},
+        "prompt_summary": "Greatly accelerates disease recovery and passively restores health.",
+    },
+    "school": {
+        "name": "School",
+        "cost": {"wood": 12, "stone": 6},
+        "prompt_summary": "Accelerates skill acquisition and experience gain for nearby thronglets.",
+    },
+    "watchtower": {
+        "name": "Watchtower",
+        "cost": {"wood": 15, "stone": 15},
+        "prompt_summary": "Expands territory claims significantly and provides massive visibility radius.",
+    },
+    "market": {
+        "name": "Market",
+        "cost": {"wood": 20, "stone": 10},
+        "prompt_summary": "Boosts faction cohesion, distributes resources, and raises prosperity.",
     },
 }
 

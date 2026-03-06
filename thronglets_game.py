@@ -857,118 +857,6 @@ def compute_settlement_snapshot(thronglets, buildings, world_map=None, season=No
     }
 
 
-def draw_atmospheric_overlay(surface, game_time, season, weather_system, settlement_state):
-    """Apply a lightweight cinematic atmosphere pass without obscuring the UI."""
-    day_cycle = game_time % DAY_LENGTH
-    is_night = day_cycle >= NIGHT_START
-    season_tints = {
-        "spring": (110, 170, 120),
-        "summer": (220, 190, 120),
-        "autumn": (210, 145, 95),
-        "winter": (130, 165, 220),
-    }
-    weather_tints = {
-        "clear": None,
-        "rain": (90, 140, 175),
-        "storm": (55, 80, 120),
-        "drought": (205, 145, 90),
-        "aurora": (120, 220, 190),
-    }
-
-    tint = season_tints.get(season.current, (120, 150, 120))
-    if weather_tints.get(weather_system.current_weather):
-        tint = blend_color(tint, weather_tints[weather_system.current_weather], 0.55)
-
-    overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-    overlay_alpha = 18 if not is_night else 62
-    if weather_system.current_weather == "storm":
-        overlay_alpha += 10
-    elif weather_system.current_weather == "drought":
-        overlay_alpha += 6
-
-    pygame.draw.rect(overlay, (*tint, overlay_alpha), overlay.get_rect())
-    surface.blit(overlay, (0, 0))
-
-    orb_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-    orb_color = (255, 244, 190) if not is_night else (180, 210, 255)
-    orb_x = int(WINDOW_WIDTH * 0.82)
-    orb_y = 90
-    orb_radius = 28 if not is_night else 22
-    pygame.draw.circle(orb_surface, (*orb_color, 50), (orb_x, orb_y), orb_radius * 2)
-    pygame.draw.circle(orb_surface, (*orb_color, 170), (orb_x, orb_y), orb_radius)
-    surface.blit(orb_surface, (0, 0))
-
-    prosperity = settlement_state.get("prosperity_score", 0.0) if settlement_state else 0.0
-    if prosperity > 0.9:
-        prosperity_overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        accent_alpha = int(18 + (prosperity - 0.9) * 120)
-        pygame.draw.rect(prosperity_overlay, (245, 210, 110, accent_alpha), prosperity_overlay.get_rect(), 6)
-        surface.blit(prosperity_overlay, (0, 0))
-
-    weather_name = weather_system.current_weather
-    if weather_name in ("rain", "storm"):
-        rain_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        drop_count = 16 if weather_name == "rain" else 26
-        for index in range(drop_count):
-            x = int((index * 91 + game_time * (170 if weather_name == "storm" else 120)) % (WINDOW_WIDTH + 40)) - 20
-            y = int((index * 63 + game_time * 260) % (WINDOW_HEIGHT + 40)) - 20
-            length = 10 if weather_name == "rain" else 16
-            pygame.draw.line(
-                rain_surface,
-                (190, 220, 255, 90 if weather_name == "rain" else 120),
-                (x, y),
-                (x - 5, y + length),
-                2,
-            )
-        surface.blit(rain_surface, (0, 0))
-    elif weather_name == "drought":
-        shimmer_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        for index in range(8):
-            y = int((index * 120 + game_time * 14) % WINDOW_HEIGHT)
-            pygame.draw.line(shimmer_surface, (255, 214, 155, 34), (0, y), (WINDOW_WIDTH, y + 14), 2)
-        surface.blit(shimmer_surface, (0, 0))
-    elif weather_name == "aurora":
-        aurora_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        for index in range(5):
-            points = []
-            for step in range(0, WINDOW_WIDTH + 1, 80):
-                arc_y = 40 + index * 24 + int(math.sin(game_time * 1.2 + index + step * 0.01) * 18)
-                points.append((step, arc_y))
-            pygame.draw.lines(aurora_surface, (90, 255, 200, 55), False, points, 6)
-        surface.blit(aurora_surface, (0, 0))
-
-    if settlement_state and settlement_state.get("festival_active"):
-        festival_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        ribbon_colors = [GOLD, CYAN, RED, GRASS_LIGHT]
-        for index in range(10):
-            points = []
-            for step in range(0, WINDOW_WIDTH + 80, 120):
-                ribbon_y = 120 + index * 18 + int(math.sin(game_time * 2.4 + index + step * 0.015) * 12)
-                points.append((step - 40, ribbon_y))
-            ribbon_color = ribbon_colors[index % len(ribbon_colors)]
-            pygame.draw.lines(festival_surface, (*ribbon_color, 52), False, points, 3)
-        for index in range(20):
-            confetti_color = ribbon_colors[index % len(ribbon_colors)]
-            confetti_x = int((index * 87 + game_time * 110) % WINDOW_WIDTH)
-            confetti_y = int((index * 53 + game_time * 170) % (WINDOW_HEIGHT - 140)) + 60
-            pygame.draw.rect(festival_surface, (*confetti_color, 125), (confetti_x, confetti_y, 4, 7))
-        surface.blit(festival_surface, (0, 0))
-
-    if season.current == "winter":
-        snow_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        for index in range(18):
-            x = int((index * 73 + game_time * 20) % WINDOW_WIDTH)
-            y = int((index * 41 + game_time * 38) % WINDOW_HEIGHT)
-            pygame.draw.circle(snow_surface, (255, 255, 255, 110), (x, y), 2)
-        surface.blit(snow_surface, (0, 0))
-    elif season.current == "autumn":
-        leaf_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        for index in range(12):
-            x = int((index * 109 + game_time * 26) % WINDOW_WIDTH)
-            y = int((index * 57 + game_time * 20) % WINDOW_HEIGHT)
-            pygame.draw.ellipse(leaf_surface, (220, 150, 70, 95), (x, y, 7, 4))
-        surface.blit(leaf_surface, (0, 0))
-
 
 def update_settlement_celebration(
     celebration_state,
@@ -2960,6 +2848,10 @@ class Building:
             'workshop': EXPLORER_COLOR,
             'shrine': GOLD,
             'well': CYAN,
+            'hospital': (255, 200, 200),
+            'school': (150, 200, 255),
+            'watchtower': DIRT_LIGHT,
+            'market': GOLD,
         }
         aura_strength = getattr(self, 'aura_strength', 0.0)
         if aura_strength > 0.08:
@@ -3109,6 +3001,67 @@ class Building:
             # Water inside - using palette
             water_rect = pygame.Rect(int(self.x - size//3), int(self.y - size//6), int(size*2/3), int(size*2/3))
             pygame.draw.rect(surface, WATER_SHALLOW, water_rect)
+        elif self.building_type == 'hospital':
+            # White hospital with red cross
+            shadow_surface = pygame.Surface((size + 4, size + 4), pygame.SRCALPHA)
+            shadow_rect = pygame.Rect(2, 2, size, size)
+            pygame.draw.rect(shadow_surface, (0, 0, 0, 100), shadow_rect)
+            surface.blit(shadow_surface, (int(self.x - size//2 - 2), int(self.y - size//2 - 2)))
+            
+            pygame.draw.rect(surface, BLACK, (rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4))  # Frame
+            pygame.draw.rect(surface, WHITE, rect)
+            pygame.draw.rect(surface, BLACK, rect, 2)
+            
+            # Red cross
+            cross_thickness = max(2, int(size * 0.15))
+            cross_length = int(size * 0.6)
+            pygame.draw.rect(surface, (200, 40, 40), (self.x - cross_thickness//2, self.y - cross_length//2, cross_thickness, cross_length))
+            pygame.draw.rect(surface, (200, 40, 40), (self.x - cross_length//2, self.y - cross_thickness//2, cross_length, cross_thickness))
+            
+        elif self.building_type == 'school':
+            # Blue academy
+            shadow_surface = pygame.Surface((size + 4, size + 4), pygame.SRCALPHA)
+            shadow_rect = pygame.Rect(2, 2, size, size)
+            pygame.draw.rect(shadow_surface, (0, 0, 0, 100), shadow_rect)
+            surface.blit(shadow_surface, (int(self.x - size//2 - 2), int(self.y - size//2 - 2)))
+            
+            pygame.draw.rect(surface, BLACK, (rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4))  # Frame
+            pygame.draw.rect(surface, (80, 130, 200), rect)
+            pygame.draw.rect(surface, BLACK, rect, 2)
+            
+            # Open book symbol
+            pygame.draw.line(surface, WHITE, (self.x - 4, self.y - 3), (self.x, self.y), 2)
+            pygame.draw.line(surface, WHITE, (self.x, self.y), (self.x + 4, self.y - 3), 2)
+            pygame.draw.line(surface, WHITE, (self.x, self.y), (self.x, self.y + 4), 2)
+            
+        elif self.building_type == 'watchtower':
+            # Tall wooden tower
+            shadow_surface = pygame.Surface((size + 4, size + 10), pygame.SRCALPHA)
+            pygame.draw.rect(shadow_surface, (0, 0, 0, 100), (2, 2, size-4, size+6))
+            surface.blit(shadow_surface, (int(self.x - size//2 - 2), int(self.y - size//2 - 6)))
+            
+            tower_rect = pygame.Rect(self.x - size//3, self.y - size//2 - 8, size*2//3, size + 8)
+            pygame.draw.rect(surface, BLACK, (tower_rect.x - 2, tower_rect.y - 2, tower_rect.width + 4, tower_rect.height + 4))
+            pygame.draw.rect(surface, DIRT_MID, tower_rect)
+            pygame.draw.rect(surface, BLACK, tower_rect, 2)
+            
+            # Platform on top
+            pygame.draw.rect(surface, ROCK_DARK, (self.x - size//2, self.y - size//2 - 8, size, 4))
+            
+        elif self.building_type == 'market':
+            # Wide market with tents
+            shadow_surface = pygame.Surface((size + 10, size), pygame.SRCALPHA)
+            pygame.draw.rect(shadow_surface, (0, 0, 0, 100), (2, 2, size+6, size-4))
+            surface.blit(shadow_surface, (int(self.x - size//2 - 5), int(self.y - size//2 + 2)))
+            
+            market_rect = pygame.Rect(self.x - size//2 - 4, self.y - size//2 + 4, size + 8, size - 4)
+            pygame.draw.rect(surface, BLACK, (market_rect.x - 2, market_rect.y - 2, market_rect.width + 4, market_rect.height + 4))
+            pygame.draw.rect(surface, (230, 180, 80), market_rect)
+            pygame.draw.rect(surface, BLACK, market_rect, 2)
+            
+            # Tent stripes
+            pygame.draw.line(surface, (200, 60, 60), (market_rect.x + 4, market_rect.y), (market_rect.x + 4, market_rect.y + market_rect.height), 3)
+            pygame.draw.line(surface, (200, 60, 60), (market_rect.x + market_rect.width - 4, market_rect.y), (market_rect.x + market_rect.width - 4, market_rect.y + market_rect.height), 3)
 
         if self.level > 1:
             banner_y = int(self.y - size // 2 - 8)
@@ -4462,7 +4415,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             else:
                 center_camera_on_colony(camera, thronglets, buildings)
                 camera.follow_mode = True
-            fog_of_war.update(thronglets)
+            fog_of_war.update(thronglets, buildings)
             territory_manager.update(thronglets, buildings)
             record_population_evolution_sample(advisor, thronglets, time.time(), time.time() - restored_elapsed_seconds, force=True)
             refresh_run_summary_cache(
@@ -4895,7 +4848,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             if frame_count > 1:
                 # Update fog of war
                 try:
-                    fog_of_war.update(thronglets)
+                    fog_of_war.update(thronglets, buildings)
                 except Exception as e:
                     print(f"[ERROR] Fog of war update failed: {e}")
                     game_logger.log_error(f"Fog of war update error: {e}")

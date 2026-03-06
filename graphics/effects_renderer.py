@@ -51,11 +51,15 @@ class EffectsRenderer:
             "well": (140, 190, 220),
             "storage": (220, 195, 140),
             "farm": (200, 190, 130),
+            "hospital": (255, 240, 240),
+            "school": (180, 200, 255),
+            "watchtower": (255, 200, 100),
+            "market": (255, 160, 80),
         }
         light_count = 0
 
         for entity_state in frame.buildings:
-            if light_count >= 12:
+            if light_count >= 40:
                 break
             building = entity_state.entity
             active = bool(getattr(building, "occupants", None) or getattr(building, "aura_strength", 0) > 0.05)
@@ -91,7 +95,7 @@ class EffectsRenderer:
 
             light_count += 1
 
-        surface.blit(light_layer, (0, 0))
+        surface.blit(light_layer, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
 
     def _draw_daylight_orb(self, surface: pygame.Surface, elapsed_seconds: float, season_name: str, time_of_day: str) -> None:
         width, height = surface.get_size()

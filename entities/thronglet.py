@@ -291,6 +291,27 @@ class Thronglet:
                         star_points.append((badge_x + 5 + int(3 * math.cos(angle)), badge_y + int(3 * math.sin(angle))))
                 pygame.draw.polygon(surface, (192, 192, 192), star_points)
 
+        # Emotion bubbles
+        bubble_y = int(draw_y - THRONGLET_RADIUS - 28)
+        bubble_x = int(draw_x)
+        
+        if self.diseased:
+            pygame.draw.circle(surface, WHITE, (bubble_x, bubble_y), 8)
+            pygame.draw.circle(surface, BLACK, (bubble_x, bubble_y), 8, 1)
+            pygame.draw.circle(surface, (100, 200, 100), (bubble_x, bubble_y), 5)
+        elif self.needs['hunger'] < 30 or self.needs['energy'] < 30 or self.needs['thirst'] < 30:
+            pygame.draw.circle(surface, WHITE, (bubble_x, bubble_y), 8)
+            pygame.draw.circle(surface, BLACK, (bubble_x, bubble_y), 8, 1)
+            drop_points = [(bubble_x, bubble_y - 4), (bubble_x - 3, bubble_y + 2), (bubble_x + 3, bubble_y + 2)]
+            pygame.draw.polygon(surface, CYAN, drop_points)
+            pygame.draw.circle(surface, CYAN, (bubble_x, bubble_y + 2), 3)
+        elif getattr(self, 'happiness', 50) > 80 and self.morale > 80:
+            pygame.draw.circle(surface, WHITE, (bubble_x, bubble_y), 8)
+            pygame.draw.circle(surface, BLACK, (bubble_x, bubble_y), 8, 1)
+            pygame.draw.circle(surface, RED, (bubble_x - 2, bubble_y - 1), 2)
+            pygame.draw.circle(surface, RED, (bubble_x + 2, bubble_y - 1), 2)
+            pygame.draw.polygon(surface, RED, [(bubble_x - 4, bubble_y), (bubble_x + 4, bubble_y), (bubble_x, bubble_y + 4)])
+
     def get_morale_focus_bonus(self):
         morale_bonus = max(0.0, self.morale - 50.0) / 50.0 * MORALE_SPEED_BONUS
         inspiration_bonus = (self.inspiration / 100.0) * INSPIRATION_SKILL_BONUS
@@ -308,6 +329,9 @@ class Thronglet:
         nearby_well = False
         nearby_shrine = False
         nearby_workshop = False
+        nearby_hospital = False
+        nearby_school = False
+        nearby_market = False
         if buildings:
             for building in buildings:
                 if distance_between(self.x, self.y, building.x, building.y) > SETTLEMENT_AURA_RADIUS:
@@ -320,6 +344,12 @@ class Thronglet:
                     nearby_shrine = True
                 elif building.building_type == "workshop":
                     nearby_workshop = True
+                elif building.building_type == "hospital":
+                    nearby_hospital = True
+                elif building.building_type == "school":
+                    nearby_school = True
+                elif building.building_type == "market":
+                    nearby_market = True
 
         morale_delta = (settlement_state.get("prosperity_score", 0.5) - 0.5) * 3.0 * delta_time
         morale_delta += (settlement_state.get("culture_score", 0.4) - 0.4) * 1.5 * delta_time
@@ -334,6 +364,21 @@ class Thronglet:
             self.needs["thirst"] = min(100, self.needs["thirst"] + 0.06 * delta_time)
         if nearby_shrine:
             morale_delta += 0.6 * delta_time
+        if nearby_hospital:
+            self.health = min(100.0, self.health + 5.0 * delta_time)
+            if self.diseased and random.random() < 0.2 * delta_time:
+                self.diseased = False
+        if nearby_school:
+            for s in self.skills.values():
+                if isinstance(s, dict) and 'xp' in s and 'level' in s:
+                    s['xp'] += 1.0 * delta_time
+                    if s['xp'] >= s['level'] * 100:
+                        s['level'] += 1
+                        s['xp'] = 0
+        if nearby_market:
+            morale_delta += 0.5 * delta_time
+            self.happiness = min(100.0, self.happiness + 1.0 * delta_time)
+            
         if weather_name in ("storm", "drought"):
             morale_delta -= 0.9 * delta_time
 
@@ -344,6 +389,8 @@ class Thronglet:
             inspiration_delta += 0.55 * delta_time
         if nearby_workshop:
             inspiration_delta += 0.35 * delta_time
+        if nearby_school:
+            inspiration_delta += 0.80 * delta_time
         if current_biome == self.favorite_biome:
             inspiration_delta += 0.18 * delta_time
         self.inspiration = clamp(self.inspiration + inspiration_delta, 0.0, 100.0)
@@ -808,11 +855,10 @@ class Thronglet:
                 # Check resource availability
                 required_wood = 4  # Default
                 required_stone = 0
-                if target == 'farm':
-                    required_wood = 5
-                elif target == 'well':
-                    required_stone = 3
-                    required_wood = 0
+                try:
+                    required_wood, required_stone = get_building_cost(target)
+                except Exception:
+                    pass
                 
                 has_resources = 1.0 if (self.inventory['wood'] >= required_wood and self.inventory['stone'] >= required_stone) else 0.0
                 
@@ -1250,6 +1296,14 @@ class Thronglet:
                                 possible_actions.append('build_farm')
                             elif 'storage' in action:
                                 possible_actions.append('build_storage')
+                            elif 'hospital' in action:
+                                possible_actions.append('build_hospital')
+                            elif 'school' in action:
+                                possible_actions.append('build_school')
+                            elif 'watchtower' in action:
+                                possible_actions.append('build_watchtower')
+                            elif 'market' in action:
+                                possible_actions.append('build_market')
                             else:
                                 possible_actions.append('build_house')  # Default
                         elif 'explore' in action:
@@ -1418,6 +1472,14 @@ class Thronglet:
                             building_type = 'shrine'
                         elif 'well' in action:
                             building_type = 'well'
+                        elif 'hospital' in action:
+                            building_type = 'hospital'
+                        elif 'school' in action:
+                            building_type = 'school'
+                        elif 'watchtower' in action:
+                            building_type = 'watchtower'
+                        elif 'market' in action:
+                            building_type = 'market'
                         
                         if building_type:
                             base_wood, base_stone = get_building_cost(building_type)

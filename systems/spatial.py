@@ -13,8 +13,8 @@ class FogOfWar:
         self.world_width = world_width
         self.world_height = world_height
     
-    def update(self, thronglets):
-        """Update fog based on thronglet positions with small circular visibility"""
+    def update(self, thronglets, buildings=None):
+        """Update fog based on thronglet positions and watchtowers"""
         for thronglet in thronglets:
             # Apply exploration skill bonus to visibility radius
             radius = self.visibility_radius
@@ -40,8 +40,21 @@ class FogOfWar:
                     distance = math.sqrt((dx * TILE_SIZE)**2 + (dy * TILE_SIZE)**2)
                     if distance <= radius:
                         key = (tile_x, tile_y)
-                        # Mark as fully visible (255)
                         self.fog_grid[key] = 255
+                        
+        if buildings:
+            for building in buildings:
+                if building.building_type == 'watchtower':
+                    # Massive visibility radius for watchtower
+                    radius = self.visibility_radius * 4.0
+                    tile_radius = int(radius / TILE_SIZE) + 1
+                    tile_center_x = int(building.x // TILE_SIZE)
+                    tile_center_y = int(building.y // TILE_SIZE)
+                    for dx in range(-tile_radius, tile_radius + 1):
+                        for dy in range(-tile_radius, tile_radius + 1):
+                            distance = math.sqrt((dx * TILE_SIZE)**2 + (dy * TILE_SIZE)**2)
+                            if distance <= radius:
+                                self.fog_grid[(tile_center_x + dx, tile_center_y + dy)] = 255
     
     def is_visible(self, x, y):
         """Check if a world position is visible"""
@@ -227,7 +240,7 @@ class TerritoryManager:
             seed_lookup[seed_id] = ('thronglet', thronglet.x, thronglet.y)
             seed_id += 1
         for building in buildings:
-            seed_lookup[seed_id] = ('building', building.x, building.y)
+            seed_lookup[seed_id] = ('building', building.x, building.y, building.building_type)
             seed_id += 1
         
         # Update territory grid from Voronoi cache
@@ -235,7 +248,11 @@ class TerritoryManager:
             if seed_id not in seed_lookup:
                 continue  # Seed no longer exists
             
-            seed_type, seed_x, seed_y = seed_lookup[seed_id]
+            seed_type = seed_lookup[seed_id][0]
+            seed_x = seed_lookup[seed_id][1]
+            seed_y = seed_lookup[seed_id][2]
+            building_type = seed_lookup[seed_id][3] if seed_type == 'building' else None
+            
             world_x = tile_x * TILE_SIZE + TILE_SIZE // 2
             world_y = tile_y * TILE_SIZE + TILE_SIZE // 2
             
@@ -244,6 +261,8 @@ class TerritoryManager:
             
             # Claim strength based on distance (closer = stronger)
             max_radius = BUILDING_CLAIM_RADIUS if seed_type == 'building' else TERRITORY_CLAIM_RADIUS
+            if building_type == 'watchtower':
+                max_radius = TERRITORY_CLAIM_RADIUS * 3.0
             if distance <= max_radius:
                 # Calculate claim strength (inverse distance, normalized)
                 strength_factor = 1.0 - (distance / max_radius)
