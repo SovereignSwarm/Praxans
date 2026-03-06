@@ -271,7 +271,12 @@ class SpriteLibrary:
         bounce = 1 if animation_state in {"walk", "celebrate"} and frame_index % 2 == 0 else 0
         leg_shift = -1 if frame_index % 2 == 0 else 1
 
-        _px(source, (0, 0, 0, 74), 4, 20 + bounce, 8, 2)
+        # Breathing: subtle torso lift on alternating idle frames
+        breathe = 0
+        if animation_state == "idle" and frame_index % 4 < 2:
+            breathe = 1
+
+        _px(source, (0, 0, 0, 74), 4, 20 + bounce, 8 + (1 if breathe else 0), 2)
         _px(source, hair, 5, 1 + bounce, 6, 3)
         _px(source, skin, 5, 3 + bounce, 6, 4)
         if facing == "up":

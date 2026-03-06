@@ -90,6 +90,8 @@ class RenderFrame:
     effect_cues: tuple[EffectCue, ...] = field(default_factory=tuple)
     camera_bookmarks: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     screen_fx_state: dict[str, Any] = field(default_factory=dict)
+    title_card: dict[str, Any] | None = None
+    ghost_markers: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
 
 def _derive_facing(entity) -> str:
@@ -197,6 +199,8 @@ def build_render_frame(
     effect_cues=None,
     active_overlay: str = "districts",
     camera_bookmarks=None,
+    title_card: dict | None = None,
+    ghost_markers=None,
 ) -> RenderFrame:
     elapsed_seconds = max(0.0, current_time - game_start_time)
     focus_event = None
@@ -264,4 +268,6 @@ def build_render_frame(
             "festival_active": bool((settlement_state or {}).get("festival_active", False)),
             "prosperity_score": round(float((settlement_state or {}).get("prosperity_score", 0.0) or 0.0), 3),
         },
+        title_card=dict(title_card) if title_card else None,
+        ghost_markers=tuple(dict(gm) for gm in list(ghost_markers or [])),
     )

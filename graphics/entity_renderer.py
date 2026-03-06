@@ -113,6 +113,18 @@ class EntityRenderer:
             faction = factions.get(getattr(thronglet, "faction_id", None))
             doctrine = getattr(faction, "primary_doctrine", None) if faction is not None else None
             frame_index = self._frame_index(frame, entity_state.animation_state)
+
+            # Genetic size variation: scale ±15% based on genetics
+            genetics = getattr(thronglet, "genetics", {})
+            size_mod = 1.0
+            if isinstance(genetics, dict):
+                # Use metabolism_efficiency as a proxy for body size
+                metabolism = float(genetics.get("metabolism_efficiency", 1.0))
+                size_mod = 0.85 + 0.30 * max(0.0, min(1.0, (metabolism - 0.7) / 0.6))
+
+            base_w = max(16, int(32 * zoom * size_mod))
+            base_h = max(24, int(48 * zoom * size_mod))
+
             sprite = self.sprite_library.get_thronglet_sprite(
                 role=getattr(thronglet, "role", None),
                 animation_state=entity_state.animation_state,
@@ -121,11 +133,62 @@ class EntityRenderer:
                 variant_id=entity_state.variant_id,
                 health_state=entity_state.health_state,
                 mutated=bool(getattr(thronglet, "mutation_count", 0) > 0),
-                target_size=(max(16, int(32 * zoom)), max(24, int(48 * zoom))),
+                target_size=(base_w, base_h),
                 frame_index=frame_index,
             )
             screen_x, screen_y = self._screen_point(frame, thronglet.x, thronglet.y)
-            surface.blit(sprite, (screen_x - sprite.get_width() // 2, screen_y - sprite.get_height() + int(10 * zoom)))
+            blit_x = screen_x - sprite.get_width() // 2
+            blit_y = screen_y - sprite.get_height() + int(10 * zoom)
+            surface.blit(sprite, (blit_x, blit_y))
+
+            # --- Mutation shimmer ---
+            if getattr(thronglet, "mutation_count", 0) > 0 and zoom >= 0.5:
+                shimmer_offset = (frame.world.frame_count + getattr(thronglet, "id", 0)) % 8
+                shimmer_x = blit_x + sprite.get_width() // 2 + (shimmer_offset % 3) * 2 - 2
+                shimmer_y = blit_y + (shimmer_offset % 4) * 2
+                shimmer_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
+                pulse_alpha = 120 + int(80 * abs(math.sin(frame.world.current_time * 4 + getattr(thronglet, "id", 0))))
+                pygame.draw.circle(shimmer_surf, (198, 149, 230, pulse_alpha), (3, 3), 2)
+                surface.blit(shimmer_surf, (shimmer_x, shimmer_y))
+
+            # --- Emotion indicators (tiny bubbles above head) ---
+            if zoom >= 0.5:
+                indicator_y = blit_y - max(4, int(6 * zoom))
+                indicator_x = screen_x
+                indicator_size = max(3, int(5 * zoom))
+                indicator_surf = pygame.Surface((indicator_size * 2, indicator_size * 2), pygame.SRCALPHA)
+
+                health = float(getattr(thronglet, "health", 100.0) or 100.0)
+                hunger = float(getattr(thronglet, "hunger", 0.0) or 0.0)
+                happiness = float(getattr(thronglet, "happiness", 50.0) or 50.0)
+                morale = float(getattr(thronglet, "morale", 50.0) or 50.0)
+                diseased = bool(getattr(thronglet, "diseased", False))
+
+                if diseased:
+                    # Green squiggle for disease
+                    pygame.draw.arc(indicator_surf, (110, 190, 100, 200),
+                                    (0, 0, indicator_size * 2, indicator_size * 2), 0.5, 2.5, 2)
+                    surface.blit(indicator_surf, (indicator_x - indicator_size, indicator_y - indicator_size))
+                elif hunger > 70:
+                    # Red dot for hunger
+                    pygame.draw.circle(indicator_surf, (220, 80, 70, 200),
+                                       (indicator_size, indicator_size), indicator_size - 1)
+                    surface.blit(indicator_surf, (indicator_x - indicator_size, indicator_y - indicator_size))
+                elif happiness > 75 and morale > 60:
+                    # Yellow heart-like dot for happy
+                    pygame.draw.circle(indicator_surf, (240, 210, 80, 160),
+                                       (indicator_size, indicator_size), indicator_size - 1)
+                    surface.blit(indicator_surf, (indicator_x - indicator_size, indicator_y - indicator_size))
+                elif health < 35:
+                    # Flashing red cross for critical health
+                    if frame.world.frame_count % 20 < 12:
+                        pygame.draw.line(indicator_surf, (220, 60, 60, 220),
+                                         (indicator_size, 1), (indicator_size, indicator_size * 2 - 1), 2)
+                        pygame.draw.line(indicator_surf, (220, 60, 60, 220),
+                                         (1, indicator_size), (indicator_size * 2 - 1, indicator_size), 2)
+                        surface.blit(indicator_surf, (indicator_x - indicator_size, indicator_y - indicator_size))
+
+            # --- Selection ring and pennant ---
             if entity_state.selected:
                 self._draw_selection_ring(surface, frame, entity_state, max(12, int(14 * zoom)))
             if entity_state.selected and self.config.show_role_pennants:
