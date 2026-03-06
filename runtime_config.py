@@ -37,7 +37,7 @@ class RuntimeConfig:
     log_dir: str = "logs"
     seed: Optional[int] = None
     enable_probe_log: bool = False
-    model: str = "qwen3.5:35b"
+    model: str = "qwen3.5:9b"
     snapshot_file: Optional[str] = None
     load_latest_snapshot: bool = False
     scenario: str = DEFAULT_SCENARIO_ID
@@ -74,7 +74,7 @@ def parse_runtime_config(argv: Optional[Sequence[str]] = None) -> RuntimeConfig:
     )
     parser.add_argument(
         "--model",
-        default="qwen3.5:35b",
+        default="qwen3.5:9b",
         help="Preferred Ollama model name.",
     )
     parser.add_argument(

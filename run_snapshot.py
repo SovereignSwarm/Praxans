@@ -5,7 +5,7 @@ import os
 from typing import Any
 
 
-SNAPSHOT_VERSION = 6
+SNAPSHOT_VERSION = 8
 
 
 def _sanitize_json_value(value: Any) -> Any:
@@ -283,6 +283,19 @@ def _serialize_world_state(world_map, current_time: float) -> dict[str, Any] | N
     if world_map is None:
         return None
     return {
+        "generation_version": int(getattr(world_map, "generation_version", 0) or 0),
+        "world_seed": int(getattr(world_map, "world_seed", 0) or 0),
+        "world_profile": _sanitize_json_value(getattr(getattr(world_map, "world_profile", None), "to_payload", lambda: None)()),
+        "discovered_chunks": [
+            {"chunk_x": int(chunk_x), "chunk_y": int(chunk_y)}
+            for chunk_x, chunk_y in sorted(getattr(world_map, "discovered_chunks", set()))
+        ],
+        "regions": _sanitize_json_value(list(getattr(world_map, "regions", []))),
+        "routes": _sanitize_json_value(list(getattr(world_map, "route_network", []))),
+        "landmarks": _sanitize_json_value(list(getattr(world_map, "landmarks", []))),
+        "settlements": _sanitize_json_value(list(getattr(world_map, "settlements", []))),
+        "polities": _sanitize_json_value(list(getattr(world_map, "polities", []))),
+        "water_network": _sanitize_json_value(list(getattr(world_map, "water_network", []))),
         "encounters": [
             {
                 "x": round(float(getattr(encounter, "x", 0.0)), 2),
@@ -364,6 +377,9 @@ def build_run_snapshot(
     city_planner=None,
     scenario_id: str | None = None,
     run_summary: dict[str, Any] | None = None,
+    camera_bookmarks: list[dict[str, Any]] | None = None,
+    scene_thumbnail_key: str | None = None,
+    focus_moments: list[dict[str, Any]] | None = None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -371,6 +387,11 @@ def build_run_snapshot(
         "elapsed_seconds": round(max(0.0, current_time - game_start_time), 3),
         "scenario_id": scenario_id,
         "run_summary": _sanitize_json_value(run_summary),
+        "graphics": {
+            "camera_bookmarks": _sanitize_json_value(list(camera_bookmarks or [])),
+            "scene_thumbnail_key": scene_thumbnail_key,
+            "focus_moments": _sanitize_json_value(list(focus_moments or [])),
+        },
         "season": getattr(season, "current", "summer"),
         "weather": getattr(weather_system, "current_weather", "clear"),
         "weather_next_event_in": round(max(0.0, getattr(weather_system, "next_event_time", current_time) - current_time), 3),

@@ -8,7 +8,7 @@ from observer_analytics import build_observer_report
 from society_content import END_STATE_DEFINITIONS, RUN_PHASE_DEFINITIONS
 
 
-ARCHIVE_VERSION = 2
+ARCHIVE_VERSION = 3
 
 
 def _phase_label(phase_id: str) -> str:
@@ -204,6 +204,37 @@ def _faction_highlights(observer_report: dict[str, Any], session_stats: dict[str
     return highlights
 
 
+def _focus_moments(key_moments: list[dict[str, Any]], camera_bookmarks: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    focus_moments = []
+    for bookmark in list(camera_bookmarks or [])[:4]:
+        focus_moments.append(
+            {
+                "label": str(bookmark.get("label", "Moment")),
+                "category": str(bookmark.get("category", "event")),
+                "x": round(float(bookmark.get("x", 0.0) or 0.0), 2),
+                "y": round(float(bookmark.get("y", 0.0) or 0.0), 2),
+                "time": round(float(bookmark.get("time", 0.0) or 0.0), 3),
+            }
+        )
+    for event in key_moments:
+        if len(focus_moments) >= 6:
+            break
+        focus_moments.append(
+            {
+                "label": str(event.get("summary") or event.get("label") or event.get("category") or "moment"),
+                "category": str(event.get("category", "event")),
+                "time": round(float(event.get("time", 0.0) or 0.0), 3),
+            }
+        )
+    return focus_moments
+
+
+def _scene_thumbnail_key(session_id: str | None, phase_id: str, end_state_id: str) -> str | None:
+    if not session_id:
+        return None
+    return f"thumb_{session_id}_{phase_id}_{end_state_id}.png"
+
+
 def build_run_summary(
     thronglets,
     buildings,
@@ -219,6 +250,7 @@ def build_run_summary(
     session_id: str | None = None,
     extinction: bool = False,
     camera_bookmarks: list[dict[str, Any]] | None = None,
+    scene_thumbnail_key: str | None = None,
 ) -> dict[str, Any]:
     settlement_state = dict(settlement_state or getattr(advisor, "current_settlement_state", {}) or {})
     session_stats = dict(getattr(advisor, "session_stats", {}) or {})
@@ -243,6 +275,7 @@ def build_run_summary(
     dominant_faction = observer_report.get("active_factions", [{}])[0] if observer_report.get("active_factions") else {}
     key_moments = _key_moments(observer_report, session_stats)
     population_curve = _population_curve(session_stats, observer_report)
+    focus_moments = _focus_moments(key_moments, camera_bookmarks)
 
     return {
         "archive_version": ARCHIVE_VERSION,
@@ -276,6 +309,8 @@ def build_run_summary(
         "lineage_highlights": _lineage_highlights(observer_report, session_stats),
         "faction_highlights": _faction_highlights(observer_report, session_stats),
         "camera_bookmarks": list(camera_bookmarks or []),
+        "focus_moments": focus_moments,
+        "scene_thumbnail_key": scene_thumbnail_key or _scene_thumbnail_key(session_id, phase_id, end_state_id),
         "council": {
             "doctrine": doctrine,
             "strategic_priorities": list((getattr(advisor, "council_state", {}) or {}).get("strategic_priorities", [])),
@@ -299,6 +334,7 @@ def build_run_archive(
     session_id: str | None = None,
     extinction: bool = False,
     camera_bookmarks: list[dict[str, Any]] | None = None,
+    scene_thumbnail_key: str | None = None,
 ) -> dict[str, Any]:
     archive = build_run_summary(
         thronglets=thronglets,
@@ -315,6 +351,7 @@ def build_run_archive(
         session_id=session_id,
         extinction=extinction,
         camera_bookmarks=camera_bookmarks,
+        scene_thumbnail_key=scene_thumbnail_key,
     )
     archive["finalized_at"] = round(current_time, 3)
     archive["extinction"] = bool(extinction)

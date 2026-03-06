@@ -129,7 +129,7 @@ class RunSnapshotTests(unittest.TestCase):
             achievements=["weathered_winter"],
             history=[{"summary": "hold steady"}],
             events_history=[{"time": 99.0, "description": "New thronglet born"}],
-            last_model_used="qwen3.5:35b",
+            last_model_used="qwen3.5:9b",
             group_tasks=[
                 SimpleNamespace(
                     task_type="build",
@@ -192,6 +192,16 @@ class RunSnapshotTests(unittest.TestCase):
             last_plan_update=80.0,
         )
         world_map = SimpleNamespace(
+            generation_version=2,
+            world_seed=12345,
+            world_profile=SimpleNamespace(to_payload=lambda: {"chunk_cols": 16, "chunk_rows": 12, "region_cols": 8, "region_rows": 6}),
+            discovered_chunks={(0, 0), (1, 1)},
+            regions=[{"region_id": "r0_0", "biome": "plains", "world_rect": [0, 0, 1024, 1024]}],
+            route_network=[{"route_id": "route_a", "start_region_id": "r0_0", "end_region_id": "r1_0", "points": [{"x": 32.0, "y": 32.0}, {"x": 128.0, "y": 32.0}], "risk": 0.2}],
+            landmarks=[{"landmark_id": "landmark_0", "region_id": "r0_0", "name": "Amber Fields", "category": "granary", "x": 64.0, "y": 64.0}],
+            settlements=[{"settlement_id": "set_0", "region_id": "r0_0", "x": 80.0, "y": 88.0, "settlement_type": "capital", "population": 7, "prosperity": 0.8, "water_access": 0.7, "route_access": 0.65, "polity_id": 0}],
+            polities=[{"polity_id": 0, "name": "Frontier Polity 1", "home_region_id": "r0_0", "doctrine_bias": "growth", "frontier_pressure": 42.0, "settlement_ids": ["set_0"], "claimed_region_ids": ["r0_0"], "trade_route_ids": ["route_a"], "capital_settlement_id": "set_0", "accent_color": [200, 160, 120]}],
+            water_network=[{"points": [{"x": 16.0, "y": 12.0}, {"x": 200.0, "y": 18.0}]}],
             encounters=[
                 SimpleNamespace(x=77.0, y=88.0, encounter_type="ruins", discovered=True, explored=False, reward_given=False)
             ],
@@ -222,7 +232,7 @@ class RunSnapshotTests(unittest.TestCase):
             weather_system,
             current_time=100.0,
             game_start_time=40.0,
-            selected_model="qwen3.5:35b",
+            selected_model="qwen3.5:9b",
             celebration_state=celebration_state,
             camera=camera,
             world_map=world_map,
@@ -232,12 +242,17 @@ class RunSnapshotTests(unittest.TestCase):
             city_planner=city_planner,
             scenario_id="high_mutation",
             run_summary=run_summary,
+            camera_bookmarks=[{"label": "Founding", "category": "scenario", "x": 42.0, "y": 51.0, "time": 100.0}],
+            scene_thumbnail_key="thumb_test_session.png",
+            focus_moments=[{"label": "Founding", "category": "scenario", "time": 100.0}],
         )
 
         self.assertEqual(snapshot["snapshot_version"], SNAPSHOT_VERSION)
-        self.assertEqual(snapshot["selected_model"], "qwen3.5:35b")
+        self.assertEqual(snapshot["selected_model"], "qwen3.5:9b")
         self.assertEqual(snapshot["scenario_id"], "high_mutation")
         self.assertEqual(snapshot["run_summary"]["end_state"]["score"], 61)
+        self.assertEqual(snapshot["graphics"]["scene_thumbnail_key"], "thumb_test_session.png")
+        self.assertEqual(snapshot["graphics"]["camera_bookmarks"][0]["label"], "Founding")
         self.assertEqual(snapshot["advisor"]["temporary_modifiers"]["workers_focus"]["remaining_seconds"], 40.0)
         self.assertEqual(snapshot["camera"]["zoom"], 1.75)
         self.assertEqual(snapshot["celebration"]["active_remaining"], 12.0)
@@ -251,6 +266,11 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["factions"][0]["succession_count"], 2)
         self.assertEqual(snapshot["factions"][0]["rival_faction_ids"], [2])
         self.assertEqual(snapshot["city_planner"]["zones"][0]["zone_type"], "residential")
+        self.assertEqual(snapshot["world"]["world_seed"], 12345)
+        self.assertEqual(snapshot["world"]["world_profile"]["chunk_cols"], 16)
+        self.assertEqual(snapshot["world"]["regions"][0]["region_id"], "r0_0")
+        self.assertEqual(snapshot["world"]["routes"][0]["route_id"], "route_a")
+        self.assertEqual(snapshot["world"]["polities"][0]["home_region_id"], "r0_0")
         self.assertEqual(snapshot["world"]["encounters"][0]["encounter_type"], "ruins")
         self.assertEqual(snapshot["world"]["npcs"][0]["last_interaction_elapsed"], 4.0)
         self.assertEqual(snapshot["advisor"]["council_state"]["doctrine"]["focus"], "growth")
@@ -264,6 +284,7 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(loaded["season"], "autumn")
         self.assertEqual(loaded["scenario_id"], "high_mutation")
         self.assertEqual(loaded["run_summary"]["current_phase"]["label"], "Expansion")
+        self.assertEqual(loaded["graphics"]["scene_thumbnail_key"], "thumb_test_session.png")
         self.assertEqual(loaded["thronglets"][0]["id"], 7)
         self.assertEqual(loaded["buildings"][0]["built_by"], 7)
         self.assertEqual(loaded["buildings"][0]["occupant_ids"], [7])
@@ -277,7 +298,7 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(loaded["thronglets"][0]["last_reproduction_elapsed"], 18.0)
         self.assertEqual(loaded["advisor"]["civilization_age"], 6)
         self.assertEqual(loaded["advisor"]["total_deaths"], 2)
-        self.assertEqual(loaded["advisor"]["last_model_used"], "qwen3.5:35b")
+        self.assertEqual(loaded["advisor"]["last_model_used"], "qwen3.5:9b")
         self.assertEqual(loaded["advisor"]["council_state"]["doctrine"]["focus"], "growth")
         self.assertEqual(loaded["advisor"]["advisory_history"][0]["doctrine"]["focus"], "growth")
         self.assertEqual(loaded["advisor"]["group_tasks"][0]["task_type"], "build")
@@ -288,6 +309,8 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(loaded["factions"][0]["migration_pressure"], 63.0)
         self.assertEqual(loaded["factions"][0]["preferred_biome"], "forest")
         self.assertEqual(loaded["city_planner"]["current_plan"]["districts"][0]["location"], "north")
+        self.assertEqual(loaded["world"]["generation_version"], 2)
+        self.assertEqual(loaded["world"]["discovered_chunks"][0]["chunk_x"], 0)
         self.assertEqual(loaded["world"]["hazards"][0]["damage_rate"], 0.8)
         self.assertEqual(loaded["world"]["npcs"][0]["trade_rates"]["food_for_wood"], 2)
 

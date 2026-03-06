@@ -20,11 +20,14 @@ from datetime import datetime
 
 from advisor_contract import advisory_payload_defaults, parse_advisory_payload
 from game_scenarios import DEFAULT_SCENARIO_ID, get_scenario_profile
+from graphics import GraphicsConfig, SceneRenderer, build_render_frame
+from graphics.content import SNAP_ZOOM_LEVELS
+from map import WORLD_GENERATION_VERSION, build_frontier_world, build_world_profile
 from observer_analytics import build_observer_report
 from run_archive import build_archive_comparison, build_run_archive, build_run_summary, find_recent_archives, write_run_archive
 from society_content import AUTONOMOUS_DOCTRINE_GOALS, FACTION_DOCTRINE_PROFILES, FACTION_DYNAMICS, FACTION_IDEOLOGY_AXES, RUN_PHASE_DEFINITIONS
 from society_dynamics import choose_migration_target, choose_schism_members, compute_faction_metrics
-from ui.analytics import draw_end_summary, draw_modal_layer, load_archive_cards
+from ui.analytics import draw_end_summary, draw_modal_layer
 from ui.camera_director import CameraDirector
 from ui.hud import draw_run_hud, next_overlay
 from ui.input_router import UIState, UIRectRegistry, handle_escape, pick_world_entity
@@ -32,7 +35,7 @@ from ui.inspect import build_inspect_view_model, draw_inspect_drawer
 from ui.layout import compute_run_layout
 from ui.models import RunHudModel, build_field_notes
 from ui.shell import run_command_center
-from ui.theme import build_ui_theme
+from ui.theme import build_ui_theme, draw_panel
 from game_content import (
     BUILDING_DEFINITIONS,
     clone_abilities,
@@ -89,8 +92,8 @@ RESOURCE_RADIUS_WOOD = 5  # Larger, more visible resources
 # Map system constants
 CHUNK_SIZE = 512  # Pixels per chunk (512x512)
 TILE_SIZE = 32  # Size of each tile
-INITIAL_CHUNKS_X = 4  # Start with 4 chunks wide
-INITIAL_CHUNKS_Y = 3  # Start with 3 chunks tall
+INITIAL_CHUNKS_X = 16  # Macro frontier world width in chunks
+INITIAL_CHUNKS_Y = 12  # Macro frontier world height in chunks
 NOISE_SCALE = 0.1  # For Perlin noise generation
 
 # Territory system constants
@@ -190,7 +193,7 @@ FOOD_SPOIL_TIME = 120.0  # 2 minutes
 SEASON_LENGTH = 90.0  # 90 seconds per season
 
 # AI / simulation tuning
-PREFERRED_OLLAMA_MODEL = (RUNTIME_CONFIG.model or "qwen3.5:35b").strip()
+PREFERRED_OLLAMA_MODEL = (RUNTIME_CONFIG.model or "qwen3.5:9b").strip()
 MODEL_PRIORITY = [
     PREFERRED_OLLAMA_MODEL,
     "qwen3.5:27b",
@@ -320,7 +323,7 @@ def get_ollama_client(timeout_seconds):
 def get_fastest_available_model():
     """
     Detect and return the preferred Ollama model.
-    This repo now explicitly prefers qwen3.5:35b, then falls back through a
+    This repo now explicitly prefers qwen3.5:9b, then falls back through a
     curated priority list before using a size-based heuristic.
     Returns the model name string, or None if no models are available.
     """
@@ -3403,6 +3406,7 @@ class FactionManager:
                 world_width,
                 world_height,
                 faction.migration_pressure,
+                world_map=world_map,
             )
             if not target:
                 continue
@@ -8163,9 +8167,10 @@ class Camera:
     def __init__(self, world_width, world_height):
         self.x = 0
         self.y = 0
-        self.zoom = 1.0
-        self.min_zoom = 0.3  # Can zoom out more to see larger area
-        self.max_zoom = 4.0  # Can zoom in close to individual characters
+        self.zoom_levels = tuple(float(level) for level in SNAP_ZOOM_LEVELS)
+        self.zoom = 1.5
+        self.min_zoom = min(self.zoom_levels)
+        self.max_zoom = 3.0
         self.world_width = world_width
         self.world_height = world_height
         self.panning = False
@@ -8223,14 +8228,34 @@ class Camera:
         
         self.x = max(0, min(self.x, max_x))
         self.y = max(0, min(self.y, max_y))
-    
+
+    def _snap_zoom(self, zoom):
+        zoom = max(self.min_zoom, min(self.max_zoom, float(zoom)))
+        return min(self.zoom_levels, key=lambda candidate: abs(candidate - zoom))
+
     def set_zoom(self, zoom):
         """Set zoom level"""
-        self.zoom = max(self.min_zoom, min(self.max_zoom, zoom))
-    
+        self.zoom = self._snap_zoom(zoom)
+        self.clamp_camera()
+
     def adjust_zoom(self, delta):
         """Adjust zoom by delta"""
-        self.set_zoom(self.zoom + delta)
+        levels = [level for level in self.zoom_levels if self.min_zoom <= level <= self.max_zoom]
+        current = self._snap_zoom(self.zoom)
+        if delta > 0:
+            for level in levels:
+                if level > current:
+                    self.zoom = level
+                    self.clamp_camera()
+                    return
+        elif delta < 0:
+            for level in reversed(levels):
+                if level < current:
+                    self.zoom = level
+                    self.clamp_camera()
+                    return
+        self.zoom = current
+        self.clamp_camera()
     
     def update_key_pan(self, keys_pressed, delta_time):
         """Smooth continuous panning with held keys"""
@@ -8271,16 +8296,29 @@ class Camera:
 
 class MapChunk:
     """A chunk of the world map"""
-    def __init__(self, chunk_x, chunk_y, asset_manager=None, lazy_render=True):
+    def __init__(self, chunk_x, chunk_y, asset_manager=None, lazy_render=True, chunk_state=None):
         self.chunk_x = chunk_x
         self.chunk_y = chunk_y
         self.world_x = chunk_x * CHUNK_SIZE
         self.world_y = chunk_y * CHUNK_SIZE
         self.tiles = {}  # {tile_pos: biome_type}
+        self.biome_mix = {}
+        self.region_id = None
+        self.water_tiles = set()
+        self.river_tiles = set()
         self.resources = []
         self.buildings = []
         self.explored = False
-        self.generate_biomes()
+        if chunk_state is not None:
+            self.world_x = int(getattr(chunk_state, "world_x", self.world_x))
+            self.world_y = int(getattr(chunk_state, "world_y", self.world_y))
+            self.tiles = dict(getattr(chunk_state, "tiles", {}))
+            self.biome_mix = dict(getattr(chunk_state, "biome_mix", {}))
+            self.region_id = getattr(chunk_state, "region_id", None)
+            self.water_tiles = set(getattr(chunk_state, "water_tiles", ()))
+            self.river_tiles = set(getattr(chunk_state, "river_tiles", ()))
+        else:
+            self.generate_biomes()
         self.surface = None  # Cached pre-rendered surface
         self.asset_manager = asset_manager
         self.surface_rendered = False
@@ -8424,96 +8462,247 @@ class MapChunk:
 
 class WorldMap:
     """Manages the world map with chunks"""
-    def __init__(self, asset_manager=None):
+    def __init__(self, asset_manager=None, scenario_profile=None, seed=None, snapshot_world=None):
         self.chunks = {}  # {(chunk_x, chunk_y): MapChunk}
         self.asset_manager = asset_manager
         self.encounters = []  # List of special encounters
         self.hazards = []  # List of terrain hazards
         self.npcs = []  # List of NPCs
+        self.discovered_chunks = set()
+        self.modified_chunks = {}
+        self.scenario_profile = dict(scenario_profile or {})
+
+        snapshot_world = dict(snapshot_world or {})
+        profile_source = dict(self.scenario_profile)
+        if isinstance(snapshot_world.get("world_profile"), dict):
+            profile_source["worldgen"] = dict(snapshot_world.get("world_profile", {}))
+        self.world_profile = build_world_profile(profile_source, chunk_size=CHUNK_SIZE, tile_size=TILE_SIZE)
+        self.chunk_cols = int(self.world_profile.chunk_cols)
+        self.chunk_rows = int(self.world_profile.chunk_rows)
+        self.world_width = int(self.world_profile.world_width)
+        self.world_height = int(self.world_profile.world_height)
+        self.region_cols = int(self.world_profile.region_cols)
+        self.region_rows = int(self.world_profile.region_rows)
+        self.generation_version = int(snapshot_world.get("generation_version", WORLD_GENERATION_VERSION))
+        self.world_seed = int(
+            snapshot_world.get("world_seed")
+            if snapshot_world.get("world_seed") is not None
+            else (seed if seed is not None else random.randint(1, 2**31 - 1))
+        )
+        self.frontier_world = build_frontier_world(self.world_seed, self.world_profile)
+        self.region_objects = dict(self.frontier_world["regions"])
+        self.route_objects = list(self.frontier_world["routes"])
+        self.landmark_objects = list(self.frontier_world["landmarks"])
+        self.settlement_objects = list(self.frontier_world["settlements"])
+        self.polity_objects = list(self.frontier_world["polities"])
+        render_layers = dict(self.frontier_world["render_layers"])
+        self.region_overlay = list(render_layers.get("region_overlay", []))
+        self.route_network = list(render_layers.get("route_network", []))
+        self.landmark_markers = list(render_layers.get("landmark_markers", []))
+        self.polity_overlay = list(render_layers.get("polity_overlay", []))
+        self.water_network = list(render_layers.get("water_network", []))
+        self.regions = list(self.region_overlay)
+        self.routes = list(self.route_network)
+        self.landmarks = list(self.landmark_markers)
+        self.settlements = [settlement.to_payload() for settlement in self.settlement_objects]
+        self.polities = list(self.polity_overlay)
+        self.river_paths = list(self.frontier_world.get("river_paths", []))
         self.generate_initial_chunks()
-        self.generate_encounters()
-        self.generate_hazards()
-        self.generate_npcs()
+        self.generate_geography_entities()
+        if snapshot_world:
+            self.apply_snapshot_world_state(snapshot_world)
     
     def generate_initial_chunks(self):
         """Generate initial set of chunks"""
         # Use lazy rendering for faster startup - surfaces will be created on first use
-        for cx in range(INITIAL_CHUNKS_X):
-            for cy in range(INITIAL_CHUNKS_Y):
-                self.chunks[(cx, cy)] = MapChunk(cx, cy, self.asset_manager, lazy_render=True)
-    
-    def generate_encounters(self):
-        """Generate special encounters across the map"""
-        world_width = INITIAL_CHUNKS_X * CHUNK_SIZE
-        world_height = INITIAL_CHUNKS_Y * CHUNK_SIZE
-        
-        # Generate 8 encounters randomly across the map
-        for _ in range(8):
-            x = random.randint(100, world_width - 100)
-            y = random.randint(100, world_height - 100)
-            
-            # Determine encounter type based on biome
-            biome_type = self.get_biome_at(x, y)
-            encounter_types = {
-                'forest': 'sacred_grove',
-                'plains': 'ruins',
-                'mountains': 'mineral_vein',
-                'desert': 'oasis',
-                'swamp': 'ruins',
-                'taiga': 'mineral_vein',
-                'snow': 'ruins',
-                'tundra': 'mineral_vein'
-            }
-            encounter_type = encounter_types.get(biome_type, 'ruins')
-            self.encounters.append(Encounter(x, y, encounter_type))
-    
-    def generate_hazards(self):
-        """Generate terrain hazards across the map"""
-        world_width = INITIAL_CHUNKS_X * CHUNK_SIZE
-        world_height = INITIAL_CHUNKS_Y * CHUNK_SIZE
-        
-        # Generate 5-10 hazards based on biomes
-        num_hazards = random.randint(5, 10)
-        for _ in range(num_hazards):
-            x = random.randint(150, world_width - 150)
-            y = random.randint(150, world_height - 150)
-            
-            # Determine hazard type based on biome
-            biome_type = self.get_biome_at(x, y)
-            hazard_types = {
-                'forest': 'predator_lair',
-                'plains': 'predator_lair',
-                'mountains': 'avalanche_zone',
-                'desert': 'quicksand',
-                'swamp': 'flood_zone',
-                'taiga': 'predator_lair',
-                'snow': 'avalanche_zone',
-                'tundra': 'predator_lair'
-            }
-            hazard_type = hazard_types.get(biome_type, 'predator_lair')
-            self.hazards.append(TerrainHazard(x, y, hazard_type, radius=random.randint(80, 150)))
-    
-    def generate_npcs(self):
-        """Generate NPCs across the map"""
-        world_width = INITIAL_CHUNKS_X * CHUNK_SIZE
-        world_height = INITIAL_CHUNKS_Y * CHUNK_SIZE
-        
-        # Generate 3-6 NPCs randomly
-        num_npcs = random.randint(3, 6)
-        npc_types = ['trader', 'rival_tribe', 'wildlife_herd']
-        
-        for _ in range(num_npcs):
-            x = random.randint(200, world_width - 200)
-            y = random.randint(200, world_height - 200)
-            npc_type = random.choice(npc_types)
-            self.npcs.append(NPC(x, y, npc_type))
+        for (cx, cy), chunk_state in self.frontier_world["chunks"].items():
+            self.chunks[(cx, cy)] = MapChunk(cx, cy, self.asset_manager, lazy_render=True, chunk_state=chunk_state)
+
+    def generate_geography_entities(self):
+        """Generate encounters, hazards, and NPCs from the frontier geography instead of scatter noise."""
+        self.encounters = []
+        self.hazards = []
+        self.npcs = []
+
+        encounter_types = {
+            "granary": "ruins",
+            "citadel": "mineral_vein",
+            "crossing": "oasis",
+        }
+        for landmark in self.landmark_objects:
+            encounter = Encounter(float(landmark.x), float(landmark.y), encounter_types.get(landmark.category, "ruins"))
+            encounter.discovered = False
+            self.encounters.append(encounter)
+
+        candidate_regions = sorted(
+            self.region_objects.values(),
+            key=lambda region: (region.frontier_score * 0.6) + (region.defensibility * 0.25) + (0.15 if region.coastal else 0.0),
+            reverse=True,
+        )
+        hazard_budget = max(8, int(len(candidate_regions) * self.world_profile.hazard_density * 0.24))
+        for region in candidate_regions[:hazard_budget]:
+            x = region.world_rect[0] + (region.world_rect[2] / 2.0)
+            y = region.world_rect[1] + (region.world_rect[3] / 2.0)
+            hazard_type = {
+                "mountains": "avalanche_zone",
+                "desert": "quicksand",
+                "swamp": "flood_zone",
+            }.get(region.biome, "predator_lair")
+            radius = 90 + int(region.frontier_score * 120)
+            hazard = TerrainHazard(x, y, hazard_type, radius=radius)
+            hazard.damage_rate = 0.4 + (region.frontier_score * 0.8)
+            self.hazards.append(hazard)
+
+        for route in self.route_objects:
+            if len(route.points) < 2:
+                continue
+            midpoint = route.points[len(route.points) // 2]
+            npc_type = "trader" if route.route_type == "trade" else "wildlife_herd"
+            npc = NPC(midpoint[0], midpoint[1], npc_type)
+            npc.route_id = route.route_id
+            self.npcs.append(npc)
+        for polity in self.polity_objects:
+            home_region = self.region_objects.get(polity.home_region_id)
+            if home_region is None:
+                continue
+            x, y = self.get_region_center(home_region.region_id)
+            rival = NPC(x + 44, y + 28, "rival_tribe")
+            rival.route_id = f"frontier_{polity.polity_id}"
+            rival.reputation = -8
+            self.npcs.append(rival)
     
     def get_chunk_at_world_pos(self, world_x, world_y):
         """Get chunk containing a world position"""
         chunk_x = int(world_x // CHUNK_SIZE)
         chunk_y = int(world_y // CHUNK_SIZE)
         return self.chunks.get((chunk_x, chunk_y))
-    
+
+    def get_region_at_world_pos(self, world_x, world_y):
+        region_col = min(self.region_cols - 1, max(0, int(world_x // max(1, self.world_profile.region_width))))
+        region_row = min(self.region_rows - 1, max(0, int(world_y // max(1, self.world_profile.region_height))))
+        return self.region_objects.get(f"r{region_col}_{region_row}")
+
+    def get_region_center(self, region_id):
+        region = self.region_objects.get(region_id)
+        if region is None:
+            return (self.world_width / 2.0, self.world_height / 2.0)
+        return (
+            region.world_rect[0] + (region.world_rect[2] / 2.0),
+            region.world_rect[1] + (region.world_rect[3] / 2.0),
+        )
+
+    def get_spawn_point(self, safe_biomes):
+        safe_biomes = set(safe_biomes or [])
+        settlements = sorted(self.settlement_objects, key=lambda settlement: settlement.prosperity, reverse=True)
+        for settlement in settlements:
+            region = self.region_objects.get(settlement.region_id)
+            if region and (not safe_biomes or region.biome in safe_biomes):
+                return (float(settlement.x), float(settlement.y))
+        regions = sorted(self.region_objects.values(), key=lambda region: (region.fertility + region.route_score), reverse=True)
+        for region in regions:
+            if not safe_biomes or region.biome in safe_biomes:
+                return self.get_region_center(region.region_id)
+        return (self.world_width / 2.0, self.world_height / 2.0)
+
+    def get_route_target_for_migration(self, centroid, doctrine_key, migration_pressure):
+        if centroid is None or migration_pressure < 30.0:
+            return None
+        current_region = self.get_region_at_world_pos(centroid[0], centroid[1])
+        current_region_id = getattr(current_region, "region_id", None)
+        doctrine_weights = {
+            "growth": lambda region: (region.fertility * 0.6) + (region.water_score * 0.2) + (region.route_score * 0.2),
+            "security": lambda region: (region.defensibility * 0.6) + ((1.0 - region.frontier_score) * 0.25) + (region.route_score * 0.15),
+            "industry": lambda region: (region.route_score * 0.55) + (region.defensibility * 0.25) + ((1.0 - region.moisture) * 0.2),
+            "exploration": lambda region: (region.frontier_score * 0.5) + (region.route_score * 0.2) + (0.15 if region.coastal else 0.0) + (0.15 if region.river else 0.0),
+            "harmony": lambda region: (region.water_score * 0.4) + (region.fertility * 0.3) + ((1.0 - region.frontier_score) * 0.3),
+        }
+        scorer = doctrine_weights.get(str(doctrine_key or "exploration"), doctrine_weights["exploration"])
+        candidates = []
+        for route in self.route_network:
+            route_regions = {route.get("start_region_id"), route.get("end_region_id")}
+            if current_region_id and current_region_id not in route_regions:
+                continue
+            target_region_id = route.get("end_region_id")
+            if current_region_id and target_region_id == current_region_id:
+                target_region_id = route.get("start_region_id")
+            region = self.region_objects.get(target_region_id)
+            if region is None:
+                continue
+            target_x, target_y = self.get_region_center(region.region_id)
+            distance = math.hypot(target_x - centroid[0], target_y - centroid[1])
+            score = scorer(region) * 100.0
+            score += min(40.0, distance / 70.0)
+            score -= float(route.get("risk", 0.0) or 0.0) * 22.0
+            candidates.append((score, (target_x, target_y)))
+        if not candidates:
+            for settlement in self.settlement_objects:
+                region = self.region_objects.get(settlement.region_id)
+                if region is None:
+                    continue
+                distance = math.hypot(settlement.x - centroid[0], settlement.y - centroid[1])
+                score = scorer(region) * 100.0
+                score += min(32.0, distance / 80.0)
+                candidates.append((score, (float(settlement.x), float(settlement.y))))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        best_x, best_y = candidates[0][1]
+        return (
+            clamp(best_x, 40.0, max(40.0, self.world_width - 40.0)),
+            clamp(best_y, 40.0, max(40.0, self.world_height - 40.0)),
+        )
+
+    def apply_snapshot_world_state(self, world_data):
+        if not isinstance(world_data, dict):
+            return
+        self.generation_version = int(world_data.get("generation_version", self.generation_version))
+        discovered_chunks = set()
+        for entry in world_data.get("discovered_chunks", []):
+            if isinstance(entry, dict):
+                chunk_x = entry.get("chunk_x")
+                chunk_y = entry.get("chunk_y")
+            elif isinstance(entry, (list, tuple)) and len(entry) == 2:
+                chunk_x, chunk_y = entry
+            else:
+                continue
+            try:
+                discovered_chunks.add((int(chunk_x), int(chunk_y)))
+            except (TypeError, ValueError):
+                continue
+        if discovered_chunks:
+            self.discovered_chunks = discovered_chunks
+            for chunk_key in discovered_chunks:
+                chunk = self.chunks.get(chunk_key)
+                if chunk is not None:
+                    chunk.explored = True
+
+        if isinstance(world_data.get("polities"), list):
+            updated_polities = []
+            for index, polity in enumerate(world_data.get("polities", [])):
+                if isinstance(polity, dict):
+                    updated_polities.append(polity)
+            if updated_polities:
+                self.polity_overlay = list(updated_polities)
+                self.polities = updated_polities
+        else:
+            self.polities = list(self.polity_overlay)
+
+        if isinstance(world_data.get("settlements"), list):
+            self.settlements = [settlement for settlement in world_data.get("settlements", []) if isinstance(settlement, dict)]
+        else:
+            self.settlements = [settlement.to_payload() for settlement in self.settlement_objects]
+
+        if isinstance(world_data.get("routes"), list):
+            self.route_network = [route for route in world_data.get("routes", []) if isinstance(route, dict)]
+            self.routes = list(self.route_network)
+        if isinstance(world_data.get("landmarks"), list):
+            self.landmark_markers = [landmark for landmark in world_data.get("landmarks", []) if isinstance(landmark, dict)]
+            self.landmarks = list(self.landmark_markers)
+        if isinstance(world_data.get("regions"), list):
+            self.region_overlay = [region for region in world_data.get("regions", []) if isinstance(region, dict)]
+            self.regions = list(self.region_overlay)
+        if isinstance(world_data.get("water_network"), list):
+            self.water_network = [segment for segment in world_data.get("water_network", []) if isinstance(segment, dict)]
     def get_biome_at(self, world_x, world_y):
         """Get biome type at world coordinates"""
         chunk = self.get_chunk_at_world_pos(world_x, world_y)
@@ -9496,6 +9685,8 @@ def restore_session_from_snapshot(
     if world_map is not None:
         world_data = snapshot.get("world", {})
         if isinstance(world_data, dict):
+            if hasattr(world_map, "apply_snapshot_world_state"):
+                world_map.apply_snapshot_world_state(world_data)
             restored_encounters = []
             for encounter_data in world_data.get("encounters", []):
                 if not isinstance(encounter_data, dict):
@@ -9779,6 +9970,17 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Initialize logging and crash tracking
     game_logger = GameLogger(log_dir=runtime_config.log_dir, log_level=runtime_config.log_level)
     snapshot_resume_path = shell_choice.get("snapshot_path")
+    snapshot_payload = None
+    if snapshot_resume_path:
+        try:
+            snapshot_payload = load_run_snapshot(snapshot_resume_path)
+            snapshot_scenario_id = str(snapshot_payload.get("scenario_id") or "").strip().lower()
+            if snapshot_scenario_id and snapshot_scenario_id != scenario_profile["id"]:
+                scenario_profile = set_active_scenario(snapshot_scenario_id)
+                selected_scenario_id = snapshot_scenario_id
+        except Exception as snapshot_error:
+            print(f"[Snapshot] Failed to preload snapshot metadata: {snapshot_error}")
+            snapshot_payload = None
     
     # Initialize LLM model selection (detect fastest available model)
     # Make this non-blocking to prevent hanging - use threading with timeout
@@ -9875,13 +10077,18 @@ def main(runtime_config=RUNTIME_CONFIG):
     print("Asset manager created")
     print(f"[DEBUG] Asset manager type: {type(asset_manager)}")
     _draw_loading("Loading Thronglets... World")
-    world_map = WorldMap(asset_manager)
+    world_map = WorldMap(
+        asset_manager,
+        scenario_profile=scenario_profile,
+        seed=runtime_config.seed,
+        snapshot_world=(snapshot_payload or {}).get("world"),
+    )
     print(f"World map created with {len(world_map.chunks)} chunks")
     
     # Chunks use lazy rendering now - surfaces will be created when first rendered
     print(f"[DEBUG] Chunks created: {len(world_map.chunks)} (surfaces will be created on first render)")
-    world_width = INITIAL_CHUNKS_X * CHUNK_SIZE
-    world_height = INITIAL_CHUNKS_Y * CHUNK_SIZE
+    world_width = int(getattr(world_map, "world_width", INITIAL_CHUNKS_X * CHUNK_SIZE))
+    world_height = int(getattr(world_map, "world_height", INITIAL_CHUNKS_Y * CHUNK_SIZE))
     _draw_loading("Loading Thronglets... Camera")
     camera = Camera(world_width, world_height)
     # Center camera on world initially to ensure chunks are visible
@@ -9892,31 +10099,15 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Initialize thronglets - CLUSTERED SPAWN
     thronglets = []
     # Find safe spawn location (plains or forest biome preferred)
-    spawn_found = False
-    spawn_center_x, spawn_center_y = world_width // 2, world_height // 2
     safe_biomes = list(scenario_profile.get("spawn_biomes", ['plains', 'forest']))
-    
-    # Try to find a good spawn location (optimized: limit attempts and use center as fallback)
-    max_attempts = 20  # Reduced from 50 for faster startup
-    for attempt in range(max_attempts):
-        test_x = random.randint(200, world_width - 200)
-        test_y = random.randint(200, world_height - 200)
-        biome = world_map.get_biome_at(test_x, test_y)
-        if biome in safe_biomes:
-            spawn_center_x, spawn_center_y = test_x, test_y
-            spawn_found = True
-            break
-    
-    # If no safe biome found, use center (it's fine, just not optimal)
-    if not spawn_found:
-        print(f"[INFO] No ideal spawn biome found in {max_attempts} attempts, using center")
+    spawn_center_x, spawn_center_y = world_map.get_spawn_point(safe_biomes)
     
     print(f"Spawn center: ({spawn_center_x}, {spawn_center_y}) - Biome: {world_map.get_biome_at(spawn_center_x, spawn_center_y)}")
     
     # Center camera on spawn point and zoom in
     camera.x = max(0, min(spawn_center_x - WINDOW_WIDTH / 2, world_width - WINDOW_WIDTH))
     camera.y = max(0, min(spawn_center_y - WINDOW_HEIGHT / 2, world_height - WINDOW_HEIGHT))
-    camera.zoom = 2.0  # Start zoomed in
+    camera.set_zoom(1.5)
     
     # Validate camera position and zoom
     if not (0 <= camera.x <= world_width) or not (0 <= camera.y <= world_height):
@@ -9925,11 +10116,11 @@ def main(runtime_config=RUNTIME_CONFIG):
         camera.y = max(0, min(world_height / 2 - WINDOW_HEIGHT / 2, world_height - WINDOW_HEIGHT))
     
     if camera.zoom <= 0 or camera.zoom > camera.max_zoom:
-        print(f"[WARNING] Invalid zoom {camera.zoom}, resetting to 1.0")
-        camera.zoom = 1.0
-    
+        print(f"[WARNING] Invalid zoom {camera.zoom}, resetting to 1.5")
+        camera.set_zoom(1.5)
+
     # Ensure zoom is within bounds
-    camera.zoom = max(camera.min_zoom, min(camera.max_zoom, camera.zoom))
+    camera.set_zoom(camera.zoom)
     camera.follow_mode = True
     
     print(f"Camera positioned at ({camera.x:.0f}, {camera.y:.0f}) with zoom {camera.zoom}")
@@ -10018,9 +10209,6 @@ def main(runtime_config=RUNTIME_CONFIG):
     if 'architect' in unlocked_bonuses:
         advisor.legacy_bonuses['architect']['unlocked'] = True
     
-    # Events log for displaying recent activities
-    events_log = []
-    
     # Initialize particle system
     particle_system = ParticleSystem()
     
@@ -10092,7 +10280,8 @@ def main(runtime_config=RUNTIME_CONFIG):
     restored_elapsed_seconds = 0.0
     if snapshot_resume_path:
         try:
-            snapshot_payload = load_run_snapshot(snapshot_resume_path)
+            if snapshot_payload is None:
+                snapshot_payload = load_run_snapshot(snapshot_resume_path)
             restored_state = restore_session_from_snapshot(
                 snapshot_payload,
                 world_width,
@@ -10172,24 +10361,18 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Game state tracking
     running = True
     game_over = False
-    extinction_time = None
     final_stats = None
-    extinction_overlay_visible = False
-    
-    # Panel state flags
-    research_panel_open = False
-    analytics_panel_open = False
-    stats_panel_open = False
-    archive_panel_open = False
     ui_theme = build_ui_theme(WINDOW_WIDTH, WINDOW_HEIGHT)
     ui_registry = UIRectRegistry()
     ui_state = UIState(
         active_screen="run",
         selected_scenario_id=scenario_profile["id"],
         camera_mode="follow" if camera.follow_mode else "free",
-        map_overlay="districts",
+        map_overlay="biome",
     )
     camera_director = CameraDirector()
+    graphics_config = GraphicsConfig(target_fps=FPS)
+    scene_renderer = SceneRenderer(graphics_config, asset_root=os.path.join(os.path.dirname(__file__), "assets"))
     post_run_action = None
 
     def _toggle_modal(modal_name):
@@ -10200,7 +10383,9 @@ def main(runtime_config=RUNTIME_CONFIG):
             ui_state.analytics_section = "population"
 
     def _handle_ui_action(action_name, payload=None):
-        nonlocal running, post_run_action, current_time_speed, selected_model
+        nonlocal running, post_run_action, selected_model
+        global current_time_speed
+        ui_state.show_quit_prompt = False
         if action_name == "toggle_follow":
             camera.follow_mode = not camera.follow_mode
             ui_state.camera_mode = "follow" if camera.follow_mode else "free"
@@ -10262,9 +10447,11 @@ def main(runtime_config=RUNTIME_CONFIG):
             return
         if action_name == "end_archive":
             ui_state.active_modal = "archive"
+            ui_state.end_summary_open = False
             return
         if action_name == "end_compare":
             ui_state.active_modal = "archive"
+            ui_state.end_summary_open = False
             return
         if action_name == "end_resume":
             post_run_action = "resume_latest"
@@ -10905,8 +11092,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             # Check for extinction
             if len(thronglets) == 0 and not game_over:
                 game_over = True
-                extinction_time = current_time
-                extinction_overlay_visible = True
+                ui_state.end_summary_open = True
+                ui_state.active_modal = None
                 extinction_summary = refresh_run_summary_cache(
                     advisor,
                     thronglets,
@@ -11041,10 +11228,6 @@ def main(runtime_config=RUNTIME_CONFIG):
                         thronglet.gain_skill_xp('building', SKILL_XP_BUILDING)
                         # Record success for Q-learning
                         thronglet.record_success('build_' + building_type)
-                        # Log event
-                        events_log.append({"time": current_time, "event": f"Built {building_type}"})
-                        # Keep only last 5 events
-                        events_log = events_log[-5:]
                         record_observer_timeline_event(
                             advisor,
                             current_time,
@@ -11498,9 +11681,6 @@ def main(runtime_config=RUNTIME_CONFIG):
                             'Achievement',
                         )
                         
-                        # Log event
-                        events_log.append({"time": current_time, "event": f"🎉 New thronglet born! Pop: {len(thronglets)}"})
-                        events_log = events_log[-5:]
                         record_observer_timeline_event(
                             advisor,
                             current_time,
@@ -11530,266 +11710,169 @@ def main(runtime_config=RUNTIME_CONFIG):
                 
                 record_population_evolution_sample(advisor, thronglets, current_time, game_start_time, force=False)
 
-                # Draw world chunks (main draw pass)
-                # Validate camera before rendering
-                if camera.zoom <= 0:
-                    print(f"[ERROR] Invalid camera zoom: {camera.zoom}, resetting to 1.0")
-                    camera.zoom = 1.0
-                    camera.zoom = max(camera.min_zoom, min(camera.max_zoom, camera.zoom))
-                
-                chunks_visible = 0
-                chunks_rendered = 0
-                
-                for chunk_key, chunk in world_map.chunks.items():
-                    # Check if chunk is visible on screen
-                    screen_x1, screen_y1 = camera.world_to_screen(chunk.world_x, chunk.world_y)
-                    screen_x2, screen_y2 = camera.world_to_screen(chunk.world_x + CHUNK_SIZE, chunk.world_y + CHUNK_SIZE)
-                    if screen_x2 > 0 and screen_x1 < WINDOW_WIDTH and screen_y2 > 0 and screen_y1 < WINDOW_HEIGHT:
-                        chunks_visible += 1
-                        zoomed_chunk_w = int(CHUNK_SIZE * camera.zoom)
-                        zoomed_chunk_h = int(CHUNK_SIZE * camera.zoom)
-                        
-                        # Ensure chunk has a surface (lazy rendering: create on first use)
-                        if chunk.surface is None:
-                            # Render surface on demand (lazy loading for faster startup)
-                            chunk.render_surface()
-                        
-                        if zoomed_chunk_w > 0 and zoomed_chunk_h > 0:
-                            try:
-                                scaled_chunk = pygame.transform.scale(chunk.surface, (zoomed_chunk_w, zoomed_chunk_h))
-                                screen.blit(scaled_chunk, (int(screen_x1), int(screen_y1)))
-                                chunks_rendered += 1
-                            except Exception as e:
-                                # Fallback: draw a simple biome-colored rect
-                                biome_colors = {
-                                    'forest': GRASS_DARK,
-                                    'plains': GRASS_MID,
-                                    'mountains': ROCK_MID,
-                                    'desert': DESERT_SAND,
-                                    'snow': SNOW_WHITE,
-                                    'swamp': SWAMP_DARK,
-                                    'taiga': TAIGA_GREEN,
-                                    'tundra': ICE_BLUE
-                                }
-                                center_tile = chunk.tiles.get((8, 8), 'plains') if hasattr(chunk, 'tiles') else 'plains'
-                                color = biome_colors.get(center_tile, GRAY)
-                                pygame.draw.rect(screen, color, (int(screen_x1), int(screen_y1), max(1, zoomed_chunk_w), max(1, zoomed_chunk_h)))
-                                chunks_rendered += 1
-                
-                # Diagnostic logging on first frame
-                if frame_count == 1:
-                    chunks_with_surfaces = sum(1 for c in world_map.chunks.values() if c.surface is not None)
-                    print(f"[DEBUG] Chunk rendering: {chunks_visible} visible, {chunks_rendered} rendered")
-                    print(f"[DEBUG] Chunks with surfaces: {chunks_with_surfaces}/{len(world_map.chunks)}")
-                    if chunks_visible == 0:
-                        print(f"[WARNING] No chunks visible! Camera: ({camera.x:.1f}, {camera.y:.1f}), Zoom: {camera.zoom:.2f}")
-                        print(f"[WARNING] World size: {world_width}x{world_height}, Window: {WINDOW_WIDTH}x{WINDOW_HEIGHT}")
-                        # #region agent log
-                        debug_log("main:no_chunks_visible", "No chunks visible on first frame", {
-                            "camera_x": camera.x, "camera_y": camera.y, "zoom": camera.zoom,
-                            "world_width": world_width, "world_height": world_height
-                        }, "H2")
-                        # #endregion
-                        # FALLBACK: Render at least one chunk at center to ensure something is visible
-                        try:
-                            center_chunk_key = (INITIAL_CHUNKS_X // 2, INITIAL_CHUNKS_Y // 2)
-                            if center_chunk_key in world_map.chunks:
-                                center_chunk = world_map.chunks[center_chunk_key]
-                                if center_chunk.surface is None:
-                                    center_chunk.render_surface()
-                                # Render at screen center
-                                screen_x = WINDOW_WIDTH // 2 - (CHUNK_SIZE * camera.zoom) // 2
-                                screen_y = WINDOW_HEIGHT // 2 - (CHUNK_SIZE * camera.zoom) // 2
-                                zoomed_w = int(CHUNK_SIZE * camera.zoom)
-                                zoomed_h = int(CHUNK_SIZE * camera.zoom)
-                                if zoomed_w > 0 and zoomed_h > 0 and center_chunk.surface:
-                                    scaled_chunk = pygame.transform.scale(center_chunk.surface, (zoomed_w, zoomed_h))
-                                    screen.blit(scaled_chunk, (int(screen_x), int(screen_y)))
-                                    print("[DEBUG] Rendered fallback center chunk")
-                        except Exception as e:
-                            print(f"[DEBUG] Fallback chunk render failed: {e}")
+                render_frame = build_render_frame(
+                    world_map=world_map,
+                    camera=camera,
+                    fog_of_war=fog_of_war,
+                    territory_manager=territory_manager,
+                    city_planner=city_planner,
+                    faction_manager=faction_manager,
+                    season=season,
+                    weather_system=weather_system,
+                    settlement_state=settlement_state,
+                    current_time=current_time,
+                    game_start_time=game_start_time,
+                    frame_count=frame_count,
+                    window_size=(WINDOW_WIDTH, WINDOW_HEIGHT),
+                    chunk_size=CHUNK_SIZE,
+                    tile_size=TILE_SIZE,
+                    world_size=(world_width, world_height),
+                    buildings=buildings,
+                    resources=resources,
+                    thronglets=thronglets,
+                    encounters=world_map.encounters,
+                    hazards=world_map.hazards,
+                    npcs=world_map.npcs,
+                    selected_entity=selection_manager.selected_entity,
+                    particle_system=particle_system,
+                    effect_cues=camera_director.to_payload(),
+                    active_overlay=ui_state.map_overlay,
+                    camera_bookmarks=camera_director.to_payload(),
+                )
+                scene_renderer.render(screen, render_frame)
+            
+            current_summary = dict(advisor.session_stats.get("current_run_summary", {}) or {})
+            evolution_summary = advisor.session_stats.get("current_evolution_summary") or summarize_population_evolution(thronglets)
+            llm_status = advisor.get_llm_status_label(
+                selected_model
+                or _selected_llm_model
+                or ("Disabled" if runtime_config.disable_llm or not LLM_ENABLED else PREFERRED_OLLAMA_MODEL)
+            )
+            scenario_name = advisor.session_stats.get("scenario_name", scenario_profile["name"])
+            doctrine = dict((getattr(advisor, "council_state", {}) or {}).get("doctrine", {}) or {})
+            doctrine_label = str(doctrine.get("focus") or doctrine.get("stance") or "Autonomous").replace("_", " ").title()
+            phase_label = current_summary.get("current_phase", {}).get("label", "Founding")
+            observer_score = int(current_summary.get("end_state", {}).get("score", 0) or 0)
+            if thronglets:
+                colony_center = (
+                    sum(thronglet.x for thronglet in thronglets) / len(thronglets),
+                    sum(thronglet.y for thronglet in thronglets) / len(thronglets),
+                )
+            else:
+                colony_center = None
+            camera_director.sync_from_summary(current_summary, current_time, colony_center)
+            cue_label = camera_director.apply(
+                camera,
+                current_time,
+                (WINDOW_WIDTH, WINDOW_HEIGHT),
+                manual_override=bool(getattr(camera, "panning", False)),
+            )
+            if cue_label:
+                ui_state.camera_mode = "event"
+                ui_state.camera_cue = cue_label
+            else:
+                ui_state.camera_cue = None
+                ui_state.camera_mode = "follow" if camera.follow_mode else "free"
 
-                # Continue drawing rest of game on top of chunks
+            active_challenges = list(getattr(advisor, "active_challenges", []) or [])
+            if active_challenges:
+                crisis_label = str(active_challenges[0].get("type", "Crisis")).replace("_", " ").title()
+            elif population_ratio >= 1.0:
+                crisis_label = "Capacity Reached"
+            elif population_ratio >= OVERPOPULATION_THRESHOLD:
+                crisis_label = "Overcapacity"
+            else:
+                crisis_label = "Stable"
 
-                # Draw buildings first (background layer)
-                for building in buildings:
-                    # Check fog of war visibility
-                    if fog_of_war.is_visible(building.x, building.y):
-                        # Transform to screen coordinates
-                        screen_x, screen_y = camera.world_to_screen(building.x, building.y)
-                        if -50 <= screen_x <= WINDOW_WIDTH + 50 and -50 <= screen_y <= WINDOW_HEIGHT + 50:
-                            # Temporarily adjust building position for drawing
-                            old_x, old_y = building.x, building.y
-                            building.x, building.y = screen_x, screen_y
-                            building.draw(screen)
-                            # Draw highlight if selected
-                            selection_manager.draw_highlight(screen, building, 'building')
-                            building.x, building.y = old_x, old_y
+            ui_registry.reset()
+            run_layout = compute_run_layout(WINDOW_WIDTH, WINDOW_HEIGHT)
+            hud_model = RunHudModel(
+                scenario_name=scenario_name,
+                phase_label=phase_label,
+                doctrine_label=doctrine_label,
+                llm_status=llm_status,
+                speed_label=f"{TIME_SPEED_OPTIONS[current_time_speed]:.1f}x",
+                follow_label="Follow" if camera.follow_mode else "Free",
+                camera_mode_label=ui_state.camera_mode.title(),
+                crisis_label=crisis_label,
+                overlay_label=ui_state.map_overlay.title(),
+                observer_score=observer_score,
+                cue_label=ui_state.camera_cue or "",
+            )
+            field_notes = build_field_notes(advisor.session_stats.get("timeline_events", []), current_time, limit=6)
+            minimap_context = {
+                "world_map": world_map,
+                "camera": camera,
+                "city_planner": city_planner,
+                "faction_manager": faction_manager,
+                "thronglets": thronglets,
+                "buildings": buildings,
+                "fog_of_war": fog_of_war,
+                "camera_bookmarks": camera_director.to_payload(),
+                "biome_colors": {
+                    "forest": GRASS_DARK,
+                    "plains": GRASS_MID,
+                    "mountains": ROCK_MID,
+                    "desert": DESERT_SAND,
+                    "snow": SNOW_WHITE,
+                    "swamp": SWAMP_DARK,
+                    "taiga": TAIGA_GREEN,
+                    "tundra": ICE_BLUE,
+                },
+                "chunk_size": CHUNK_SIZE,
+                "tile_size": TILE_SIZE,
+                "window_size": (WINDOW_WIDTH, WINDOW_HEIGHT),
+            }
+            draw_run_hud(
+                screen,
+                ui_theme,
+                run_layout,
+                ui_registry,
+                hud_model,
+                field_notes,
+                ui_state,
+                current_time_speed,
+                minimap_context,
+            )
+            inspect_model = build_inspect_view_model(
+                selection_manager.selected_entity,
+                selection_manager.selected_type,
+                advisor,
+                current_time,
+                settlement_state,
+                faction_manager=faction_manager,
+                active_tab=ui_state.inspect_tab,
+            )
+            draw_inspect_drawer(
+                screen,
+                ui_theme,
+                run_layout,
+                ui_registry,
+                inspect_model,
+                scroll_offset=ui_state.inspect_scroll,
+            )
+            if not ui_state.end_summary_open:
+                draw_modal_layer(
+                    screen,
+                    ui_theme,
+                    run_layout,
+                    ui_registry,
+                    ui_state,
+                    advisor=advisor,
+                    current_summary=current_summary,
+                    current_time=current_time,
+                    log_dir=game_logger.log_dir,
+                    evolution_summary=evolution_summary,
+                )
+            if ui_state.show_quit_prompt:
+                quit_prompt_rect = pygame.Rect(run_layout.top_ribbon.centerx - 150, run_layout.top_ribbon.bottom + 12, 300, 54)
+                ui_registry.register("quit_prompt", quit_prompt_rect, layer=25)
+                draw_panel(screen, quit_prompt_rect, ui_theme, fill=(40, 28, 24), alpha=240, radius=ui_theme.radius_large)
+                prompt_text = ui_theme.fonts.caption.render("Press Esc again or Enter to quit the run", True, ui_theme.palette.parchment)
+                screen.blit(prompt_text, (quit_prompt_rect.x + 22, quit_prompt_rect.y + 18))
 
-            # Draw faction migration vectors before units so frontier pressure is visible
-            for faction in faction_manager.factions.values():
-                if not getattr(faction, "migration_target", None):
-                    continue
-                centroid = faction.get_centroid(thronglets)
-                if not centroid:
-                    continue
-                start_x, start_y = camera.world_to_screen(centroid[0], centroid[1])
-                target_x, target_y = camera.world_to_screen(faction.migration_target[0], faction.migration_target[1])
-                if (
-                    start_x < -120 and target_x < -120
-                    or start_x > WINDOW_WIDTH + 120 and target_x > WINDOW_WIDTH + 120
-                    or start_y < -120 and target_y < -120
-                    or start_y > WINDOW_HEIGHT + 120 and target_y > WINDOW_HEIGHT + 120
-                ):
-                    continue
-                route_color = {
-                    "growth": (255, 210, 120),
-                    "security": (120, 210, 255),
-                    "industry": (255, 170, 120),
-                    "exploration": (210, 160, 255),
-                    "harmony": (170, 255, 200),
-                }.get(faction.primary_doctrine, (220, 220, 220))
-                pygame.draw.line(screen, route_color, (int(start_x), int(start_y)), (int(target_x), int(target_y)), 2)
-                pygame.draw.circle(screen, route_color, (int(target_x), int(target_y)), 6, 2)
-            
-            # Draw resources with glow effect
-            for resource in resources:
-                # Check fog of war visibility
-                if fog_of_war.is_visible(resource.x, resource.y):
-                    # Transform to screen coordinates
-                    screen_x, screen_y = camera.world_to_screen(resource.x, resource.y)
-                    if -50 <= screen_x <= WINDOW_WIDTH + 50 and -50 <= screen_y <= WINDOW_HEIGHT + 50:
-                        old_x, old_y = resource.x, resource.y
-                        resource.x, resource.y = screen_x, screen_y
-                        resource.draw(screen, thronglets)
-                        # Draw highlight if selected
-                        selection_manager.draw_highlight(screen, resource, 'resource')
-                        resource.x, resource.y = old_x, old_y
-            
-            # Draw thronglets
-            for thronglet in thronglets:
-                # Transform to screen coordinates
-                screen_x, screen_y = camera.world_to_screen(thronglet.x, thronglet.y)
-                if -50 <= screen_x <= WINDOW_WIDTH + 50 and -50 <= screen_y <= WINDOW_HEIGHT + 50:
-                    old_x, old_y = thronglet.x, thronglet.y
-                    thronglet.x, thronglet.y = screen_x, screen_y
-                    thronglet.draw(screen)
-                    
-                    # Display action icon above thronglet (use screen coords)
-                    action = thronglet.current_action.lower()
-                    action_icon = None
-                    action_color = WHITE
-                    
-                    if 'eating' in action:
-                        action_icon = "🍽️"  # Eating icon
-                        action_color = (255, 200, 0)
-                    elif 'food' in action or 'hunger' in action:
-                        action_icon = "🍎"  # Food icon
-                        action_color = RED
-                    elif 'wood' in action:
-                        action_icon = "🪵"  # Wood icon
-                        action_color = BROWN
-                    elif 'water' in action or 'thirst' in action:
-                        action_icon = "💧"  # Water icon
-                        action_color = (100, 200, 255)
-                    elif 'stone' in action:
-                        action_icon = "🗿"  # Stone icon
-                        action_color = GRAY
-                    elif 'build' in action:
-                        action_icon = "🔨"  # Building icon
-                        action_color = (139, 115, 85)
-                    elif 'exploring' in action or 'wander' in action:
-                        action_icon = "👀"  # Explorer icon
-                        action_color = EXPLORER_COLOR
-                    elif 'rest' in action or 'shelter' in action:
-                        action_icon = "💤"  # Rest icon
-                        action_color = (100, 100, 200)
-                    elif 'deposit' in action or 'storage' in action:
-                        action_icon = "📦"  # Storage/deposit icon
-                        action_color = (150, 150, 200)
-                    
-                    if action_icon:
-                        icon_text = font_small.render(action_icon, True, action_color)
-                        screen.blit(icon_text, (int(thronglet.x - 8), int(thronglet.y - 35)))
-                    
-                    # Display reproduction message (heart symbol) if recent (priority over other icons)
-                    if thronglet.reproduction_message and current_time - thronglet.reproduction_message_time < 2:
-                        repro_text = font_small.render(thronglet.reproduction_message, True, RED)
-                        screen.blit(repro_text, (int(thronglet.x - 8), int(thronglet.y - 35)))
-                    
-                    # Draw highlight if selected
-                    selection_manager.draw_highlight(screen, thronglet, 'thronglet')
-                    
-                    thronglet.x, thronglet.y = old_x, old_y
-            
-            # Draw encounters (after resources but before particles)
-            for encounter in world_map.encounters:
-                if encounter.discovered and fog_of_war.is_visible(encounter.x, encounter.y):
-                    # Transform to screen coordinates
-                    screen_x, screen_y = camera.world_to_screen(encounter.x, encounter.y)
-                    if -50 <= screen_x <= WINDOW_WIDTH + 50 and -50 <= screen_y <= WINDOW_HEIGHT + 50:
-                        old_x, old_y = encounter.x, encounter.y
-                        encounter.x, encounter.y = screen_x, screen_y
-                        encounter.draw(screen)
-                        # Draw highlight if selected
-                        selection_manager.draw_highlight(screen, encounter, 'encounter')
-                        encounter.x, encounter.y = old_x, old_y
-            
-            # Draw terrain hazards (pulsing warning circles)
-            for hazard in world_map.hazards:
-                if hazard.active and fog_of_war.is_visible(hazard.x, hazard.y):
-                    # Transform to screen coordinates
-                    screen_x, screen_y = camera.world_to_screen(hazard.x, hazard.y)
-                    # Check if any part of hazard is on screen
-                    if -200 <= screen_x <= WINDOW_WIDTH + 200 and -200 <= screen_y <= WINDOW_HEIGHT + 200:
-                        old_x, old_y = hazard.x, hazard.y
-                        old_radius = hazard.radius
-                        hazard.x, hazard.y = screen_x, screen_y
-                        # Scale radius by zoom
-                        hazard.radius = int(old_radius * camera.zoom)
-                        hazard.draw(screen)
-                        # Draw highlight if selected (restore radius first for proper highlighting)
-                        temp_radius = hazard.radius
-                        hazard.radius = old_radius
-                        selection_manager.draw_highlight(screen, hazard, 'hazard')
-                        hazard.radius = temp_radius
-                        hazard.x, hazard.y = old_x, old_y
-                        hazard.radius = old_radius
-            
-            # Draw NPCs
-            for npc in world_map.npcs:
-                if npc.visible and fog_of_war.is_visible(npc.x, npc.y):
-                    # Transform to screen coordinates
-                    screen_x, screen_y = camera.world_to_screen(npc.x, npc.y)
-                    if -50 <= screen_x <= WINDOW_WIDTH + 50 and -50 <= screen_y <= WINDOW_HEIGHT + 50:
-                        old_x, old_y = npc.x, npc.y
-                        npc.x, npc.y = screen_x, screen_y
-                        npc.draw(screen)
-                        # Draw highlight if selected
-                        selection_manager.draw_highlight(screen, npc, 'npc')
-                        npc.x, npc.y = old_x, old_y
-            
-            # Draw particles (after everything else for better visibility)
-            particle_system.draw(screen)
-            
-            # Draw fog of war overlay (after particles but before UI)
-            # Skip fog for the first 2 seconds so the world is visible during load
-            if current_time - game_start_time > 2.0:
-                fog_of_war.draw_fog(screen, camera, world_map)
-            
-            # Draw territory overlay (after fog of war)
-            territory_manager.draw_territory_overlay(screen, camera, fog_of_war)
-
-            draw_atmospheric_overlay(screen, current_time - game_start_time, season, weather_system, settlement_state)
-            
-            # Draw narrative panel first (bottom-left, above RECENT EVENTS)
-            narrative_panel.draw(screen, 20, WINDOW_HEIGHT - 380, 400, 180)
-            
             # Draw tooltip (pass faction_manager for enhanced info)
             tooltip_system.draw_tooltip(screen, mouse_screen_pos[0], mouse_screen_pos[1], faction_manager)
-            
-            # Draw info panel
-            info_panel.draw(screen, selection_manager.selected_entity, selection_manager.selected_type, advisor, current_time)
             
             # Quick on-screen debug watermark for the first 3 seconds after start
             if current_time - game_start_time < 3.0:
@@ -11798,425 +11881,6 @@ def main(runtime_config=RUNTIME_CONFIG):
                     screen.blit(debug_text, (10, 5))
                 except Exception:
                     pass
-
-            # Display enhanced HUD with panels
-            day_number = int((current_time - game_start_time) / DAY_LENGTH) + 1
-            num_food = sum(1 for r in resources if r.resource_type == 'food' and not r.collected)
-            num_wood = sum(1 for r in resources if r.resource_type == 'wood' and not r.collected)
-            num_stone = sum(1 for r in resources if r.resource_type == 'stone' and not r.collected)
-            
-            # Calculate total inventory
-            total_food_inv = sum(t.inventory['food'] for t in thronglets)
-            total_wood_inv = sum(t.inventory['wood'] for t in thronglets)
-            total_stone_inv = sum(t.inventory['stone'] for t in thronglets)
-            stored_food = settlement_state.get('stored_food', 0)
-            stored_wood = settlement_state.get('stored_wood', 0)
-            stored_stone = settlement_state.get('stored_stone', 0)
-            district_identity = settlement_state.get('district_identity', 'homestead').replace('_', ' ').title()
-            festival_active = settlement_state.get('festival_active', False)
-            festival_timer = settlement_state.get('festival_timer', 0.0)
-            llm_status = advisor.get_llm_status_label(
-                selected_model
-                or _selected_llm_model
-                or ("Disabled" if runtime_config.disable_llm or not LLM_ENABLED else PREFERRED_OLLAMA_MODEL)
-            )
-            evolution_summary = advisor.session_stats.get("current_evolution_summary") or summarize_population_evolution(thronglets)
-            
-            # Top-left panel: Civilization stats (scaled for larger window)
-            panel1_x, panel1_y = 20, 20
-            stats_panel_w, stats_panel_h = 340, 332
-            panel = pygame.Surface((stats_panel_w, stats_panel_h))
-            panel.set_alpha(200)
-            panel.fill((20, 20, 40))
-            screen.blit(panel, (panel1_x, panel1_y))
-            
-            title = font_small.render("CIVILIZATION", True, (150, 150, 255))
-            screen.blit(title, (panel1_x + 10, panel1_y + 10))
-            
-            day_text = font_small.render(f"Day {day_number} - {time_of_day}", True, WHITE)
-            screen.blit(day_text, (panel1_x + 10, panel1_y + 35))
-            
-            season_text = font_small.render(f"Season: {season.current.capitalize()}", True, WHITE)
-            screen.blit(season_text, (panel1_x + 10, panel1_y + 60))
-            
-            weather_text = font_small.render(f"Weather: {weather_system.current_weather.upper()}", True, WHITE)
-            screen.blit(weather_text, (panel1_x + 10, panel1_y + 85))
-
-            scenario_name = advisor.session_stats.get("scenario_name", scenario_profile["name"])
-            scenario_text = font_small.render(f"Scenario: {scenario_name}", True, (170, 215, 255))
-            screen.blit(scenario_text, (panel1_x + 10, panel1_y + 110))
-            
-            pop_text = font_small.render(f"Population: {len(thronglets)}", True, (100, 200, 100))
-            screen.blit(pop_text, (panel1_x + 10, panel1_y + 135))
-            
-            bld_text = font_small.render(f"Buildings: {num_buildings}", True, (255, 200, 100))
-            screen.blit(bld_text, (panel1_x + 10, panel1_y + 160))
-
-            prosperity_text = font_small.render(
-                f"Prosperity: {int(settlement_state.get('prosperity_score', 0.0) * 100)}%",
-                True,
-                (255, 220, 120),
-            )
-            screen.blit(prosperity_text, (panel1_x + 10, panel1_y + 185))
-
-            district_text = font_small.render(
-                f"District: {district_identity}",
-                True,
-                (180, 220, 255),
-            )
-            screen.blit(district_text, (panel1_x + 10, panel1_y + 210))
-
-            culture_text = font_small.render(
-                f"Culture: {int(settlement_state.get('culture_score', 0.0) * 100)}%  {settlement_state.get('dominant_biome', 'plains').title()}",
-                True,
-                (180, 220, 255),
-            )
-            screen.blit(culture_text, (panel1_x + 10, panel1_y + 235))
-
-            evolution_text = font_small.render(
-                f"Evolution: G{evolution_summary.get('avg_generation', 0):.1f} avg  L{evolution_summary.get('founder_lines', 0)} lines",
-                True,
-                (255, 220, 150),
-            )
-            screen.blit(evolution_text, (panel1_x + 10, panel1_y + 260))
-            
-            # Population warning
-            if population_ratio >= OVERPOPULATION_THRESHOLD:
-                warning_text = "OVERPOPULATION WARNING!"
-                if population_ratio >= 1.0:
-                    warning_text = "MAX CAPACITY REACHED!"
-                warning_surface = font.render(warning_text, True, RED)
-                # Flash effect
-                if int(current_time * 2) % 2 == 0:
-                    screen.blit(warning_surface, (WINDOW_WIDTH // 2 - warning_surface.get_width() // 2, 50))
-            
-            # Research points (with safe access)
-            if hasattr(advisor, 'research_points'):
-                research_text = font_small.render(f"Research: {advisor.research_points} pts", True, (255, 215, 0))
-                screen.blit(research_text, (panel1_x + 10, panel1_y + 283))
-            
-            # Active modifiers count (with safe access)
-            active_mod_count = 0
-            if hasattr(advisor, 'game_modifiers') and hasattr(advisor.game_modifiers, 'permanent') and hasattr(advisor.game_modifiers, 'temporary'):
-                try:
-                    permanent_count = len([k for k, v in advisor.game_modifiers.permanent.items()])
-                    temporary_count = len([k for k, v in advisor.game_modifiers.temporary.items() if isinstance(v, tuple) and time.time() < v[1]])
-                    active_mod_count = permanent_count + temporary_count
-                except (AttributeError, TypeError):
-                    active_mod_count = 0
-            
-            if active_mod_count > 0:
-                mod_text = font_small.render(f"Active Mods: {active_mod_count}", True, (200, 100, 255))
-                screen.blit(mod_text, (panel1_x + 170, panel1_y + 283))
-
-            footer_label = f"Festival: {festival_timer:.0f}s" if festival_active else f"LLM: {llm_status}"
-            footer_color = (255, 180, 120) if festival_active else (150, 200, 255)
-            footer_text = font_small.render(footer_label[:28], True, footer_color)
-            screen.blit(footer_text, (panel1_x + 10, panel1_y + 305))
-            
-            # Top-right panel: Resources (scaled for larger window)
-            panel2_x, panel2_y = WINDOW_WIDTH - 320, 20
-            resources_panel_w, resources_panel_h = 300, 330
-            panel2 = pygame.Surface((resources_panel_w, resources_panel_h))
-            panel2.set_alpha(200)
-            panel2.fill((20, 40, 20))
-            screen.blit(panel2, (panel2_x, panel2_y))
-            
-            resources_title = font_small.render("RESOURCES", True, (150, 255, 150))
-            screen.blit(resources_title, (panel2_x + 10, panel2_y + 10))
-            
-            # Map resources with labels
-            map_header = font_small.render("Map Resources:", True, WHITE)
-            screen.blit(map_header, (panel2_x + 10, panel2_y + 35))
-            
-            food_map = font_small.render(f"  Food: {num_food}", True, (255, 100, 100))
-            screen.blit(food_map, (panel2_x + 10, panel2_y + 55))
-            wood_map = font_small.render(f"  Wood: {num_wood}", True, (139, 90, 60))  # Brown
-            screen.blit(wood_map, (panel2_x + 10, panel2_y + 75))
-            stone_map = font_small.render(f"  Stone: {num_stone}", True, GRAY)
-            screen.blit(stone_map, (panel2_x + 10, panel2_y + 95))
-            
-            # Carried resources
-            inv_header = font_small.render("Carried Resources:", True, (255, 255, 100))
-            screen.blit(inv_header, (panel2_x + 10, panel2_y + 120))
-            food_inv = font_small.render(f"  Food: {total_food_inv}", True, (255, 200, 200))
-            screen.blit(food_inv, (panel2_x + 10, panel2_y + 140))
-            wood_inv = font_small.render(f"  Wood: {total_wood_inv}", True, (200, 150, 100))
-            screen.blit(wood_inv, (panel2_x + 10, panel2_y + 160))
-            stone_inv = font_small.render(f"  Stone: {total_stone_inv}", True, (180, 180, 180))
-            screen.blit(stone_inv, (panel2_x + 10, panel2_y + 180))
-
-            stored_header = font_small.render("Settlement Stores:", True, (160, 220, 255))
-            screen.blit(stored_header, (panel2_x + 10, panel2_y + 205))
-            stored_text = font_small.render(
-                f"  F:{int(stored_food)}  W:{int(stored_wood)}  S:{int(stored_stone)}",
-                True,
-                (210, 230, 255),
-            )
-            screen.blit(stored_text, (panel2_x + 10, panel2_y + 225))
-
-            speed_text = font_small.render(f"Speed: {TIME_SPEED_OPTIONS[current_time_speed]:.1f}x [1/2/5]", True, (200, 200, 255))
-            screen.blit(speed_text, (panel2_x + 10, panel2_y + 248))
-
-            ratio_text = font_small.render(f"Capacity: {len(thronglets)/MAX_POPULATION*100:.0f}%", True, (200, 200, 200))
-            screen.blit(ratio_text, (panel2_x + 10, panel2_y + 270))
-            
-            # Population capacity bar
-            bar_x, bar_y = panel2_x + 10, panel2_y + 295
-            bar_w, bar_h = 280, 18
-            pygame.draw.rect(screen, GRAY, (bar_x, bar_y, bar_w, bar_h))
-            fill_w = int(bar_w * population_ratio)
-            color = GREEN if population_ratio < 0.7 else YELLOW if population_ratio < 0.9 else RED
-            pygame.draw.rect(screen, color, (bar_x, bar_y, fill_w, bar_h))
-            pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_w, bar_h), 2)
-            
-            cap_text = font_small.render(f"Population: {len(thronglets)}/{MAX_POPULATION}", True, WHITE)
-            screen.blit(cap_text, (bar_x, bar_y - 18))
-            
-            # Action bar at bottom center
-            action_bar_y = WINDOW_HEIGHT - 50
-            action_bar_w = 860
-            action_bar_x = WINDOW_WIDTH // 2 - action_bar_w // 2
-            action_bar = pygame.Surface((action_bar_w, 40))
-            action_bar.set_alpha(220)
-            action_bar.fill((30, 30, 50))
-            screen.blit(action_bar, (action_bar_x, action_bar_y))
-            
-            # Observer controls with text
-            button_width = 104
-            button_spacing = 10
-            button_y = action_bar_y + 5
-            button_h = 30
-            
-            actions = [
-                ("Inspect", "Mouse", (120, 190, 255)),
-                ("Follow", "F", (120, 220, 160)),
-                ("Research", "R", (100, 200, 255)),
-                ("Evolution", "S", (255, 200, 150)),
-                ("Analytics", "T", (215, 180, 255)),
-                ("Archive", "A", (255, 220, 150)),
-                ("Speed", "1/2/5", (210, 180, 120)),
-            ]
-            
-            for i, (label, key, color) in enumerate(actions):
-                btn_x = action_bar_x + 10 + i * (button_width + button_spacing)
-                pygame.draw.rect(screen, color, (btn_x, button_y, button_width, button_h))
-                pygame.draw.rect(screen, WHITE, (btn_x, button_y, button_width, button_h), 2)
-                label_surface = font_small.render(f"[{key}] {label}", True, WHITE)
-                text_x = btn_x + (button_width - label_surface.get_width()) // 2
-                screen.blit(label_surface, (text_x, button_y + 8))
-            
-            # Bottom-left panel: Events log (scaled for larger window)
-            panel3_x, panel3_y = 20, WINDOW_HEIGHT - 180
-            panel3_w, panel3_h = 400, 160
-            panel3 = pygame.Surface((panel3_w, panel3_h))
-            panel3.set_alpha(200)
-            panel3.fill((40, 20, 40))
-            screen.blit(panel3, (panel3_x, panel3_y))
-            
-            events_title = font_small.render("RECENT EVENTS", True, (255, 150, 255))
-            screen.blit(events_title, (panel3_x + 10, panel3_y + 10))
-            
-            # Show last 3 events
-            recent_events = events_log[-3:]
-            for i, log_event in enumerate(recent_events):
-                # Only show events from last 15 seconds
-                if current_time - log_event['time'] < 15:
-                    event_text = font_small.render(log_event['event'][:50], True, WHITE)
-                    screen.blit(event_text, (panel3_x + 10, panel3_y + 40 + i * 36))
-            
-            # Research panel (toggleable)
-            if research_panel_open:
-                try:
-                    research_panel_x = WINDOW_WIDTH // 2 - 300
-                    research_panel_y = WINDOW_HEIGHT // 2 - 250
-                    research_panel_w = 600
-                    research_panel_h = 500
-                    research_surf = pygame.Surface((research_panel_w, research_panel_h))
-                    research_surf.set_alpha(240)
-                    research_surf.fill((20, 20, 40))
-                    screen.blit(research_surf, (research_panel_x, research_panel_y))
-                    pygame.draw.rect(screen, (100, 150, 200), (research_panel_x, research_panel_y, research_panel_w, research_panel_h), 3)
-                    
-                    # Title
-                    title = font.render("RESEARCH TREE", True, (255, 215, 0))
-                    screen.blit(title, (research_panel_x + 20, research_panel_y + 20))
-                    
-                    # Points display
-                    if hasattr(advisor, 'research_points'):
-                        pts_text = font.render(f"Research Points: {advisor.research_points}", True, (255, 215, 0))
-                        screen.blit(pts_text, (research_panel_x + 20, research_panel_y + 60))
-                    
-                    # Unlocked technologies
-                    y_pos = research_panel_y + 100
-                    if hasattr(advisor, 'game_modifiers') and hasattr(advisor.game_modifiers, 'tech_unlocked') and advisor.game_modifiers.tech_unlocked:
-                        unlocked_title = font_small.render("UNLOCKED TECHNOLOGIES:", True, (100, 255, 100))
-                        screen.blit(unlocked_title, (research_panel_x + 20, y_pos))
-                        y_pos += 25
-                        for tech_id in advisor.game_modifiers.tech_unlocked:
-                            if hasattr(advisor, 'tech_tree') and tech_id in advisor.tech_tree:
-                                tech = advisor.tech_tree[tech_id]
-                                unlocked_text = font_small.render(f"  {tech['name']}", True, (150, 255, 150))
-                                screen.blit(unlocked_text, (research_panel_x + 40, y_pos))
-                                y_pos += 20
-                        y_pos += 10
-                    
-                    # Available technologies
-                    available_title = font_small.render("AVAILABLE TECHNOLOGIES:", True, (200, 200, 255))
-                    screen.blit(available_title, (research_panel_x + 20, y_pos))
-                    y_pos += 25
-                    available_count = 0
-                    if hasattr(advisor, 'tech_tree'):
-                        for tech_id, tech_data in advisor.tech_tree.items():
-                            if hasattr(advisor, 'game_modifiers') and hasattr(advisor.game_modifiers, 'tech_unlocked') and tech_id not in advisor.game_modifiers.tech_unlocked:
-                                # Check prerequisites
-                                can_unlock = all(req in advisor.game_modifiers.tech_unlocked for req in tech_data.get('requires', [])) if hasattr(advisor, 'game_modifiers') and hasattr(advisor.game_modifiers, 'tech_unlocked') else False
-                                if can_unlock:
-                                    cost = tech_data['cost']
-                                    unlocked_str = ""
-                                    has_points = hasattr(advisor, 'research_points') and advisor.research_points >= cost
-                                    color = (150, 200, 255) if has_points else (100, 100, 100)
-                                    if has_points:
-                                        unlocked_str = " [CAN AFFORD]"
-                                    tech_text = font_small.render(f"  {tech_data['name']}: {cost} pts{unlocked_str}", True, color)
-                                    screen.blit(tech_text, (research_panel_x + 40, y_pos))
-                                    # Show prerequisites if any
-                                    if tech_data.get('requires'):
-                                        req_text = font_small.render(f"    Requires: {', '.join([advisor.tech_tree[r]['name'] for r in tech_data['requires'] if r in advisor.tech_tree])}", True, (150, 150, 150))
-                                        screen.blit(req_text, (research_panel_x + 40, y_pos + 15))
-                                        y_pos += 15
-                                    # Show effects
-                                    effect_str = ", ".join([f"{k}: {v}" for k, v in tech_data['effect'].items()])
-                                    effect_text = font_small.render(f"    Effect: {effect_str}", True, (200, 200, 200))
-                                    screen.blit(effect_text, (research_panel_x + 40, y_pos + 15))
-                                    y_pos += 30
-                                    available_count += 1
-                                    if available_count >= 6:  # Limit display
-                                        more_text = font_small.render("  ...", True, (150, 150, 150))
-                                        screen.blit(more_text, (research_panel_x + 40, y_pos))
-                                        break
-                    
-                    # Abilities section
-                    if hasattr(advisor, 'abilities') and advisor.abilities:
-                        abilities_y = research_panel_y + research_panel_h - 200
-                        abilities_title = font_small.render("ABILITIES:", True, (255, 200, 100))
-                        screen.blit(abilities_title, (research_panel_x + 20, abilities_y))
-                        abilities_y += 25
-                        for ability_name, ability_data in advisor.abilities.items():
-                            cost = ability_data['cost']
-                            has_points = hasattr(advisor, 'research_points') and advisor.research_points >= cost
-                            color = (255, 220, 150) if has_points else (100, 100, 100)
-                            ability_text = font_small.render(f"  {ability_name}: {cost} pts", True, color)
-                            screen.blit(ability_text, (research_panel_x + 40, abilities_y))
-                            abilities_y += 20
-                    
-                    # Close hint
-                    close_hint = font_small.render("[R] to close", True, WHITE)
-                    screen.blit(close_hint, (research_panel_x + research_panel_w - 100, research_panel_y + research_panel_h - 25))
-                except Exception as e:
-                    # Silently handle errors in research panel drawing
-                    if VERBOSE_LOGGING:
-                        print(f"[Research Panel] Error: {e}")
-
-            if stats_panel_open:
-                try:
-                    evolution_stats_panel.draw(screen, thronglets, advisor, current_time)
-                except Exception as e:
-                    if VERBOSE_LOGGING:
-                        print(f"[Stats Panel] Error: {e}")
-            if analytics_panel_open:
-                try:
-                    observer_analytics_panel.draw(screen, thronglets, advisor, current_time, faction_manager)
-                except Exception as e:
-                    if VERBOSE_LOGGING:
-                        print(f"[Analytics Panel] Error: {e}")
-            if archive_panel_open:
-                try:
-                    archive_review_panel.draw(screen, advisor, current_time, game_logger.log_dir)
-                except Exception as e:
-                    if VERBOSE_LOGGING:
-                        print(f"[Archive Panel] Error: {e}")
-            
-            # Minimap (bottom-right corner)
-            minimap_width = 280  # Increased from 200
-            minimap_height = 200  # Increased from 150
-            minimap_x = WINDOW_WIDTH - minimap_width - 20
-            minimap_y = WINDOW_HEIGHT - minimap_height - 30
-            minimap_surface = pygame.Surface((minimap_width, minimap_height))
-            minimap_surface.set_alpha(220)
-            minimap_surface.fill((20, 20, 30))
-            screen.blit(minimap_surface, (minimap_x, minimap_y))
-            
-            # Minimap legend
-            legend_text = font_small.render("Minimap: Blue=Water, Green=Land, Yellow=Units", True, (200, 200, 200))
-            screen.blit(legend_text, (minimap_x, minimap_y - 45))
-            
-            # Follow indicator
-            if camera.follow_mode:
-                follow_text = font_small.render("[F] Follow: ON", True, (100, 255, 100))
-                screen.blit(follow_text, (minimap_x, minimap_y - 25))
-            
-            # Title
-            minimap_title = font_small.render("MINIMAP", True, (150, 150, 255))
-            screen.blit(minimap_title, (minimap_x + 10, minimap_y + 5))
-            
-            # Draw chunks on minimap (use camera's world dimensions)
-            minimap_scale_x = minimap_width / camera.world_width
-            minimap_scale_y = minimap_height / camera.world_height
-            for chunk_key, chunk in world_map.chunks.items():
-                # Calculate minimap position
-                mini_x = int(minimap_x + 10 + chunk.world_x * minimap_scale_x)
-                mini_y = int(minimap_y + 30 + chunk.world_y * minimap_scale_y)
-                mini_w = max(1, int(CHUNK_SIZE * minimap_scale_x))
-                mini_h = max(1, int(CHUNK_SIZE * minimap_scale_y))
-                
-                # Color by biome (sample center tile) - using palette
-                center_tile = chunk.tiles.get((8, 8), 'plains')
-                biome_colors = {
-                    'forest': GRASS_DARK,
-                    'plains': GRASS_MID,
-                    'mountains': ROCK_MID,
-                    'desert': DESERT_SAND,
-                    'snow': SNOW_WHITE,
-                    'swamp': SWAMP_DARK,
-                    'taiga': TAIGA_GREEN,
-                    'tundra': ICE_BLUE
-                }
-                biome_color = biome_colors.get(center_tile, GRAY)
-                pygame.draw.rect(screen, biome_color, (mini_x, mini_y, mini_w, mini_h))
-                pygame.draw.rect(screen, BLACK, (mini_x, mini_y, mini_w, mini_h), 1)
-            
-            # Draw camera viewport frame
-            view_x1 = minimap_x + 10 + camera.x * minimap_scale_x
-            view_y1 = minimap_y + 30 + camera.y * minimap_scale_y
-            view_w = WINDOW_WIDTH * minimap_scale_x
-            view_h = WINDOW_HEIGHT * minimap_scale_y
-            pygame.draw.rect(screen, (255, 255, 255), (view_x1, view_y1, view_w, view_h), 2)
-            
-            # Draw thronglets as dots on minimap
-            for thronglet in thronglets:
-                mini_x = int(minimap_x + 10 + thronglet.x * minimap_scale_x)
-                mini_y = int(minimap_y + 30 + thronglet.y * minimap_scale_y)
-                if minimap_x + 10 <= mini_x <= minimap_x + minimap_width and minimap_y + 30 <= mini_y <= minimap_y + minimap_height:
-                    pygame.draw.circle(screen, (255, 255, 0), (mini_x, mini_y), 3)  # Increased from 2 to 3
-            
-            # Draw buildings as small squares on minimap
-            for building in buildings:
-                mini_x = int(minimap_x + 10 + building.x * minimap_scale_x)
-                mini_y = int(minimap_y + 30 + building.y * minimap_scale_y)
-                if minimap_x + 10 <= mini_x <= minimap_x + minimap_width and minimap_y + 30 <= mini_y <= minimap_y + minimap_height:
-                    color_map = {
-                        'house': (200, 200, 200),
-                        'storage': (139, 69, 19),
-                        'farm': (34, 139, 34),
-                        'workshop': (160, 82, 45),
-                        'shrine': (255, 215, 0),
-                        'well': (173, 216, 230)
-                    }
-                    color = color_map.get(building.building_type, (128, 128, 128))
-                    pygame.draw.rect(screen, color, (mini_x - 1, mini_y - 1, 3, 3))
-            
-            observer_overlay.draw(screen, advisor, camera)
             
             # Screen tint for critical overpopulation
             if population_ratio >= 1.0:
@@ -12225,38 +11889,15 @@ def main(runtime_config=RUNTIME_CONFIG):
                 tint.fill((255, 100, 100))
                 screen.blit(tint, (0, 0))
             
-            # Draw extinction overlay for post-collapse observation
-            if extinction_overlay_visible:
-                # Draw semi-transparent overlay
-                overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-                overlay.set_alpha(180)
-                overlay.fill((20, 20, 40))
-                screen.blit(overlay, (0, 0))
-                
-                # Draw game over panel
-                panel_w, panel_h = 600, 400
-                panel_x = WINDOW_WIDTH // 2 - panel_w // 2
-                panel_y = WINDOW_HEIGHT // 2 - panel_h // 2
-                
-                panel = pygame.Surface((panel_w, panel_h))
-                panel.fill((30, 30, 50))
-                screen.blit(panel, (panel_x, panel_y))
-                pygame.draw.rect(screen, (150, 150, 200), (panel_x, panel_y, panel_w, panel_h), 3)
-                
-                # Draw stats
-                title = font_large.render("CIVILIZATION EXTINCT", True, RED)
-                screen.blit(title, (panel_x + panel_w//2 - title.get_width()//2, panel_y + 20))
-                
-                if final_stats:
-                    y_offset = 80
-                    for key, value in final_stats.items():
-                        stat_text = font.render(f"{key.replace('_', ' ').title()}: {value}", True, WHITE)
-                        screen.blit(stat_text, (panel_x + 50, panel_y + y_offset))
-                        y_offset += 35
-                
-                # Instructions
-                hint = font_small.render("[O] Toggle summary | [ESC] Exit", True, (150, 200, 255))
-                screen.blit(hint, (panel_x + panel_w//2 - hint.get_width()//2, panel_y + panel_h - 40))
+            if game_over and ui_state.end_summary_open:
+                draw_end_summary(
+                    screen,
+                    ui_theme,
+                    run_layout,
+                    ui_registry,
+                    current_summary,
+                    snapshot_resume_path or "pending",
+                )
             
             # Always flip display and tick clock
             # CRITICAL: This must happen every frame to show the rendered content
@@ -12307,6 +11948,13 @@ def main(runtime_config=RUNTIME_CONFIG):
     
     finally:
         # Always generate session report and flush logs
+        thumbnail_path = None
+        try:
+            if "scene_renderer" in locals() and getattr(scene_renderer, "last_thumbnail", None) is not None:
+                thumbnail_path = os.path.join(game_logger.log_dir, f"thumb_{game_logger.session_id}.png")
+                pygame.image.save(scene_renderer.last_thumbnail, thumbnail_path)
+        except Exception:
+            thumbnail_path = None
         try:
             pygame.quit()  # Ensure pygame is cleaned up
         except:
@@ -12316,9 +11964,12 @@ def main(runtime_config=RUNTIME_CONFIG):
             game_logger.save_quick_report()
             snapshot_file = None
             archive_file = None
+            next_runtime_config = None
             local_names = locals()
             required_snapshot_names = ("thronglets", "buildings", "resources", "advisor", "season", "weather_system", "game_start_time")
             if all(name in local_names for name in required_snapshot_names):
+                camera_bookmarks = camera_director.to_payload() if "camera_director" in local_names else []
+                scene_thumbnail_key = os.path.basename(thumbnail_path) if thumbnail_path else None
                 run_summary = build_run_summary(
                     thronglets=thronglets,
                     buildings=buildings,
@@ -12333,6 +11984,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                     seed=runtime_config.seed,
                     session_id=game_logger.session_id,
                     extinction=bool(game_over),
+                    camera_bookmarks=camera_bookmarks,
+                    scene_thumbnail_key=scene_thumbnail_key,
                 )
                 advisor.session_stats["current_run_summary"] = run_summary
                 archive_payload = build_run_archive(
@@ -12349,6 +12002,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                     seed=runtime_config.seed,
                     session_id=game_logger.session_id,
                     extinction=bool(game_over),
+                    camera_bookmarks=camera_bookmarks,
+                    scene_thumbnail_key=scene_thumbnail_key,
                 )
                 archive_file = write_run_archive(game_logger.log_dir, game_logger.session_id, archive_payload)
                 snapshot = build_run_snapshot(
@@ -12371,6 +12026,9 @@ def main(runtime_config=RUNTIME_CONFIG):
                     city_planner=city_planner if "city_planner" in local_names else None,
                     scenario_id=scenario_profile["id"] if "scenario_profile" in local_names else ACTIVE_SCENARIO_ID,
                     run_summary=run_summary,
+                    camera_bookmarks=camera_bookmarks,
+                    scene_thumbnail_key=scene_thumbnail_key,
+                    focus_moments=archive_payload.get("focus_moments", []),
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {
@@ -12400,9 +12058,27 @@ def main(runtime_config=RUNTIME_CONFIG):
             print(f"\nNote: If run from batch file, check logs\\batch_*.log for complete output")
             print(f"{'='*80}")
             print("Game ended. Thanks for playing!")
+            if post_run_action == "resume_latest":
+                next_runtime_config = replace(
+                    runtime_config,
+                    snapshot_file=None,
+                    load_latest_snapshot=True,
+                    scenario=scenario_profile["id"] if "scenario_profile" in local_names else runtime_config.scenario,
+                )
+            elif post_run_action == "new_run":
+                next_runtime_config = replace(
+                    runtime_config,
+                    snapshot_file=None,
+                    load_latest_snapshot=False,
+                    scenario=scenario_profile["id"] if "scenario_profile" in local_names else runtime_config.scenario,
+                )
         except Exception as e:
             print(f"Error generating final report: {e}")
             traceback.print_exc()
+            next_runtime_config = None
+
+        if next_runtime_config is not None:
+            return main(next_runtime_config)
 
 
 if __name__ == "__main__":

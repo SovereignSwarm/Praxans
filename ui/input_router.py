@@ -22,7 +22,7 @@ class UIState:
     archive_filter_scenario: str = "all"
     archive_filter_end_state: str = "all"
     analytics_section: str = "population"
-    map_overlay: str = "districts"
+    map_overlay: str = "biome"
     camera_mode: str = "follow"
     shell_notice: str = ""
     selected_scenario_id: str | None = None
@@ -128,13 +128,13 @@ def pick_world_entity(
 
     for thronglet in thronglets:
         distance = _screen_distance(camera, screen_pos, thronglet.x, thronglet.y)
-        threshold = max(14.0, float(thronglet_radius) * float(camera.zoom))
+        threshold = max(14.0, float(thronglet_radius) + 6.0)
         if distance <= threshold:
             candidates.append((0, distance, thronglet, "thronglet"))
 
     for building in buildings:
         distance = _screen_distance(camera, screen_pos, building.x, building.y)
-        threshold = max(18.0, float(building_size) * float(camera.zoom))
+        threshold = max(18.0, float(building_size) + 10.0)
         if distance <= threshold:
             candidates.append((1, distance, building, "building"))
 
@@ -142,7 +142,7 @@ def pick_world_entity(
         if getattr(resource, "collected", False):
             continue
         distance = _screen_distance(camera, screen_pos, resource.x, resource.y)
-        threshold = max(12.0, float(resource_radii.get(getattr(resource, "resource_type", "wood"), 10.0)) * float(camera.zoom))
+        threshold = max(12.0, float(resource_radii.get(getattr(resource, "resource_type", "wood"), 10.0)) + 4.0)
         if distance <= threshold:
             candidates.append((2, distance, resource, "resource"))
 
@@ -150,14 +150,14 @@ def pick_world_entity(
         if not getattr(encounter, "discovered", False):
             continue
         distance = _screen_distance(camera, screen_pos, encounter.x, encounter.y)
-        if distance <= max(18.0, 24.0 * float(camera.zoom)):
+        if distance <= 24.0:
             candidates.append((3, distance, encounter, "encounter"))
 
     for hazard in hazards:
         if not getattr(hazard, "active", False):
             continue
         distance = _screen_distance(camera, screen_pos, hazard.x, hazard.y)
-        threshold = max(18.0, min(140.0, float(getattr(hazard, "radius", 36.0)) * float(camera.zoom)))
+        threshold = max(20.0, min(72.0, float(getattr(hazard, "radius", 36.0)) * 0.2))
         if distance <= threshold:
             candidates.append((4, distance, hazard, "hazard"))
 
@@ -165,7 +165,7 @@ def pick_world_entity(
         if not getattr(npc, "visible", False):
             continue
         distance = _screen_distance(camera, screen_pos, npc.x, npc.y)
-        if distance <= max(18.0, 22.0 * float(camera.zoom)):
+        if distance <= 22.0:
             candidates.append((5, distance, npc, "npc"))
 
     if not candidates:

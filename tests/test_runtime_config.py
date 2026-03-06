@@ -29,7 +29,7 @@ class RuntimeConfigTests(unittest.TestCase):
                 "42",
                 "--enable-probe-log",
                 "--model",
-                "qwen3.5:35b",
+                "qwen3.5:9b",
                 "--snapshot-file",
                 "logs\\snapshot_test.json",
                 "--scenario",
@@ -48,14 +48,14 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(config.log_dir, "tmp-logs")
         self.assertEqual(config.seed, 42)
         self.assertTrue(config.enable_probe_log)
-        self.assertEqual(config.model, "qwen3.5:35b")
+        self.assertEqual(config.model, "qwen3.5:9b")
         self.assertEqual(config.snapshot_file, "logs\\snapshot_test.json")
         self.assertFalse(config.load_latest_snapshot)
         self.assertEqual(config.scenario, "high_mutation")
 
     def test_parse_runtime_config_uses_qwen35_default_model(self):
         config = parse_runtime_config([])
-        self.assertEqual(config.model, "qwen3.5:35b")
+        self.assertEqual(config.model, "qwen3.5:9b")
         self.assertEqual(config.scenario, DEFAULT_SCENARIO_ID)
 
     def test_parse_runtime_config_supports_latest_snapshot_flag(self):

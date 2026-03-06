@@ -147,9 +147,15 @@ def choose_migration_target(
     world_width: float,
     world_height: float,
     migration_pressure: float,
+    world_map: Any | None = None,
 ) -> tuple[float, float] | None:
     if centroid is None or migration_pressure < 30.0:
         return None
+
+    if world_map is not None and hasattr(world_map, "get_route_target_for_migration"):
+        route_target = world_map.get_route_target_for_migration(centroid, doctrine_key, migration_pressure)
+        if route_target:
+            return route_target
 
     known_positions: list[tuple[float, float]] = []
     for member in member_snapshots:

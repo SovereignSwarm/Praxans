@@ -17,7 +17,7 @@ _NOTE_COLOR_MAP = {
     "extinction": "note_crisis",
 }
 
-_OVERLAYS = ("districts", "factions", "hazards", "migration", "fog", "bookmarks")
+_OVERLAYS = ("biome", "elevation", "water", "claims", "hazards", "routes", "fog", "bookmarks", "districts", "migration")
 
 
 def next_overlay(current_overlay: str) -> str:
@@ -123,6 +123,14 @@ def _faction_centroid(faction, thronglets_by_id: dict[int, object]) -> tuple[flo
     )
 
 
+def _region_overlay_lookup(world_map) -> dict[str, dict]:
+    return {
+        str(region.get("region_id")): region
+        for region in getattr(world_map, "region_overlay", [])
+        if isinstance(region, dict) and region.get("region_id") is not None
+    }
+
+
 def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_state, context: dict) -> None:
     rect = layout.minimap
     draw_panel(surface, rect, theme, fill=(17, 21, 23), alpha=238, radius=theme.radius_large)
@@ -153,7 +161,58 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
         pygame.draw.rect(surface, biome_colors.get(center_tile, theme.palette.slate_soft), (mini_x, mini_y, mini_w, mini_h))
 
     overlay = ui_state.map_overlay
-    if overlay == "districts":
+    region_lookup = _region_overlay_lookup(world_map)
+    if overlay == "biome":
+        for region in region_lookup.values():
+            rect_data = region.get("world_rect")
+            if not isinstance(rect_data, (list, tuple)) or len(rect_data) != 4:
+                continue
+            rx, ry, rw, rh = rect_data
+            pygame.draw.rect(
+                surface,
+                biome_colors.get(str(region.get("biome", "plains")), theme.palette.slate_soft),
+                (map_x + int(rx * scale_x), map_y + int(ry * scale_y), max(2, int(rw * scale_x)), max(2, int(rh * scale_y))),
+                0,
+            )
+    elif overlay == "elevation":
+        for region in region_lookup.values():
+            rect_data = region.get("world_rect")
+            if not isinstance(rect_data, (list, tuple)) or len(rect_data) != 4:
+                continue
+            rx, ry, rw, rh = rect_data
+            elevation = max(0.0, min(1.0, float(region.get("elevation", 0.5) or 0.5)))
+            shade = int(40 + (elevation * 180))
+            pygame.draw.rect(
+                surface,
+                (shade, shade, shade + 12),
+                (map_x + int(rx * scale_x), map_y + int(ry * scale_y), max(2, int(rw * scale_x)), max(2, int(rh * scale_y))),
+                0,
+            )
+    elif overlay == "water":
+        for segment in getattr(world_map, "water_network", []):
+            points = []
+            for point in segment.get("points", []):
+                try:
+                    points.append((int(map_x + float(point.get("x", 0.0)) * scale_x), int(map_y + float(point.get("y", 0.0)) * scale_y)))
+                except (AttributeError, TypeError, ValueError):
+                    continue
+            if len(points) >= 2:
+                pygame.draw.lines(surface, theme.palette.frost, False, points, 2)
+    elif overlay == "claims":
+        for polity in getattr(world_map, "polity_overlay", []):
+            accent = tuple(polity.get("accent_color", (196, 174, 140)))
+            for region_id in polity.get("claimed_region_ids", []):
+                region = region_lookup.get(str(region_id))
+                if region is None:
+                    continue
+                rect_data = region.get("world_rect")
+                if not isinstance(rect_data, (list, tuple)) or len(rect_data) != 4:
+                    continue
+                rx, ry, rw, rh = rect_data
+                overlay_surface = pygame.Surface((max(2, int(rw * scale_x)), max(2, int(rh * scale_y))), pygame.SRCALPHA)
+                overlay_surface.fill((*accent[:3], 84))
+                surface.blit(overlay_surface, (map_x + int(rx * scale_x), map_y + int(ry * scale_y)))
+    elif overlay == "districts":
         city_planner = context.get("city_planner")
         zone_colors = {
             "residential": theme.palette.parchment_soft,
@@ -167,23 +226,22 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
             zx = map_x + int(zone_pos[0] * context.get("tile_size", 1) * scale_x)
             zy = map_y + int(zone_pos[1] * context.get("tile_size", 1) * scale_y)
             pygame.draw.rect(surface, zone_colors.get(str(zone_type), theme.palette.ochre), (zx, zy, 4, 4))
-    elif overlay == "factions":
-        faction_manager = context.get("faction_manager")
-        thronglets_by_id = {int(getattr(thronglet, "id", 0)): thronglet for thronglet in context.get("thronglets", [])}
-        colors = [theme.palette.note_faction, theme.palette.note_strategy, theme.palette.ochre, theme.palette.moss]
-        for index, faction in enumerate(getattr(faction_manager, "factions", {}).values()):
-            centroid = _faction_centroid(faction, thronglets_by_id)
-            if centroid is None:
-                continue
-            fx = int(map_x + centroid[0] * scale_x)
-            fy = int(map_y + centroid[1] * scale_y)
-            pygame.draw.circle(surface, colors[index % len(colors)], (fx, fy), 5)
     elif overlay == "hazards":
         for hazard in getattr(world_map, "hazards", []):
             hx = int(map_x + getattr(hazard, "x", 0.0) * scale_x)
             hy = int(map_y + getattr(hazard, "y", 0.0) * scale_y)
             radius = max(3, int(float(getattr(hazard, "radius", 20.0)) * max(scale_x, scale_y)))
             pygame.draw.circle(surface, theme.palette.danger, (hx, hy), radius, 1)
+    elif overlay == "routes":
+        for route in getattr(world_map, "route_network", []):
+            points = []
+            for point in route.get("points", []):
+                try:
+                    points.append((int(map_x + float(point.get("x", 0.0)) * scale_x), int(map_y + float(point.get("y", 0.0)) * scale_y)))
+                except (AttributeError, TypeError, ValueError):
+                    continue
+            if len(points) >= 2:
+                pygame.draw.lines(surface, theme.palette.copper, False, points, 2)
     elif overlay == "migration":
         faction_manager = context.get("faction_manager")
         thronglets_by_id = {int(getattr(thronglet, "id", 0)): thronglet for thronglet in context.get("thronglets", [])}

@@ -175,8 +175,16 @@ def _draw_scenario_browser(surface: pygame.Surface, theme: UITheme, layout, regi
         f"Spawn Biomes: {', '.join(profile.get('spawn_biomes', [])) or 'varied'}",
         f"Initial Population: {int(profile.get('initial_population', 2) or 2)}",
         f"Mutation Scale: {float(profile.get('mutation_scale', 1.0) or 1.0):.2f}x",
-        f"Starting Weather: {str(profile.get('starting_weather', 'clear')).title()}",
+        f"Starting Weather: {str(profile.get('weather', 'clear')).title()}",
     ]
+    worldgen = dict(profile.get("worldgen", {}) or {})
+    modifiers.extend(
+        [
+            f"World Scale: {int(worldgen.get('chunk_cols', 16))}x{int(worldgen.get('chunk_rows', 12))} chunks",
+            f"Polities: {int(worldgen.get('polity_count', 5))}",
+            f"Hazard Density: {float(worldgen.get('hazard_density', 0.45) or 0.45):.2f}",
+        ]
+    )
     y += 18
     for modifier in modifiers:
         surface.blit(theme.fonts.caption.render(modifier, True, theme.palette.parchment_soft), (layout.detail_panel.x + 24, y))

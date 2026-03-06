@@ -17,8 +17,8 @@ These can be passed to `start_game.ps1`, `start_game.bat`, or directly to `thron
 
 - `--disable-llm`
   Skip all Ollama-powered behavior.
-- `--model qwen3.5:35b`
-  Prefer a specific Ollama model. The game now defaults to `qwen3.5:35b`.
+- `--model qwen3.5:9b`
+  Prefer a specific Ollama model. The game now defaults to `qwen3.5:9b`.
 - `--headless --max-frames 2`
   Run a quick smoke test without opening a real window.
 - `--verbose-console`
@@ -37,5 +37,5 @@ These can be passed to `start_game.ps1`, `start_game.bat`, or directly to `thron
 ```
 
 ```powershell
-.\start_game.ps1 --model qwen3.5:35b
+.\start_game.ps1 --model qwen3.5:9b
 ```

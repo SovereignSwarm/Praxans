@@ -95,12 +95,23 @@ class RunArchiveTests(unittest.TestCase):
             faction_manager=faction_manager,
             scenario_id="high_mutation",
             scenario_name="High Mutation",
-            selected_model="qwen3.5:35b",
+            selected_model="qwen3.5:9b",
             seed=7,
             session_id="session_a",
+            camera_bookmarks=[{"label": "Birth wave", "category": "birth", "x": 40.0, "y": 20.0, "time": 118.0}],
+            scene_thumbnail_key="thumb_session_a.png",
         )
         self.assertEqual(summary["scenario"]["id"], "high_mutation")
         self.assertEqual(summary["council"]["doctrine"]["focus"], "growth")
+        self.assertIn("key_moments", summary)
+        self.assertIn("phase_history", summary)
+        self.assertIn("population_curve", summary)
+        self.assertIn("death_cause_breakdown", summary)
+        self.assertIn("lineage_highlights", summary)
+        self.assertIn("faction_highlights", summary)
+        self.assertEqual(summary["camera_bookmarks"][0]["label"], "Birth wave")
+        self.assertEqual(summary["scene_thumbnail_key"], "thumb_session_a.png")
+        self.assertIn("focus_moments", summary)
 
         archive = build_run_archive(
             thronglets=thronglets,
@@ -112,12 +123,15 @@ class RunArchiveTests(unittest.TestCase):
             faction_manager=faction_manager,
             scenario_id="high_mutation",
             scenario_name="High Mutation",
-            selected_model="qwen3.5:35b",
+            selected_model="qwen3.5:9b",
             seed=7,
             session_id="session_a",
+            camera_bookmarks=[{"label": "Birth wave", "category": "birth", "x": 40.0, "y": 20.0, "time": 118.0}],
+            scene_thumbnail_key="thumb_session_a.png",
         )
         self.assertIn("timeline", archive)
         self.assertEqual(archive["session_id"], "session_a")
+        self.assertEqual(archive["scene_thumbnail_key"], "thumb_session_a.png")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             older_path = write_run_archive(temp_dir, "older", {**archive, "session_id": "older"})

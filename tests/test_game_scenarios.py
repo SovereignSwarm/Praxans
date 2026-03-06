@@ -28,6 +28,12 @@ class GameScenarioTests(unittest.TestCase):
         self.assertIn("standard (Standard Basin)", help_text)
         self.assertIn("plague_start (Plague Start)", help_text)
 
+    def test_scenarios_include_world_generation_profiles(self):
+        profile = get_scenario_profile("high_mutation")
+        self.assertIn("worldgen", profile)
+        self.assertGreaterEqual(profile["worldgen"]["polity_count"], 5)
+        self.assertIn("hazard_density", profile["worldgen"])
+
     def test_unknown_scenario_raises_key_error(self):
         with self.assertRaises(KeyError):
             get_scenario_profile("does_not_exist")

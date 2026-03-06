@@ -95,6 +95,26 @@ class SocietyDynamicsTests(unittest.TestCase):
 
         self.assertEqual(target, (600.0, 420.0))
 
+    def test_choose_migration_target_prefers_route_targets_when_available(self):
+        class _DummyWorldMap:
+            def get_route_target_for_migration(self, centroid, doctrine_key, migration_pressure):
+                self.called = (centroid, doctrine_key, migration_pressure)
+                return (440.0, 260.0)
+
+        world_map = _DummyWorldMap()
+        target = choose_migration_target(
+            centroid=(100.0, 100.0),
+            member_snapshots=[{"known_resources": [(120.0, 120.0)]}],
+            doctrine_key="exploration",
+            world_width=800.0,
+            world_height=600.0,
+            migration_pressure=72.0,
+            world_map=world_map,
+        )
+
+        self.assertEqual(target, (440.0, 260.0))
+        self.assertEqual(world_map.called, ((100.0, 100.0), "exploration", 72.0))
+
 
 if __name__ == "__main__":
     unittest.main()
