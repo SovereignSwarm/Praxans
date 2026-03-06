@@ -17,6 +17,8 @@ import time
 import threading
 from typing import Any
 
+from runtime_config import USER_SETTINGS
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -85,6 +87,10 @@ DEFAULT_OPTIONS: dict[str, Any] = {
 def get_channel_options(channel: str, seed: int | None = None) -> dict[str, Any]:
     """Return Ollama generation options for a given channel."""
     opts = dict(CHANNEL_OPTIONS.get(channel, DEFAULT_OPTIONS))
+    
+    # Apply global temperature modifier
+    opts["temperature"] = max(0.0, opts.get("temperature", 0.2) + USER_SETTINGS.global_temperature_modifier)
+    
     if seed is not None:
         opts["seed"] = seed
     return opts
@@ -134,9 +140,9 @@ class OllamaClient:
 
     # ---- model detection ---------------------------------------------------
 
-    def detect_model(self) -> str | None:
+    def detect_model(self, force_refresh: bool = False) -> str | None:
         """Detect and cache the preferred Ollama model.  Thread-safe."""
-        if self._detected_model:
+        if self._detected_model == USER_SETTINGS.llm_model and not force_refresh:
             return self._detected_model
 
         if not self.available:
@@ -175,16 +181,16 @@ class OllamaClient:
                     if n and n.strip():
                         names.append(n.strip())
 
-                if self.preferred_model in names:
-                    self._detected_model = self.preferred_model
+                if USER_SETTINGS.llm_model in names:
+                    self._detected_model = USER_SETTINGS.llm_model
                     logger.info(
-                        "[LLM] Selected preferred model: %s", self.preferred_model
+                        "[LLM] Selected preferred model: %s", USER_SETTINGS.llm_model
                     )
                     return self._detected_model
 
                 logger.warning(
                     "[LLM] Preferred model %s not found in available models: %s",
-                    self.preferred_model, names
+                    USER_SETTINGS.llm_model, names
                 )
                 return None
 
@@ -246,9 +252,19 @@ class OllamaClient:
         if self._ollama is None:
             return None
         try:
-            return self._ollama.Client(timeout=timeout)
+            kwargs = {"timeout": timeout}
+            if USER_SETTINGS.llm_host:
+                kwargs["host"] = USER_SETTINGS.llm_host
+                
+            return self._ollama.Client(**kwargs)
         except Exception:
             return None
+
+    def refresh_client(self):
+        """Rebuild the client, typically called when settings change."""
+        with self._detect_lock:
+            self._client = self._make_client(self.request_timeout)
+        self.detect_model(force_refresh=True)
 
 
 def _try_import_ollama():

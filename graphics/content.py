@@ -40,7 +40,8 @@ class ActorPalette:
 class BuildingRecipe:
     building_type: str
     source_size: tuple[int, int]
-    footprint_tiles: tuple[int, int]
+    grid_width: int
+    grid_height: int
     silhouette: str
     wall: Color
     roof: Color
@@ -147,12 +148,13 @@ ROLE_PALETTES: dict[str, ActorPalette] = {
 }
 
 BUILDING_FOOTPRINT_ART: dict[str, BuildingRecipe] = {
-    "house": BuildingRecipe("house", (32, 40), (1, 1), "cottage", (150, 116, 84), (132, 70, 56), (82, 56, 46), (242, 197, 136)),
-    "storage": BuildingRecipe("storage", (34, 34), (1, 1), "storehouse", (120, 112, 96), (118, 86, 61), (74, 60, 51), (183, 162, 110)),
-    "farm": BuildingRecipe("farm", (32, 32), (1, 1), "field", (130, 96, 68), (118, 86, 48), (81, 55, 34), (150, 172, 89)),
-    "workshop": BuildingRecipe("workshop", (34, 40), (1, 1), "forge", (110, 100, 112), (92, 76, 62), (58, 52, 64), (214, 168, 111)),
-    "shrine": BuildingRecipe("shrine", (36, 44), (1, 1), "sanctum", (165, 155, 173), (112, 88, 124), (80, 64, 88), (246, 216, 142)),
-    "well": BuildingRecipe("well", (28, 28), (1, 1), "well", (116, 112, 106), (88, 76, 68), (58, 54, 48), (110, 175, 204)),
+    # format: ..., (width_pixels, height_pixels), grid_width_tiles, grid_height_tiles, ...
+    "house": BuildingRecipe("house", (128, 128), 2, 2, "cottage", (150, 116, 84), (132, 70, 56), (82, 56, 46), (242, 197, 136)),
+    "storage": BuildingRecipe("storage", (128, 128), 2, 2, "storehouse", (120, 112, 96), (118, 86, 61), (74, 60, 51), (183, 162, 110)),
+    "farm": BuildingRecipe("farm", (64, 64), 1, 1, "field", (130, 96, 68), (118, 86, 48), (81, 55, 34), (150, 172, 89)),
+    "workshop": BuildingRecipe("workshop", (192, 128), 3, 2, "forge", (110, 100, 112), (92, 76, 62), (58, 52, 64), (214, 168, 111)),
+    "shrine": BuildingRecipe("shrine", (192, 192), 3, 3, "sanctum", (165, 155, 173), (112, 88, 124), (80, 64, 88), (246, 216, 142)),
+    "well": BuildingRecipe("well", (64, 64), 1, 1, "well", (116, 112, 106), (88, 76, 68), (58, 54, 48), (110, 175, 204)),
 }
 
 RESOURCE_ART: dict[str, ResourceRecipe] = {

@@ -28,6 +28,13 @@ class UIState:
     selected_scenario_id: str | None = None
     show_quit_prompt: bool = False
     end_summary_open: bool = False
+    
+    # Settings screen state
+    settings_model_text: str = ""
+    settings_host_text: str = ""
+    settings_temp: float = 0.0
+    settings_active_input: str | None = None
+    settings_dirty: bool = False
 
 
 @dataclass(frozen=True)

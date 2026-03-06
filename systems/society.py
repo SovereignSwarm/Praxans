@@ -141,7 +141,7 @@ class Faction:
             for member in members:
                 member.inspiration = min(100.0, member.inspiration + 0.25)
                 member.morale = min(100.0, getattr(member, "morale", 65.0) + 0.25)
-                member.happiness = min(100.0, member.happiness + 0.25)
+                member.add_moodlet("Golden Age", 15.0, 30.0, time.time())
 
     def assign_shared_goal(self, goal_text, reasoning="", doctrine_key=""):
         goal_text = str(goal_text or "").strip()

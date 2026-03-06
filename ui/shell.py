@@ -7,10 +7,11 @@ import pygame
 from game_scenarios import get_scenario_profile, list_scenario_ids
 from run_archive import find_recent_archives, load_run_archive
 from run_snapshot import resolve_snapshot_path
+from runtime_config import USER_SETTINGS
 from ui.input_router import UIState, UIRectRegistry
 from ui.layout import compute_shell_layout
 from ui.models import ArchiveCard, build_archive_card
-from ui.theme import UITheme, build_ui_theme, draw_button, draw_divider, draw_panel, wrap_text
+from ui.theme import UITheme, build_ui_theme, draw_button, draw_divider, draw_panel, draw_slider, draw_text_input, wrap_text
 
 
 def _load_archive_cards(log_dir: str, limit: int = 12) -> list[ArchiveCard]:
@@ -262,27 +263,52 @@ def _draw_archive_browser(
                 y += 24
 
 
-def _draw_settings(surface: pygame.Surface, theme: UITheme, layout, registry: UIRectRegistry, runtime_config) -> None:
+def _draw_settings(surface: pygame.Surface, theme: UITheme, layout, registry: UIRectRegistry, ui_state: UIState) -> None:
     draw_panel(surface, layout.detail_panel, theme, fill=(24, 31, 33), alpha=238)
     draw_panel(surface, layout.nav_column, theme, fill=(22, 27, 29), alpha=236)
     back_rect = pygame.Rect(layout.nav_column.x + 12, layout.nav_column.y + 16, layout.nav_column.w - 24, 42)
     registry.register("shell_nav_home", back_rect, action="shell_nav_home", layer=4)
     draw_button(surface, back_rect, theme, "Back to Dashboard", hotkey="Esc", accent=theme.palette.slate_soft)
-    title = theme.fonts.display.render("Observer Settings", True, theme.palette.parchment)
+    title = theme.fonts.display.render("LLM Engine Settings", True, theme.palette.parchment)
     surface.blit(title, (layout.detail_panel.x + 20, layout.detail_panel.y + 18))
-    items = [
-        f"Resolution  {runtime_config.width}x{runtime_config.height}",
-        f"Preferred Model  {runtime_config.model}",
-        f"Simulation FPS  {runtime_config.fps}",
-        "Controls  Mouse inspect / pan, F follow, 1/2/5 speed, R/S/T/A modal workbooks",
-        "Observer Principle  The colony remains autonomous at all times.",
-    ]
+    
     y = layout.detail_panel.y + 88
-    for item in items:
-        for wrapped in wrap_text(theme.fonts.body, item, layout.detail_panel.w - 40):
-            surface.blit(theme.fonts.body.render(wrapped, True, theme.palette.bright_text), (layout.detail_panel.x + 24, y))
-            y += 28
-        y += 6
+    
+    # Model Input
+    surface.blit(theme.fonts.label.render("Ollama Model Name", True, theme.palette.frost), (layout.detail_panel.x + 24, y))
+    model_rect = pygame.Rect(layout.detail_panel.x + 280, y - 6, 300, 36)
+    registry.register("settings_model", model_rect, action="settings_input", payload="model", layer=4)
+    draw_text_input(surface, model_rect, theme, ui_state.settings_model_text, active=ui_state.settings_active_input == "model", placeholder="e.g. qwen3.5:9b")
+    y += 56
+    
+    # Host Input
+    surface.blit(theme.fonts.label.render("Ollama Host URL", True, theme.palette.frost), (layout.detail_panel.x + 24, y))
+    host_rect = pygame.Rect(layout.detail_panel.x + 280, y - 6, 300, 36)
+    registry.register("settings_host", host_rect, action="settings_input", payload="host", layer=4)
+    draw_text_input(surface, host_rect, theme, ui_state.settings_host_text, active=ui_state.settings_active_input == "host", placeholder="http://localhost:11434")
+    y += 56
+    
+    # Temperature Slider
+    surface.blit(theme.fonts.label.render("Global Temp Modifier", True, theme.palette.frost), (layout.detail_panel.x + 24, y))
+    slider_rect = pygame.Rect(layout.detail_panel.x + 280, y + 4, 300, 24)
+    registry.register("settings_temp", slider_rect, action="settings_slider", layer=4)
+    draw_slider(surface, slider_rect, theme, ui_state.settings_temp, min_val=-0.2, max_val=1.0, active=ui_state.settings_active_input == "temp", display_format="{:+.2f}")
+    y += 64
+    
+    # Info
+    info_text = "These settings will persist to settings.json and override default startup config. The simulation will automatically reload the client on next run."
+    for wrapped in wrap_text(theme.fonts.caption, info_text, layout.detail_panel.w - 40):
+        surface.blit(theme.fonts.caption.render(wrapped, True, theme.palette.muted_text), (layout.detail_panel.x + 24, y))
+        y += 20
+        
+    # Save Button
+    save_rect = pygame.Rect(layout.detail_panel.x + 24, layout.detail_panel.bottom - 60, 160, 40)
+    registry.register("settings_save", save_rect, action="settings_save", layer=4)
+    draw_button(surface, save_rect, theme, "Save & Apply", active=ui_state.settings_dirty, accent=theme.palette.success)
+    
+    if ui_state.shell_notice and ui_state.active_screen == "settings":
+        notice = theme.fonts.caption.render(ui_state.shell_notice, True, theme.palette.warning)
+        surface.blit(notice, (save_rect.right + 20, save_rect.y + 10))
 
 
 def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime_config, initial_scenario_id: str) -> tuple[pygame.Surface, dict[str, Any]]:
@@ -302,7 +328,7 @@ def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime
         elif ui_state.active_screen == "archive_browser":
             _draw_archive_browser(screen, theme, layout, registry, ui_state, archive_cards)
         else:
-            _draw_settings(screen, theme, layout, registry, runtime_config)
+            _draw_settings(screen, theme, layout, registry, ui_state)
 
         footer = layout.footer
         draw_divider(screen, theme, (footer.x, footer.y), (footer.right, footer.y))
@@ -321,8 +347,36 @@ def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime
             if event.type == pygame.VIDEORESIZE:
                 screen = pygame.display.set_mode(event.size, pygame.SCALED | pygame.RESIZABLE)
                 continue
+            if event.type == pygame.MOUSEMOTION:
+                if pygame.mouse.get_pressed()[0] and ui_state.active_screen == "settings" and ui_state.settings_active_input == "temp":
+                    hit = registry.hit_test((event.pos[0], event.pos[1]))
+                    if getattr(hit, "action", None) == "settings_slider":
+                         rel_x = max(0, min(1.0, (event.pos[0] - hit.rect.x) / float(hit.rect.w)))
+                         ui_state.settings_temp = -0.2 + (rel_x * 1.2)
+                         ui_state.settings_dirty = True
+
             if event.type == pygame.KEYDOWN:
+                if ui_state.active_screen == "settings" and ui_state.settings_active_input in {"model", "host"}:
+                    if event.key == pygame.K_RETURN or event.key == pygame.K_ESCAPE:
+                        ui_state.settings_active_input = None
+                    elif event.key == pygame.K_BACKSPACE:
+                        if ui_state.settings_active_input == "model":
+                            ui_state.settings_model_text = ui_state.settings_model_text[:-1]
+                        else:
+                            ui_state.settings_host_text = ui_state.settings_host_text[:-1]
+                        ui_state.settings_dirty = True
+                    else:
+                        if event.unicode and event.unicode.isprintable():
+                            if ui_state.settings_active_input == "model":
+                                ui_state.settings_model_text += event.unicode
+                            else:
+                                ui_state.settings_host_text += event.unicode
+                            ui_state.settings_dirty = True
+                    continue
+                    
                 if event.key == pygame.K_RETURN:
+                    if ui_state.active_screen == "settings":
+                        continue
                     return screen, {
                         "action": "start",
                         "scenario_id": ui_state.selected_scenario_id or initial_scenario_id,
@@ -334,17 +388,23 @@ def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime
                     ui_state.active_screen = "command_center"
                     continue
                 if event.key == pygame.K_r and latest_snapshot_path:
+                    if ui_state.active_screen == "settings":
+                        continue
                     return screen, {
                         "action": "resume",
                         "scenario_id": ui_state.selected_scenario_id or initial_scenario_id,
                         "snapshot_path": latest_snapshot_path,
                     }
                 if event.key == pygame.K_a:
-                    ui_state.active_screen = "archive_browser"
+                    if ui_state.active_screen != "settings":
+                        ui_state.active_screen = "archive_browser"
                 elif event.key == pygame.K_s:
-                    ui_state.active_screen = "scenario_browser"
+                    if ui_state.active_screen != "settings":
+                        ui_state.active_screen = "scenario_browser"
                 continue
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if ui_state.active_screen == "settings" and ui_state.settings_active_input:
+                    ui_state.settings_active_input = None
                 hit = registry.hit_test(event.pos)
                 if hit is None:
                     continue
@@ -369,6 +429,27 @@ def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime
                     ui_state.active_screen = "archive_browser"
                 elif action == "shell_nav_settings":
                     ui_state.active_screen = "settings"
+                    ui_state.settings_model_text = USER_SETTINGS.llm_model
+                    ui_state.settings_host_text = USER_SETTINGS.llm_host
+                    ui_state.settings_temp = USER_SETTINGS.global_temperature_modifier
+                    ui_state.settings_dirty = False
+                    ui_state.settings_active_input = None
+                    ui_state.shell_notice = ""
+                elif action == "settings_input":
+                    ui_state.settings_active_input = str(hit.payload)
+                elif action == "settings_slider":
+                    ui_state.settings_active_input = "temp"
+                    rel_x = max(0, min(1.0, (event.pos[0] - hit.rect.x) / float(hit.rect.w)))
+                    ui_state.settings_temp = -0.2 + (rel_x * 1.2)
+                    ui_state.settings_dirty = True
+                elif action == "settings_save":
+                    if ui_state.settings_dirty:
+                        USER_SETTINGS.llm_model = ui_state.settings_model_text.strip()
+                        USER_SETTINGS.llm_host = ui_state.settings_host_text.strip()
+                        USER_SETTINGS.global_temperature_modifier = ui_state.settings_temp
+                        USER_SETTINGS.save()
+                        ui_state.settings_dirty = False
+                        ui_state.shell_notice = "Settings saved. Simulation will reload the client."
                 elif action == "shell_nav_home":
                     ui_state.active_screen = "command_center"
                 elif action == "scenario_select":

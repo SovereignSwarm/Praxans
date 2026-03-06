@@ -11,6 +11,8 @@ from map.models import (
     WorldSeed,
 )
 
+from map.planet import PlanetGrid, PlanetTile
+
 __all__ = [
     "BIOME_TYPES",
     "WORLD_GENERATION_VERSION",
@@ -24,4 +26,6 @@ __all__ = [
     "WorldSeed",
     "build_frontier_world",
     "build_world_profile",
+    "PlanetGrid",
+    "PlanetTile",
 ]

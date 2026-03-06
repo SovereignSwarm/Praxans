@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 import builtins
 import os
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, asdict
 from typing import Optional, Sequence
 
 from game_scenarios import DEFAULT_SCENARIO_ID, format_scenario_help, list_scenario_ids
@@ -41,6 +42,35 @@ class RuntimeConfig:
     snapshot_file: Optional[str] = None
     load_latest_snapshot: bool = False
     scenario: str = DEFAULT_SCENARIO_ID
+
+
+@dataclass
+class UserSettings:
+    llm_host: str = ""  # Empty string means use default Ollama local host
+    llm_model: str = "qwen3.5:9b"
+    global_temperature_modifier: float = 0.0  # Added to base channel temp
+
+    @classmethod
+    def load(cls, path: str = "settings.json") -> "UserSettings":
+        if not os.path.exists(path):
+            return cls()
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return cls(**data)
+        except Exception as e:
+            print(f"Warning: Failed to load {path}: {e}")
+            return cls()
+
+    def save(self, path: str = "settings.json") -> None:
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(asdict(self), f, indent=4)
+        except Exception as e:
+            print(f"Warning: Failed to save {path}: {e}")
+
+# Global mutable user settings loaded at startup
+USER_SETTINGS = UserSettings.load()
 
 
 def _positive_int(value: str) -> int:

@@ -51,6 +51,42 @@ class SpriteLibrary:
         self.config = config
         self._cache: dict[tuple, pygame.Surface] = {}
 
+    def _add_shadow(self, surface: pygame.Surface, skew: float = 0.4, alpha: int = 100) -> pygame.Surface:
+        """Bakes a skewed parallax drop shadow beneath the given surface sprite."""
+        w, h = surface.get_size()
+        shadow_h = int(h * 0.4)  # Shadow is shorter
+        skew_offset = int(shadow_h * skew)
+        
+        # Extract silhouette
+        mask = pygame.mask.from_surface(surface)
+        shadow_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        if mask.count() > 0:
+            for x in range(w):
+                for y in range(h):
+                    if mask.get_at((x, y)):
+                        shadow_surf.set_at((x, y), (0, 0, 0, alpha))
+                        
+        # Scale and skew
+        shadow_surf = pygame.transform.scale(shadow_surf, (w, shadow_h))
+        
+        # Apply skew manually (Pygame doesn't natively support oblique shear)
+        skewed = pygame.Surface((w + skew_offset, shadow_h), pygame.SRCALPHA)
+        for y in range(shadow_h):
+            offset = int((shadow_h - y) * skew)
+            line = shadow_surf.subsurface((0, y, w, 1))
+            skewed.blit(line, (offset, y))
+            
+        # Composite - symmetrically padded horizontally to preserve exact center anchor!
+        final_w = w + skew_offset * 2
+        final_h = h  # Keep height identical so bottom anchor is preserved
+        
+        composite = pygame.Surface((final_w, final_h), pygame.SRCALPHA)
+        # Blit shadow behind the entity, anchored to the bottom feet (y = h - shadow_h)
+        composite.blit(skewed, (skew_offset, h - shadow_h))
+        # Blit main sprite centered
+        composite.blit(surface, (skew_offset, 0))
+        return composite
+
     def _load_file_surface(self, relative_path: str, size: tuple[int, int]) -> pygame.Surface | None:
         surface_path = os.path.join(self.asset_root, relative_path)
         if not os.path.exists(surface_path):
@@ -383,7 +419,8 @@ class SpriteLibrary:
             )
             return self._cache[cache_key]
         source = self._thronglet_source(role, animation_state, facing, doctrine, frame_index, health_state, mutated)
-        self._cache[cache_key] = _scale(source, target_size)
+        shadowed = self._add_shadow(source, skew=0.3, alpha=80)
+        self._cache[cache_key] = _scale(shadowed, target_size)
         return self._cache[cache_key]
 
     def _building_source(self, building_type: str, level: int, active: bool, occupancy_ratio: float) -> pygame.Surface:
@@ -458,7 +495,7 @@ class SpriteLibrary:
             )
             return self._cache[cache_key]
         source = self._building_source(building_type, level, active, occupancy_ratio)
-        self._cache[cache_key] = _scale(source, target_size)
+        self._cache[cache_key] = _scale(self._add_shadow(source, skew=0.5, alpha=110), target_size)
         return self._cache[cache_key]
 
     def _resource_source(self, resource_type: str, depleted: bool) -> pygame.Surface:
@@ -494,7 +531,7 @@ class SpriteLibrary:
             self._cache[cache_key] = self._apply_resource_state_overlays(file_surface, depleted=depleted)
             return self._cache[cache_key]
         source = self._resource_source(resource_type, depleted)
-        self._cache[cache_key] = _scale(source, target_size)
+        self._cache[cache_key] = _scale(self._add_shadow(source, skew=0.4, alpha=90), target_size)
         return self._cache[cache_key]
 
     def get_encounter_sprite(self, *, encounter_type: str, target_size: tuple[int, int], explored: bool) -> pygame.Surface:
@@ -519,7 +556,7 @@ class SpriteLibrary:
             overlay = _surface(source.get_size())
             overlay.fill((0, 0, 0, 70))
             source.blit(overlay, (0, 0))
-        self._cache[cache_key] = _scale(source, target_size)
+        self._cache[cache_key] = _scale(self._add_shadow(source, skew=0.35, alpha=100), target_size)
         return self._cache[cache_key]
 
     def get_hazard_sprite(self, *, hazard_type: str, target_size: tuple[int, int]) -> pygame.Surface:
@@ -539,7 +576,7 @@ class SpriteLibrary:
         else:
             pygame.draw.line(source, recipe.secondary, (8, 8), (12, 16), 2)
             pygame.draw.line(source, recipe.secondary, (12, 16), (16, 8), 2)
-        self._cache[cache_key] = _scale(source, target_size)
+        self._cache[cache_key] = _scale(self._add_shadow(source, skew=0.2, alpha=60), target_size)
         return self._cache[cache_key]
 
     def get_npc_sprite(self, *, npc_type: str, target_size: tuple[int, int], frame_index: int) -> pygame.Surface:
@@ -562,7 +599,7 @@ class SpriteLibrary:
             for x, y in ((3, 13), (8, 9), (12, 14)):
                 _px(source, recipe.clothing, x, y, 4, 4)
             _px(source, recipe.accent, 7, 6, 4, 2)
-        self._cache[cache_key] = _scale(source, target_size)
+        self._cache[cache_key] = _scale(self._add_shadow(source, skew=0.3, alpha=80), target_size)
         return self._cache[cache_key]
 
     def get_action_marker(self, action: str, size: int = 18) -> pygame.Surface:

@@ -35,6 +35,10 @@ class Thronglet:
             'diligence': random.uniform(0, 1),
         }
         self.genetics = random_genetic_profile()
+        
+        # Determine specific Deep Traits (1-2)
+        num_traits = random.choices([1, 2], weights=[70, 30])[0]
+        self.traits = random.sample(list(TRAIT_DEFINITIONS.keys()), k=num_traits)
         self.favorite_biome = random.choice(BIOME_TYPES)
         self.resilience = random.uniform(0.85, 1.15)
         self.morale = random.uniform(58, 88)
@@ -59,12 +63,29 @@ class Thronglet:
         self.reproduction_message_time = 0
         
         self.current_action = "wander"
-        self.build_message = None
-        self.build_message_time = 0
+        self.target_building = None  # Building currently interacting with
         self.next_build_location = None  # (x, y) for city planner placement
+        self.body_temp = 37.0  # Celsius
         
         # New: Health & Lifespan
-        self.health = 100.0
+        self.body_parts = {
+            'torso': {'health': 100, 'max': 100, 'status': 'intact', 'efficiency': 1.0},
+            'head': {'health': 50, 'max': 50, 'status': 'intact', 'efficiency': 1.0},
+            'left_arm': {'health': 40, 'max': 40, 'status': 'intact', 'efficiency': 1.0},
+            'right_arm': {'health': 40, 'max': 40, 'status': 'intact', 'efficiency': 1.0},
+            'left_leg': {'health': 40, 'max': 40, 'status': 'intact', 'efficiency': 1.0},
+            'right_leg': {'health': 40, 'max': 40, 'status': 'intact', 'efficiency': 1.0},
+            'eyes': {'health': 20, 'max': 20, 'status': 'intact', 'efficiency': 1.0},
+        }
+        self.pain = 0.0 # 0.0 to 1.0
+        self.capacities = {
+            'consciousness': 1.0,
+            'moving': 1.0,
+            'manipulation': 1.0,
+            'sight': 1.0
+        }
+        self.downed = False
+        self.health = 100.0  # Kept for compatibility, updated dynamically
         self.age = 0.0
         self.birth_time = time.time()
         self.alive = True
@@ -79,7 +100,11 @@ class Thronglet:
         # New: Social
         self.bonds = {}  # {thronglet_id: bond_strength}
         self.faction_id = None  # ID of faction this thronglet belongs to
-        self.happiness = random.uniform(70, 100)
+        self.base_mood = random.uniform(40, 60)
+        self.moodlets = []  # List of dicts: {'name': str, 'value': float, 'duration': float|None, 'start_time': float}
+        self.happiness = self.base_mood  # Will be dynamically calculated from base_mood and moodlets
+        self.mental_state = None  # 'STATE_BINGE', 'STATE_SAD_WANDER', etc.
+        self.mental_break_cooldown = 0
         
         # New: Disease
         self.diseased = False
@@ -135,182 +160,103 @@ class Thronglet:
         # Behavior Tree - lazy initialization in decide_action()
         self.behavior_tree = None
     
-    def draw(self, surface):
-        """Draw the thronglet with motion, morale, and biome identity."""
-        if self.role == 'gatherer':
-            body_color = GATHERER_COLOR
-        elif self.role == 'builder':
-            body_color = BUILDER_COLOR
-        elif self.role == 'explorer':
-            body_color = EXPLORER_COLOR
-        else:
-            body_color = YELLOW
+    def add_moodlet(self, name, value, duration, current_time):
+        for m in self.moodlets:
+            if m['name'] == name:
+                m['duration'] = duration
+                m['start_time'] = current_time
+                return
+        self.moodlets.append({
+            'name': name,
+            'value': value,
+            'duration': duration,
+            'start_time': current_time
+        })
 
-        draw_x = self.x
-        draw_y = self.y + math.sin(time.time() * (6 if abs(self.vx) + abs(self.vy) > 0.2 else 2) + self.id) * 1.2
-        morale_factor = clamp((self.morale - 40) / 60.0, 0.0, 1.0)
-        body_color = blend_color(body_color, WHITE, morale_factor * 0.18)
-        biome_badge_colors = {
-            'forest': GRASS_DARK,
-            'plains': GRASS_LIGHT,
-            'mountains': ROCK_DARK,
-            'desert': DESERT_SAND,
-            'snow': SNOW_WHITE,
-            'swamp': SWAMP_DARK,
-            'taiga': TAIGA_GREEN,
-            'tundra': ICE_BLUE,
-        }
+    def update_mood(self, current_time, delta_time):
+        self.moodlets = [m for m in self.moodlets if m['duration'] is None or (current_time - m['start_time'] < m['duration'])]
+        total_modifier = sum(m['value'] for m in self.moodlets)
+        trait_mood = 0
+        trait_threshold_mod = 0
+        for trait in getattr(self, 'traits', []):
+            trait_mood += TRAIT_DEFINITIONS[trait].get('mood_offset', 0)
+            trait_threshold_mod += TRAIT_DEFINITIONS[trait].get('mental_break_threshold', 0)
 
-        if self.inspiration > 45 or self.morale > 72:
-            aura_radius = THRONGLET_RADIUS + 5 + int(self.inspiration / 30)
-            aura_color = GOLD if self.inspiration > 60 else CYAN
-            aura_surface = pygame.Surface((aura_radius * 2 + 8, aura_radius * 2 + 8), pygame.SRCALPHA)
-            pygame.draw.circle(
-                aura_surface,
-                (*aura_color, 45 + int(self.morale)),
-                (aura_radius + 4, aura_radius + 4),
-                aura_radius,
-                2,
-            )
-            surface.blit(aura_surface, (int(draw_x - aura_radius - 4), int(draw_y - aura_radius - 4)))
-
-        shadow_offset = 3
-        shadow_surface = pygame.Surface((THRONGLET_RADIUS * 2 + 4, THRONGLET_RADIUS * 2 + 4), pygame.SRCALPHA)
-        pygame.draw.circle(shadow_surface, (0, 0, 0, 100), (THRONGLET_RADIUS + 2, THRONGLET_RADIUS + 2), THRONGLET_RADIUS)
-        surface.blit(shadow_surface, (int(draw_x - THRONGLET_RADIUS - 2 + shadow_offset), int(draw_y - THRONGLET_RADIUS - 1 + shadow_offset)))
-
-        pygame.draw.circle(surface, BLACK, (int(draw_x), int(draw_y)), THRONGLET_RADIUS + 1)
-        pygame.draw.circle(surface, body_color, (int(draw_x), int(draw_y)), THRONGLET_RADIUS)
-        pygame.draw.circle(surface, blend_color(body_color, WHITE, 0.25), (int(draw_x - 1), int(draw_y - 2)), max(2, THRONGLET_RADIUS - 3))
-
-        pants_width = int(THRONGLET_RADIUS * 0.8)
-        pants_height = int(THRONGLET_RADIUS * 0.5)
-        pants_rect = pygame.Rect(int(draw_x - pants_width // 2), int(draw_y + THRONGLET_RADIUS // 2), pants_width, pants_height)
-        pygame.draw.rect(surface, BLACK, (pants_rect.x - 1, pants_rect.y - 1, pants_rect.width + 2, pants_rect.height + 2))
-        pygame.draw.rect(surface, BLUE, pants_rect)
-
-        eye_size = 3
-        eye_offset_x = int(THRONGLET_RADIUS * 0.35)
-        eye_offset_y = -int(THRONGLET_RADIUS * 0.2)
-        pygame.draw.circle(surface, WHITE, (int(draw_x - eye_offset_x), int(draw_y + eye_offset_y)), eye_size + 1)
-        pygame.draw.circle(surface, BLACK, (int(draw_x - eye_offset_x), int(draw_y + eye_offset_y)), eye_size)
-        pygame.draw.circle(surface, WHITE, (int(draw_x + eye_offset_x), int(draw_y + eye_offset_y)), eye_size + 1)
-        pygame.draw.circle(surface, BLACK, (int(draw_x + eye_offset_x), int(draw_y + eye_offset_y)), eye_size)
-
-        smile_color = RED_ACCENT if self.morale < 35 else BLACK
-        pygame.draw.arc(surface, smile_color, (int(draw_x - 4), int(draw_y - 1), 8, 6), 0.2, 2.9, 1)
-
-        badge_color = biome_badge_colors.get(self.favorite_biome, WHITE)
-        pygame.draw.circle(surface, BLACK, (int(draw_x + THRONGLET_RADIUS + 2), int(draw_y - THRONGLET_RADIUS + 2)), 4)
-        pygame.draw.circle(surface, badge_color, (int(draw_x + THRONGLET_RADIUS + 2), int(draw_y - THRONGLET_RADIUS + 2)), 3)
-        if self.generation > 0:
-            generation_color = GOLD if self.generation >= 3 else (180, 220, 255)
-            pygame.draw.circle(surface, generation_color, (int(draw_x - THRONGLET_RADIUS - 2), int(draw_y - THRONGLET_RADIUS + 2)), 4, 1)
-
-        if DEBUG_SHOW_INVENTORY_TEXT:
-            total_inv = self.inventory['food'] + self.inventory['wood'] + self.inventory['stone']
-            if total_inv > 0:
-                inv_text = font_small.render(f"F{self.inventory['food']}W{self.inventory['wood']}S{self.inventory['stone']}", True, BLACK)
-                surface.blit(inv_text, (int(draw_x + THRONGLET_RADIUS + 2), int(draw_y - 8)))
-
-        bar_width = 30
-        bar_height = 3
-        y_offset = -35
-
-        pygame.draw.rect(surface, (150, 150, 150), (int(draw_x - bar_width//2 - 1), int(draw_y + y_offset - 1), bar_width + 2, bar_height + 2))
-        pygame.draw.rect(surface, (100, 0, 0), (int(draw_x - bar_width//2), int(draw_y + y_offset), bar_width, bar_height))
-        hunger_fill = int(bar_width * self.needs['hunger'] / 100)
-        pygame.draw.rect(surface, RED, (int(draw_x - bar_width//2), int(draw_y + y_offset), hunger_fill, bar_height))
-
-        pygame.draw.rect(surface, (150, 150, 150), (int(draw_x - bar_width//2 - 1), int(draw_y + y_offset + 4), bar_width + 2, bar_height + 2))
-        pygame.draw.rect(surface, (0, 0, 100), (int(draw_x - bar_width//2), int(draw_y + y_offset + 5), bar_width, bar_height))
-        energy_fill = int(bar_width * self.needs['energy'] / 100)
-        pygame.draw.rect(surface, BLUE, (int(draw_x - bar_width//2), int(draw_y + y_offset + 5), energy_fill, bar_height))
-
-        pygame.draw.rect(surface, (150, 150, 150), (int(draw_x - bar_width//2 - 1), int(draw_y + y_offset + 9), bar_width + 2, bar_height + 2))
-        pygame.draw.rect(surface, (0, 50, 50), (int(draw_x - bar_width//2), int(draw_y + y_offset + 10), bar_width, bar_height))
-        thirst_fill = int(bar_width * self.needs['thirst'] / 100)
-        pygame.draw.rect(surface, CYAN, (int(draw_x - bar_width//2), int(draw_y + y_offset + 10), thirst_fill, bar_height))
-
-        pygame.draw.rect(surface, (150, 150, 150), (int(draw_x - bar_width//2 - 1), int(draw_y + y_offset + 14), bar_width + 2, bar_height + 2))
-        pygame.draw.rect(surface, (100, 100, 100), (int(draw_x - bar_width//2), int(draw_y + y_offset + 15), bar_width, bar_height))
-        health_fill = int(bar_width * self.health / 100)
-        health_color = GRASS_LIGHT if self.health > 50 else (YELLOW if self.health > 25 else RED)
-        pygame.draw.rect(surface, health_color, (int(draw_x - bar_width//2), int(draw_y + y_offset + 15), health_fill, bar_height))
-
-        speed = math.sqrt(self.vx**2 + self.vy**2)
-        if speed > 0.5:
-            arrow_length = 10
-            arrow_angle = math.atan2(self.vy, self.vx)
-            arrow_x = int(draw_x + math.cos(arrow_angle) * (THRONGLET_RADIUS + 6))
-            arrow_y = int(draw_y + math.sin(arrow_angle) * (THRONGLET_RADIUS + 6))
-            arrow_points = [
-                (arrow_x, arrow_y),
-                (arrow_x - math.cos(arrow_angle - 0.4) * arrow_length, arrow_y - math.sin(arrow_angle - 0.4) * arrow_length),
-                (arrow_x - math.cos(arrow_angle + 0.4) * arrow_length, arrow_y - math.sin(arrow_angle + 0.4) * arrow_length)
-            ]
-            outer_points = [
-                (p[0] + (1 if p[0] > arrow_x else -1 if p[0] < arrow_x else 0), 
-                 p[1] + (1 if p[1] > arrow_y else -1 if p[1] < arrow_y else 0))
-                for p in arrow_points
-            ]
-            pygame.draw.polygon(surface, (0, 0, 0), outer_points)
-            pygame.draw.polygon(surface, (255, 255, 255), arrow_points)
-
-        if self.diseased:
-            pulse = int(3 + 2 * math.sin(time.time() * 5))
-            pygame.draw.circle(surface, RED, (int(draw_x), int(draw_y)), THRONGLET_RADIUS + pulse, 2)
-
-        if hasattr(self, 'needs_decay_multiplier') and self.needs_decay_multiplier > 1.1:
-            stress_surface = pygame.Surface((THRONGLET_RADIUS * 3, THRONGLET_RADIUS * 3), pygame.SRCALPHA)
-            alpha = int(50 + 30 * math.sin(time.time() * 3))
-            stress_surface.fill((255, 0, 0, alpha))
-            surface.blit(stress_surface, (int(draw_x - THRONGLET_RADIUS * 1.5), int(draw_y - THRONGLET_RADIUS * 1.5)))
-
-        skill_key = get_role_skill_key(self.role)
-        if skill_key and skill_key in self.skills:
-            badge_y = int(draw_y - THRONGLET_RADIUS - 15)
-            badge_x = int(draw_x - 10)
-            skill_level = self.skills[skill_key]['level']
-            if skill_level >= 3:
-                star_points = []
-                for i in range(5):
-                    angle = i * 2 * math.pi / 5 - math.pi / 2
-                    if i % 2 == 0:
-                        star_points.append((badge_x + 5 + int(8 * math.cos(angle)), badge_y + int(8 * math.sin(angle))))
-                    else:
-                        star_points.append((badge_x + 5 + int(4 * math.cos(angle)), badge_y + int(4 * math.sin(angle))))
-                pygame.draw.polygon(surface, (255, 215, 0), star_points)
-            elif skill_level >= 2:
-                star_points = []
-                for i in range(5):
-                    angle = i * 2 * math.pi / 5 - math.pi / 2
-                    if i % 2 == 0:
-                        star_points.append((badge_x + 5 + int(6 * math.cos(angle)), badge_y + int(6 * math.sin(angle))))
-                    else:
-                        star_points.append((badge_x + 5 + int(3 * math.cos(angle)), badge_y + int(3 * math.sin(angle))))
-                pygame.draw.polygon(surface, (192, 192, 192), star_points)
-
-        # Emotion bubbles
-        bubble_y = int(draw_y - THRONGLET_RADIUS - 28)
-        bubble_x = int(draw_x)
+        # Calculate dynamic happiness
+        current_happiness = self.base_mood + total_modifier + trait_mood
+        self.happiness = max(0.0, min(100.0, current_happiness))
         
-        if self.diseased:
-            pygame.draw.circle(surface, WHITE, (bubble_x, bubble_y), 8)
-            pygame.draw.circle(surface, BLACK, (bubble_x, bubble_y), 8, 1)
-            pygame.draw.circle(surface, (100, 200, 100), (bubble_x, bubble_y), 5)
-        elif self.needs['hunger'] < 30 or self.needs['energy'] < 30 or self.needs['thirst'] < 30:
-            pygame.draw.circle(surface, WHITE, (bubble_x, bubble_y), 8)
-            pygame.draw.circle(surface, BLACK, (bubble_x, bubble_y), 8, 1)
-            drop_points = [(bubble_x, bubble_y - 4), (bubble_x - 3, bubble_y + 2), (bubble_x + 3, bubble_y + 2)]
-            pygame.draw.polygon(surface, CYAN, drop_points)
-            pygame.draw.circle(surface, CYAN, (bubble_x, bubble_y + 2), 3)
-        elif getattr(self, 'happiness', 50) > 80 and self.morale > 80:
-            pygame.draw.circle(surface, WHITE, (bubble_x, bubble_y), 8)
-            pygame.draw.circle(surface, BLACK, (bubble_x, bubble_y), 8, 1)
-            pygame.draw.circle(surface, RED, (bubble_x - 2, bubble_y - 1), 2)
-            pygame.draw.circle(surface, RED, (bubble_x + 2, bubble_y - 1), 2)
-            pygame.draw.polygon(surface, RED, [(bubble_x - 4, bubble_y), (bubble_x + 4, bubble_y), (bubble_x, bubble_y + 4)])
+        # Check for mental breaks
+        break_threshold = 20 + trait_threshold_mod
+        if self.mental_break_cooldown > 0:
+            self.mental_break_cooldown = max(0, self.mental_break_cooldown - delta_time)
+            if self.mental_state and self.mental_break_cooldown <= 240:
+                self.mental_state = None
+                self.state = STATE_IDLE
+                self.current_action = "wander"
+        elif self.mental_state is None:
+            if self.happiness < 5.0:
+                self.trigger_mental_break('extreme', current_time)
+            elif self.happiness < 20.0:
+                self.trigger_mental_break('major', current_time)
+            elif self.happiness < 35.0:
+                self.trigger_mental_break('minor', current_time)
+
+    def trigger_mental_break(self, severity, current_time):
+        if severity == 'extreme':
+            self.mental_state = random.choice([STATE_CATATONIC, STATE_GIVE_UP])
+        elif severity == 'major':
+            self.mental_state = random.choice([STATE_TANTRUM, STATE_INSULTING])
+        else:
+            self.mental_state = random.choice([STATE_SAD_WANDER, STATE_BINGE])
+            
+        self.state = self.mental_state
+        self.current_action = f"Mental Break: {self.mental_state}"
+        self.mental_break_cooldown = 300  # 5 minutes before another break
+        self.add_moodlet("Catharsis", 30, 300, current_time)
+        print(f"[Mental Break] Thronglet {self.id} suffered a {severity} break: {self.mental_state}")
+
+    def execute_mental_break(self, resources, buildings, delta_time, current_time):
+        if self.mental_state == STATE_SAD_WANDER:
+            if random.random() < 0.1:
+                self.vx += random.uniform(-1.0, 1.0)
+                self.vy += random.uniform(-1.0, 1.0)
+            self.current_action = "Wandering in sadness"
+        elif self.mental_state == STATE_BINGE:
+            if resources:
+                target, _ = self.find_nearest_resource(resources, 'food')
+                if target:
+                    dx, dy = target.x - self.x, target.y - self.y
+                    dist = math.sqrt(dx**2 + dy**2)
+                    if dist < 10:
+                        target.collected = True
+                        self.needs['hunger'] = 100
+                    elif dist > 0:
+                        self.vx = (dx/dist) * THRONGLET_SPEED
+                        self.vy = (dy/dist) * THRONGLET_SPEED
+            self.current_action = "Binge eating"
+        elif self.mental_state == STATE_TANTRUM:
+            if buildings:
+                target = min(buildings, key=lambda b: math.sqrt((b.x - self.x)**2 + (b.y - self.y)**2))
+                dx, dy = target.x - self.x, target.y - self.y
+                dist = math.sqrt(dx**2 + dy**2)
+                if dist < 20:
+                    self.vx, self.vy = 0, 0
+                    # Later: damage building
+                elif dist > 0:
+                    self.vx = (dx/dist) * THRONGLET_SPEED
+                    self.vy = (dy/dist) * THRONGLET_SPEED
+            self.current_action = "Throwing a tantrum"
+        elif self.mental_state == STATE_CATATONIC:
+            self.vx, self.vy = 0, 0
+            self.current_action = "Catatonic state"
+        elif self.mental_state == STATE_GIVE_UP:
+            self.vx, self.vy = THRONGLET_SPEED, 0
+            self.current_action = "Giving up and leaving"
+        
+        return None
+
+
 
     def get_morale_focus_bonus(self):
         morale_bonus = max(0.0, self.morale - 50.0) / 50.0 * MORALE_SPEED_BONUS
@@ -365,7 +311,7 @@ class Thronglet:
         if nearby_shrine:
             morale_delta += 0.6 * delta_time
         if nearby_hospital:
-            self.health = min(100.0, self.health + 5.0 * delta_time)
+            self.heal_damage(5.0 * delta_time)
             if self.diseased and random.random() < 0.2 * delta_time:
                 self.diseased = False
         if nearby_school:
@@ -377,7 +323,7 @@ class Thronglet:
                         s['xp'] = 0
         if nearby_market:
             morale_delta += 0.5 * delta_time
-            self.happiness = min(100.0, self.happiness + 1.0 * delta_time)
+            self.base_mood = min(100.0, self.base_mood + 1.0 * delta_time)
             
         if weather_name in ("storm", "drought"):
             morale_delta -= 0.9 * delta_time
@@ -398,9 +344,19 @@ class Thronglet:
 
     def update_position(self, modifiers=None, world_map=None, world_width=None, world_height=None, buildings=None, other_thronglets=None):
         """Move the thronglet and keep it within bounds with obstacle avoidance"""
-        # Disease slows movement
+        if self.downed:
+            self.vx = 0
+            self.vy = 0
+            return
+            
+        # Disease and body parts slow movement
         speed_mod = modifiers.get_modifier('thronglet_speed') if modifiers else 1.0
-        speed_multiplier = (0.5 if self.diseased else 1.0) * speed_mod
+        
+        trait_speed_mult = 1.0
+        for trait in getattr(self, 'traits', []):
+            trait_speed_mult *= TRAIT_DEFINITIONS[trait].get('speed_mult', 1.0)
+            
+        speed_multiplier = self.capacities.get('moving', 1.0) * speed_mod * trait_speed_mult
         adaptability = getattr(self, "genetics", {}).get("adaptability", 1.0)
         
         # Apply gatherer speed bonus
@@ -1015,6 +971,15 @@ class Thronglet:
     
     def decide_action(self, resources, buildings, delta_time, directives=None, is_night=False, other_thronglets=None, group_tasks=None, conditional_behaviors=None, territory_manager=None, city_planner=None, hazards=None, world_map=None):
         """Autonomous decision-making based on needs and personality using state machine and behavior tree"""
+        current_time = time.time()
+        self.update_mood(current_time, delta_time)
+        
+        if self.downed:
+            return None
+            
+        if self.mental_state:
+            return self.execute_mental_break(resources, buildings, delta_time, current_time)
+            
         # If currently gathering, don't decide a new action
         if self.gathering_resource is not None:
             return None
@@ -1097,8 +1062,13 @@ class Thronglet:
         
         # Update needs decay (30% slower for better survival)
         decay_multiplier = getattr(self, 'needs_decay_multiplier', 1.0)
+        
+        trait_hunger_mult = 1.0
+        for trait in getattr(self, 'traits', []):
+            trait_hunger_mult *= TRAIT_DEFINITIONS[trait].get('hunger_rate', 1.0)
+            
         metabolism_efficiency = getattr(self, "genetics", {}).get("metabolism_efficiency", 1.0)
-        hunger_decay = 0.035 * decay_multiplier * delta_time  # Was 0.05
+        hunger_decay = 0.035 * decay_multiplier * trait_hunger_mult * delta_time  # Was 0.05
         self.needs['hunger'] = max(0, self.needs['hunger'] - (hunger_decay / max(0.75, metabolism_efficiency)))
         # Energy decays faster at night
         energy_decay_rate = 0.042 if is_night else 0.021  # Was 0.06/0.03
@@ -2000,45 +1970,74 @@ class Thronglet:
     
     def update_age_and_health(self, delta_time, modifiers=None):
         """Age thronglet and decay health from unmet needs"""
-        # Age the thronglet
         self.age = time.time() - self.birth_time
         decay_scale = 1.0 / max(0.75, self.resilience)
         
-        # Check for natural death from age
         if self.age >= THRONGLET_MAX_AGE:
             return False  # Should die
+            
+        damage_taken = 0.0
         
-        # Decay health based on unmet needs
         if self.needs['hunger'] < 30:
-            self.health -= HEALTH_DECAY_BASE * 3 * delta_time * decay_scale
+            damage_taken += HEALTH_DECAY_BASE * 3 * delta_time * decay_scale
         elif self.needs['hunger'] < 50:
-            self.health -= HEALTH_DECAY_BASE * 1.5 * delta_time * decay_scale
-        
+            damage_taken += HEALTH_DECAY_BASE * 1.5 * delta_time * decay_scale
+            
         if self.needs['energy'] < 30:
-            self.health -= HEALTH_DECAY_BASE * 2 * delta_time * decay_scale
-        
+            damage_taken += HEALTH_DECAY_BASE * 2 * delta_time * decay_scale
+            
         if self.needs['thirst'] < 30:
-            self.health -= HEALTH_DECAY_BASE * 2.5 * delta_time * decay_scale
-        
-        # Disease causes health loss
+            damage_taken += HEALTH_DECAY_BASE * 2.5 * delta_time * decay_scale
+            
         if self.diseased:
-            self.health -= HEALTH_DECAY_BASE * 5 * delta_time * decay_scale
-        
-        # Health regeneration from medicine techs
+            damage_taken += HEALTH_DECAY_BASE * 5 * delta_time * decay_scale
+            
+        if damage_taken > 0:
+            self.take_damage(damage_taken, 'decay')
+            
         health_regen = modifiers.get_modifier('health_regen') if modifiers else 0
         if health_regen > 0 and self.health < 100 and not self.diseased:
-            self.health += health_regen * delta_time * 0.1
+            self.heal_damage(health_regen * delta_time * 0.1)
+            
         if self.morale > 70 and not self.diseased:
-            self.health += 0.015 * delta_time * self.resilience
+            self.heal_damage(0.015 * delta_time * self.resilience)
+            
+        return self.alive
         
-        # Clamp health
-        self.health = max(0, min(100, self.health))
+    def update_temperature(self, delta_time, temp_grid):
+        """Update body temperature based on ambient temperature and apply effects"""
+        ambient_temp = temp_grid.get_temperature_at(self.x, self.y)
         
-        # Die if health reaches 0
-        if self.health <= 0:
-            return False
+        # Thermoregulation efficiency based on health
+        efficiency = self.health / 100.0
         
-        return True  # Still alive
+        # Pull body temp towards ambient
+        temp_diff = ambient_temp - self.body_temp
+        
+        # Faster to get cold/hot than to return to normal if efficiency is low
+        rate = 0.05 * delta_time
+        if abs(temp_diff) > 10:
+            rate *= 2.0
+            
+        # Tending towards 37.0 if ambient is comfortable (15-28)
+        if 15.0 <= ambient_temp <= 28.0:
+            self.body_temp += (37.0 - self.body_temp) * 0.1 * delta_time
+        else:
+            self.body_temp += temp_diff * rate
+
+        # Apply thermal effects
+        if self.body_temp < 35.0:
+            # Hypothermia
+            severity = (35.0 - self.body_temp) / 5.0  # e.g. 30.0 -> severity 1.0
+            self.take_damage(severity * 5.0 * delta_time, 'cold')
+            if random.random() < 0.1 * delta_time:
+                self.add_moodlet("Freezing", -20, 30, time.time())
+        elif self.body_temp > 38.5:
+            # Heatstroke
+            severity = (self.body_temp - 38.5) / 3.0  # e.g. 41.5 -> severity 1.0
+            self.take_damage(severity * 5.0 * delta_time, 'heat')
+            if random.random() < 0.1 * delta_time:
+                self.add_moodlet("Overheating", -15, 30, time.time())
     
     def gain_skill_xp(self, skill_type, amount):
         """Level up skills"""
@@ -2142,7 +2141,7 @@ class Thronglet:
                 happiness += 8
         
         # Clamp happiness
-        self.happiness = max(0, min(100, happiness))
+        self.base_mood = max(0, min(100, happiness))
     
     def contract_disease(self, chance):
         """Disease mechanics"""
@@ -2369,5 +2368,78 @@ Best next action:"""
             self.vx = 0
             self.vy = THRONGLET_SPEED
         self.current_action = f"random {direction}"
+
+    def calculate_capacities(self):
+        for name, part in self.body_parts.items():
+            if part['health'] <= 0:
+                part['status'] = 'missing'
+                part['efficiency'] = 0.0
+            else:
+                part['efficiency'] = part['health'] / part['max']
+                if part['efficiency'] < 1.0:
+                    part['status'] = 'injured'
+                else:
+                    part['status'] = 'intact'
+                    
+        total_pain = sum((part['max'] - part['health']) * 0.5 for part in self.body_parts.values())
+        self.pain = min(1.0, total_pain / 100.0)
+        
+        consciousness = 1.0 - (self.pain * 0.5)
+        consciousness *= self.body_parts['head']['efficiency']
+        if self.needs.get('energy', 100) < 10:
+            consciousness *= 0.5
+        self.capacities['consciousness'] = max(0.0, min(1.0, consciousness))
+        
+        moving = (self.body_parts['left_leg']['efficiency'] + self.body_parts['right_leg']['efficiency']) / 2.0
+        moving *= self.capacities['consciousness']
+        self.capacities['moving'] = max(0.0, min(1.0, moving))
+        
+        manipulation = (self.body_parts['left_arm']['efficiency'] + self.body_parts['right_arm']['efficiency']) / 2.0
+        manipulation *= self.capacities['consciousness']
+        self.capacities['manipulation'] = max(0.0, min(1.0, manipulation))
+        
+        self.capacities['sight'] = self.body_parts['eyes']['efficiency'] * self.capacities['consciousness']
+        
+        total_hp = sum(p['health'] for p in self.body_parts.values())
+        max_hp = sum(p['max'] for p in self.body_parts.values())
+        self.health = (total_hp / max_hp) * 100.0
+        
+        if self.capacities['consciousness'] < 0.3 or self.capacities['moving'] < 0.15:
+            self.downed = True
+            self.state = 'downed'  # Defined in thronglets_game.py as STATE_DOWNED
+            self.current_action = "Downed (incapacitated)"
+        else:
+            self.downed = False
+            if self.state == 'downed':
+                self.state = STATE_IDLE
+        
+        if self.body_parts['torso']['health'] <= 0 or self.body_parts['head']['health'] <= 0 or self.capacities['consciousness'] <= 0:
+            self.alive = False
+
+    def take_damage(self, amount, damage_type='blunt', current_time=None):
+        if not self.alive: return
+        if current_time is None: current_time = time.time()
+        
+        parts = list(self.body_parts.keys())
+        weights = [40, 10, 15, 15, 15, 15, 5] # Torso, head, arms, legs, eyes
+        target_part = random.choices(parts, weights=weights, k=1)[0]
+        
+        self.body_parts[target_part]['health'] -= amount
+        self.body_parts[target_part]['health'] = max(0, self.body_parts[target_part]['health'])
+        
+        if amount > 15:
+            self.add_moodlet("In extreme pain", -15, 120, current_time)
+            
+        self.calculate_capacities()
+        if VERBOSE_LOGGING:
+            print(f"[Anatomy] Thronglet {self.id} took {amount} {damage_type} damage to {target_part}. Health: {self.health:.1f}%")
+
+    def heal_damage(self, amount):
+        if not self.alive: return
+        injured_parts = [name for name, part in self.body_parts.items() if part['status'] in ['injured', 'missing']]
+        if not injured_parts: return
+        target_part = random.choice(injured_parts)
+        self.body_parts[target_part]['health'] = min(self.body_parts[target_part]['max'], self.body_parts[target_part]['health'] + amount)
+        self.calculate_capacities()
 
 

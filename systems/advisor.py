@@ -167,10 +167,13 @@ class CivilizationAdvisor:
         if avg_happiness < 45:
             crisis_flags.append("MORALE_COLLAPSE")
         
+        wealth_summary = f"Wealth: {self.session_stats.get('colony_wealth', 0):.0f}"
+    
         return {
-            'summary_text': f"{pop_summary} | {resource_summary} | {needs_summary} | {territory_summary} | {infrastructure_summary} | {culture_summary}",
+            'summary_text': f"{pop_summary} | {wealth_summary} | {resource_summary} | {needs_summary} | {territory_summary} | {infrastructure_summary} | {culture_summary}",
             'crisis_flags': crisis_flags,
             'metrics': {
+                'colony_wealth': self.session_stats.get('colony_wealth', 0),
                 'population': len(thronglets),
                 'food_pct': food_pct,
                 'avg_hunger': avg_hunger,
@@ -435,6 +438,7 @@ Population: {num_thronglets} thronglets
 - Skills: {skill_levels['novice']} novice, {skill_levels['intermediate']} intermediate, {skill_levels['expert']} expert
 - Needs: {hungry_count} hungry (<50), {energy_low_count} low energy (<50), {can_reproduce_count} ready to reproduce
 - Health: {diseased_count} diseased thronglets, avg health: {avg_health:.1f}/100
+- Wealth: {self.session_stats.get('colony_wealth', 0):.0f} total colony value (higher wealth draws stronger threats)
 - Social Bonds: {avg_bonds_per_thronglet:.1f} bonds per thronglet, {strong_bonds} strong bonds (>70){faction_info}{q_learning_stats}
 
 Resources:
@@ -863,6 +867,7 @@ Directives:"""
     def ensure_scheduler(self):
         """Create the LLM scheduler lazily (requires OllamaClient)."""
         if self.llm_scheduler is None and LLM_ENABLED:
+            from thronglets_game import _get_llm_client
             client = _get_llm_client()
             self.llm_scheduler = LLMScheduler(
                 client, max_concurrent=2, default_backoff=LLM_BACKOFF_SECONDS
@@ -1153,6 +1158,7 @@ Colony:
 - Resources on map: food={map_food}, wood={map_wood}, stone={map_stone}
 - Carrying: food={total_food_inv}, wood={total_wood_inv}, stone={total_stone_inv}
 - Avg needs: hunger={avg_hunger:.0f}, energy={avg_energy:.0f}, health={avg_health:.0f}, happiness={avg_happiness:.0f}, morale={avg_morale:.0f}
+- Colony Wealth: {self.session_stats.get('colony_wealth', 0):.0f} (higher wealth = deadlier threats)
 - Diseased thronglets: {diseased_count}
 - District: {settlement.get('district_identity', 'homestead')}
 - Prosperity: {int(settlement.get('prosperity_score', 0.0) * 100)}%
@@ -2067,13 +2073,53 @@ Directives:"""
         self.last_llm_error = None
         print(f"[Goal Assignment] Queued async personal goals for {len(thronglets)} thronglets")
     
-    def calculate_difficulty(self, thronglets, buildings):
-        """Calculate challenge difficulty based on progress"""
-        building_score = sum(1 for b in buildings)
-        tech_score = len(self.game_modifiers.tech_unlocked) * 2
-        total_score = building_score + tech_score
+    def calculate_colony_wealth(self, thronglets, buildings, resources):
+        """Calculate total colony wealth based on population, buildings, and stockpiles"""
+        wealth = 0.0
         
-        # Scale: 1.0 at 0, 2.0 at 20, 3.0 at 50
-        return 1.0 + (total_score / DIFFICULTY_SCALING_FACTOR)
+        # 1. Population wealth (base value + skills)
+        for t in thronglets:
+            wealth += 500  # Base value
+            # Skills
+            for skill_info in getattr(t, 'skills', {}).values():
+                wealth += skill_info.get('level', 1) * 100
+            # Health
+            wealth += getattr(t, 'health', 100) * 2
+            
+        # 2. Building wealth (material costs value)
+        for b in buildings:
+            base_value = 200
+            if getattr(b, 'building_type', '') in ['house', 'well']:
+                base_value = 300
+            elif getattr(b, 'building_type', '') in ['workshop', 'shrine']:
+                base_value = 500
+            elif getattr(b, 'building_type', '') in ['hospital', 'school', 'market']:
+                base_value = 800
+            wealth += base_value * getattr(b, 'level', 1)
+            
+        # 3. Resource Stockpiles
+        for t in thronglets:
+            inv = getattr(t, 'inventory', {})
+            wealth += inv.get('wood', 0) * 10
+            wealth += inv.get('stone', 0) * 15
+            wealth += inv.get('food', 0) * 20
+            
+        return wealth
+
+    def calculate_difficulty(self, thronglets, buildings, resources=None):
+        """Calculate challenge difficulty based on dynamic colony wealth"""
+        if resources is None:
+            resources = []
+            
+        wealth = self.calculate_colony_wealth(thronglets, buildings, resources)
+        self.session_stats['colony_wealth'] = wealth
+        
+        # Scale: 
+        # Base 1.0
+        # +1.0 for every 10,000 wealth
+        base_difficulty = 1.0 + (wealth / 10000.0)
+        
+        # Maximum difficulty cap of 5.0
+        return min(5.0, base_difficulty)
 
 

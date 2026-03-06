@@ -86,29 +86,29 @@ LLM_ENABLED = not RUNTIME_CONFIG.disable_llm and ollama is not None
 WINDOW_WIDTH = RUNTIME_CONFIG.width
 WINDOW_HEIGHT = RUNTIME_CONFIG.height
 FPS = RUNTIME_CONFIG.fps
-THRONGLET_SPEED = 0.75  # Very slow movement for better map scale perception
-RESOURCE_COLLISION_DIST = 12  # Adjusted for smaller sprites
+THRONGLET_SPEED = 1.5  # Doubled for larger scale
+RESOURCE_COLLISION_DIST = 24  # Adjusted for larger sprites
 
 # Time speed control
 TIME_SPEED_OPTIONS = [1.0, 2.0, 5.0]  # 1x, 2x, 5x
 
 # Visual scale constants
-THRONGLET_RADIUS = 6  # Small creatures on big map
-BUILDING_SIZE = 16  # Buildings visible but not oversized
-RESOURCE_RADIUS_FOOD = 4  # Larger, more visible resources
-RESOURCE_RADIUS_WOOD = 5  # Larger, more visible resources
+THRONGLET_RADIUS = 16  # Visually larger relative to grid
+BUILDING_SIZE = 32  # Half scale of new 64 tile size, but larger overall
+RESOURCE_RADIUS_FOOD = 8  # Larger, more visible resources
+RESOURCE_RADIUS_WOOD = 10  # Larger, more visible resources
 # Map system constants
-CHUNK_SIZE = 512  # Pixels per chunk (512x512)
-TILE_SIZE = 32  # Size of each tile
-INITIAL_CHUNKS_X = 16  # Macro frontier world width in chunks
-INITIAL_CHUNKS_Y = 12  # Macro frontier world height in chunks
+CHUNK_SIZE = 512  # Pixels per chunk (512x512) -> This will now be 8x8 tiles instead of 16x16
+TILE_SIZE = 64  # Size of each tile (doubled for higher detail)
+INITIAL_CHUNKS_X = 64  # Massive planetary scale world width in chunks
+INITIAL_CHUNKS_Y = 64  # Massive planetary scale world height in chunks
 NOISE_SCALE = 0.1  # For Perlin noise generation
 
 # Territory system constants
 TERRITORY_CLAIM_RATE = 2.0  # Claim strength increase per second
 TERRITORY_DECAY_RATE = 0.1  # Decay rate for unclaimed tiles
-TERRITORY_CLAIM_RADIUS = 40  # Pixels around thronglets to claim
-BUILDING_CLAIM_RADIUS = 60  # Pixels around buildings to claim
+TERRITORY_CLAIM_RADIUS = 80  # Doubled for new scale
+BUILDING_CLAIM_RADIUS = 120  # Doubled for new scale
 
 # Civilization Advisor Configuration — multi-channel cadences
 COUNCIL_REVIEW_INTERVAL = 12.0
@@ -125,7 +125,7 @@ NIGHT_START = DAY_LENGTH / 2  # night starts halfway through day
 
 # Reproduction Configuration
 REPRODUCTION_COOLDOWN = 45.0  # 45 seconds between reproductions (faster for growth)
-REPRODUCTION_PROXIMITY = 30  # pixels distance for mating (adjusted for smaller sprites)
+REPRODUCTION_PROXIMITY = 60  # Doubled for larger sprites
 REPRODUCTION_NEEDS_THRESHOLD = 60  # both hunger and energy must be above this (easier to reproduce)
 MAX_POPULATION = 25  # soft cap to maintain performance
 INITIAL_POPULATION = 2  # start with 2 thronglets
@@ -135,7 +135,7 @@ RESOURCE_RESPAWN_TIME = 30.0  # Food respawns every 30 seconds
 RESOURCE_GATHER_TIME_FOOD = 3.0  # Time to gather food (seconds)
 RESOURCE_GATHER_TIME_WOOD = 5.0  # Time to chop down tree (seconds)
 RESOURCE_GATHER_TIME_STONE = 8.0  # Time to mine stone (seconds)
-WOOD_MAX_ON_MAP = 20  # Maximum wood resources at once (increased for larger map)
+WOOD_MAX_ON_MAP = 1000  # Maximum wood resources at once (massive map)
 # FOOD_MAX_ON_MAP removed - food uses respawn timer system instead
 
 # Health & Lifespan
@@ -170,7 +170,7 @@ BOND_INCREASE_RATE = 0.5  # Per second working together
 BOND_DECAY_RATE = 0.1     # Per second apart
 
 # Resource Sharing
-RESOURCE_SHARING_RADIUS = 50  # Pixels - thronglets within this distance can share resources for building
+RESOURCE_SHARING_RADIUS = 100  # Doubled for new scale - thronglets within this distance can share resources for building
 
 # Behavior Tree Constants
 BT_NODE_SELECTOR = 'selector'
@@ -185,8 +185,8 @@ Q_LEARNING_EPSILON = 0.3  # Exploration rate (30% chance to use Q-learning)
 Q_TABLE_MAX_SIZE = 1000  # Maximum Q-table entries
 
 # Advanced Resources
-STONE_MAX_ON_MAP = 10
-RESOURCE_RADIUS_STONE = 5  # Larger, more visible resources
+STONE_MAX_ON_MAP = 500
+RESOURCE_RADIUS_STONE = 10  # Larger, more visible resources
 
 # Water & Hygiene
 WATER_NEED_DECAY = 0.04
@@ -199,6 +199,15 @@ STATE_SOCIALIZE = 'socialize'
 STATE_REST = 'rest'
 STATE_EXPLORE = 'explore'
 STATE_CLAIM_TILE = 'claim_tile'
+
+# Mental Break States
+STATE_BINGE = 'binge'
+STATE_SAD_WANDER = 'sad_wander'
+STATE_TANTRUM = 'tantrum'
+STATE_INSULTING = 'insulting'
+STATE_CATATONIC = 'catatonic'
+STATE_GIVE_UP = 'give_up'
+STATE_DOWNED = 'downed'
 
 # Food Spoilage
 FOOD_SPOIL_TIME = 120.0  # 2 minutes
@@ -224,9 +233,22 @@ GENETIC_TRAIT_SPECS = {
     "social_cohesion": {"label": "Cohesion", "min": 0.8, "max": 1.25},
     "adaptability": {"label": "Adaptation", "min": 0.82, "max": 1.2},
 }
+
+TRAIT_DEFINITIONS = {
+    'Volatile': {'mood_offset': -5, 'mental_break_threshold': 15},
+    'Iron-Willed': {'mood_offset': 0, 'mental_break_threshold': -15},
+    'Fast Walker': {'speed_mult': 1.25},
+    'Slowpoke': {'speed_mult': 0.75},
+    'Gourmand': {'hunger_rate': 1.5, 'mood_offset': -5},
+    'Ascetic': {'hunger_rate': 0.8, 'mood_offset': 5},
+    'Lazy': {'speed_mult': 0.9, 'hunger_rate': 0.8},
+    'Industrious': {'speed_mult': 1.15, 'hunger_rate': 1.2},
+    'Optimist': {'mood_offset': 10},
+    'Pessimist': {'mood_offset': -10},
+}
 BIOME_TYPES = ["forest", "plains", "mountains", "desert", "snow", "swamp", "taiga", "tundra"]
-SETTLEMENT_AURA_RADIUS = 110
-SETTLEMENT_CLUSTER_RADIUS = 140
+SETTLEMENT_AURA_RADIUS = 220
+SETTLEMENT_CLUSTER_RADIUS = 280
 FAVORITE_BIOME_SPEED_BONUS = 0.08
 MORALE_SPEED_BONUS = 0.06
 INSPIRATION_SKILL_BONUS = 0.15
@@ -448,7 +470,7 @@ def apply_scenario_startup_conditions(scenario_profile, thronglets, advisor, sea
             thronglet.diseased = True
             thronglet.disease_start_time = current_time - random.uniform(5.0, 15.0)
             thronglet.health = clamp(thronglet.health - disease_health_penalty, 10.0, 100.0)
-            thronglet.happiness = clamp(thronglet.happiness - 12.0, 0.0, 100.0)
+            thronglet.add_moodlet("Sickly Start", -12.0, 600, current_time)
 
     advisor.research_points += max(0, int(scenario_profile.get("starting_research", 0)))
     advisor.last_pop_count = len(thronglets)
@@ -924,7 +946,7 @@ def update_settlement_celebration(
             if center and distance_between(thronglet.x, thronglet.y, center[0], center[1]) <= 220:
                 bonus_scale = 1.35
             thronglet.morale = clamp(thronglet.morale + 0.9 * delta_time * bonus_scale, 0.0, 100.0)
-            thronglet.happiness = clamp(thronglet.happiness + 0.42 * delta_time * bonus_scale, 0.0, 100.0)
+            thronglet.add_moodlet("Festival Joy", 15.0 * bonus_scale, 5.0, current_time)
             thronglet.inspiration = clamp(thronglet.inspiration + 0.65 * delta_time * bonus_scale, 0.0, 100.0)
 
     settlement_state["festival_active"] = festival_active
@@ -1876,14 +1898,14 @@ class TerrainHazard:
             elif self.hazard_type == 'avalanche_zone':
                 # Chance to take damage
                 if random.random() < 0.1:
-                    thronglet.health = max(0, thronglet.health - 20)
+                    thronglet.take_damage(20, 'burn')
             elif self.hazard_type == 'flood_zone':
                 # Increase disease risk
                 thronglet.contract_disease(DISEASE_CHANCE_BASE * 10)
             elif self.hazard_type == 'predator_lair':
                 # Chance of attack
                 if random.random() < 0.15:
-                    thronglet.health = max(0, thronglet.health - 30)
+                    thronglet.take_damage(30, 'crush')
     
     def draw(self, surface):
         """Draw hazard marker"""
@@ -2067,8 +2089,79 @@ class Season:
         return modifiers.get(self.current, modifiers['summer'])
 
 
+class TemperatureGrid:
+    def __init__(self, world_width, world_height, cell_size=200):
+        self.cell_size = cell_size
+        self.cols = int(world_width / cell_size) + 1
+        self.rows = int(world_height / cell_size) + 1
+        self.grid = [[21.0 for _ in range(self.rows)] for _ in range(self.cols)]
+        self.last_update = 0
+
+    def update(self, current_time, world_map, season, weather_system, buildings):
+        if current_time - self.last_update < 5.0:  # Update every 5 seconds
+            return
+        self.last_update = current_time
+
+        # Base offsets
+        season_offsets = {
+            'spring': 0.0,
+            'summer': 15.0,
+            'autumn': 5.0,
+            'winter': -20.0
+        }
+        season_offset = season_offsets.get(season.current, 0.0)
+
+        weather_offsets = {
+            'clear': 0.0,
+            'rain': -5.0,
+            'storm': -10.0,
+            'drought': 10.0,
+            'aurora': -15.0
+        }
+        weather_offset = weather_offsets.get(weather_system.current_weather, 0.0)
+
+        for col in range(self.cols):
+            for row in range(self.rows):
+                world_x = col * self.cell_size + self.cell_size / 2
+                world_y = row * self.cell_size + self.cell_size / 2
+
+                ambient_temp = 21.0
+                if world_map:
+                    biome = world_map.get_biome_at(world_x, world_y)
+                    biome_base = {
+                        'desert': 35.0,
+                        'tundra': -15.0,
+                        'snow': -5.0,
+                        'taiga': 5.0,
+                        'jungle': 30.0,
+                        'swamp': 25.0,
+                        'forest': 18.0,
+                        'plains': 20.0,
+                        'mountains': 10.0
+                    }.get(biome, 21.0)
+                    ambient_temp = biome_base + season_offset + weather_offset
+
+                # Check if indoors
+                nearby_buildings = sum(1 for b in buildings if math.sqrt((b.x - world_x)**2 + (b.y - world_y)**2) < 150)
+                insulation_factor = min(1.0, nearby_buildings * 0.3)  # Max 1.0 at ~3.3 buildings
+                
+                # Apply insulation (pulls towards comfortable 21.0)
+                if insulation_factor > 0:
+                    ambient_temp = ambient_temp * (1.0 - insulation_factor) + (21.0 * insulation_factor)
+                
+                # Add heat sources
+                heat_sources = sum(1 for b in buildings if getattr(b, 'building_type', '') in ['workshop', 'shrine'] and math.sqrt((b.x - world_x)**2 + (b.y - world_y)**2) < 100)
+                ambient_temp += heat_sources * 10.0
+                
+                self.grid[col][row] = ambient_temp
+
+    def get_temperature_at(self, x, y):
+        col = max(0, min(self.cols - 1, int(x / self.cell_size)))
+        row = max(0, min(self.rows - 1, int(y / self.cell_size)))
+        return self.grid[col][row]
+
+
 class WeatherSystem:
-    """Random weather events"""
     def __init__(self):
         self.current_weather = 'clear'
         self.next_event_time = time.time() + random.uniform(45, 90)  # First event in 45-90 seconds
@@ -2312,6 +2405,9 @@ class MapChunk:
             self.region_id = getattr(chunk_state, "region_id", None)
             self.water_tiles = set(getattr(chunk_state, "water_tiles", ()))
             self.river_tiles = set(getattr(chunk_state, "river_tiles", ()))
+            
+            # Generate static flora for this chunk based on climate
+            self._generate_static_flora()
         else:
             self.generate_biomes()
         self.surface = None  # Cached pre-rendered surface
@@ -2321,6 +2417,55 @@ class MapChunk:
         # Lazy rendering: only render surface when first needed (much faster startup)
         if not lazy_render and asset_manager:
             self.render_surface()
+    
+    def _generate_static_flora(self):
+        """Generate Rimworld-style dense trees and rocks directly within the chunk's tiles."""
+        seed_val = int(self.world_x * 73856093 + self.world_y * 19349663)
+        rng = random.Random(seed_val)
+        
+        # Determine base density based on dominant biomes in the chunk
+        densities = {
+            'forest': {'wood': 0.65, 'stone': 0.05, 'food': 0.15},
+            'taiga': {'wood': 0.50, 'stone': 0.10, 'food': 0.05},
+            'swamp': {'wood': 0.35, 'stone': 0.02, 'food': 0.10},
+            'plains': {'wood': 0.10, 'stone': 0.05, 'food': 0.08},
+            'mountains': {'wood': 0.02, 'stone': 0.45, 'food': 0.01},
+            'tundra': {'wood': 0.05, 'stone': 0.15, 'food': 0.02},
+            'desert': {'wood': 0.01, 'stone': 0.10, 'food': 0.01},
+            'snow': {'wood': 0.01, 'stone': 0.15, 'food': 0.00},
+        }
+
+        # Each tile is TILE_SIZE. We can try placing 1-3 resources per tile in heavily wooded areas
+        for (tx, ty), biome in self.tiles.items():
+            if (tx, ty) in self.water_tiles or (tx, ty) in self.river_tiles:
+                continue
+                
+            rates = densities.get(biome, densities['plains'])
+            
+            # Trees (Wood)
+            if rng.random() < rates['wood']:
+                count = rng.randint(1, 3) if rates['wood'] > 0.4 else 1
+                for _ in range(count):
+                    px = self.world_x + (tx * TILE_SIZE) + rng.uniform(4, TILE_SIZE - 4)
+                    py = self.world_y + (ty * TILE_SIZE) + rng.uniform(4, TILE_SIZE - 4)
+                    res = Resource(px, py, 'wood')
+                    self.resources.append(res)
+                    
+            # Rocks (Stone)
+            elif rng.random() < rates['stone']:
+                count = rng.randint(1, 4) if rates['stone'] > 0.3 else 1
+                for _ in range(count):
+                    px = self.world_x + (tx * TILE_SIZE) + rng.uniform(4, TILE_SIZE - 4)
+                    py = self.world_y + (ty * TILE_SIZE) + rng.uniform(4, TILE_SIZE - 4)
+                    res = Resource(px, py, 'stone')
+                    self.resources.append(res)
+                    
+            # Forage (Food)
+            elif rng.random() < rates['food']:
+                px = self.world_x + (tx * TILE_SIZE) + rng.uniform(4, TILE_SIZE - 4)
+                py = self.world_y + (ty * TILE_SIZE) + rng.uniform(4, TILE_SIZE - 4)
+                res = Resource(px, py, 'food')
+                self.resources.append(res)
     
     def render_surface(self):
         """Pre-render the chunk to a surface for faster drawing"""
@@ -2457,7 +2602,7 @@ class MapChunk:
 
 class WorldMap:
     """Manages the world map with chunks"""
-    def __init__(self, asset_manager=None, scenario_profile=None, seed=None, snapshot_world=None):
+    def __init__(self, asset_manager=None, scenario_profile=None, seed=None, snapshot_world=None, planet_tile=None):
         self.chunks = {}  # {(chunk_x, chunk_y): MapChunk}
         self.asset_manager = asset_manager
         self.encounters = []  # List of special encounters
@@ -2471,6 +2616,25 @@ class WorldMap:
         profile_source = dict(self.scenario_profile)
         if isinstance(snapshot_world.get("world_profile"), dict):
             profile_source["worldgen"] = dict(snapshot_world.get("world_profile", {}))
+            
+        # [Phase 3] If a Planet Tile was provided, force the local profile to inherit its climate
+        self.planet_tile = planet_tile
+        if self.planet_tile:
+            print(f"[Planet Local Gen] Inheriting traits from planet tile: Biome {planet_tile.biome}, Temp {planet_tile.temperature:.2f}")
+            if "worldgen" not in profile_source:
+                profile_source["worldgen"] = {}
+            profile_source["worldgen"]["climate_bias"] = planet_tile.biome
+            profile_source["worldgen"]["temperature_bias"] = planet_tile.temperature
+            profile_source["worldgen"]["moisture_bias"] = planet_tile.moisture
+            
+            # Restrict local map size to feel more like a "landing zone"
+            profile_source["worldgen"]["chunk_cols"] = 16
+            profile_source["worldgen"]["chunk_rows"] = 16
+            
+            # If the planet is ocean, we spawn an island map
+            if not planet_tile.is_land:
+                profile_source["worldgen"]["water_abundance"] = 0.9
+
         self.world_profile = build_world_profile(profile_source, chunk_size=CHUNK_SIZE, tile_size=TILE_SIZE)
         self.chunk_cols = int(self.world_profile.chunk_cols)
         self.chunk_rows = int(self.world_profile.chunk_rows)
@@ -3377,7 +3541,7 @@ def restore_session_from_snapshot(
 
         thronglet.role = thronglet_data.get("role")
         thronglet.health = clamp(float(thronglet_data.get("health", 100.0)), 0.0, 100.0)
-        thronglet.happiness = clamp(float(thronglet_data.get("happiness", thronglet.happiness)), 0.0, 100.0)
+        thronglet.base_mood = clamp(float(thronglet_data.get("happiness", thronglet.base_mood)), 0.0, 100.0)
         thronglet.morale = clamp(float(thronglet_data.get("morale", thronglet.morale)), 0.0, 100.0)
         thronglet.inspiration = clamp(float(thronglet_data.get("inspiration", thronglet.inspiration)), 0.0, 100.0)
         thronglet.favorite_biome = thronglet_data.get("favorite_biome") if thronglet_data.get("favorite_biome") in BIOME_TYPES else thronglet.favorite_biome
@@ -4046,8 +4210,32 @@ def main(runtime_config=RUNTIME_CONFIG):
             except Exception:
                 pass
             return
+            
+        # [Phase 3] After command center, show Planet Select
+        if shell_choice.get("action") == "start" and not shell_choice.get("snapshot_path"):
+            from ui.planet_select import PlanetSelectUI
+            planet_ui = PlanetSelectUI(screen, runtime_config, runtime_config.seed or 42)
+            planet_choice = planet_ui.run()
+            if planet_choice.get("action") == "quit":
+                try:
+                    pygame.quit()
+                except Exception:
+                    pass
+                return
+            # Pass the selected planet tile data into the shell_choice payload
+            shell_choice["planet_tile"] = planet_choice.get("planet_tile")
+
     selected_scenario_id = str(shell_choice.get("scenario_id") or selected_scenario_id)
     scenario_profile = set_active_scenario(selected_scenario_id)
+
+    # Refresh LLM client in case settings were modified in the command center
+    if LLM_ENABLED:
+        client_instance = _get_llm_client()
+        if client_instance:
+            try:
+                client_instance.refresh_client()
+            except Exception as e:
+                print(f"[LLM] Warning: Failed to refresh client with new settings: {e}")
 
     # Initialize logging and crash tracking
     game_logger = GameLogger(log_dir=runtime_config.log_dir, log_level=runtime_config.log_level)
@@ -4159,11 +4347,18 @@ def main(runtime_config=RUNTIME_CONFIG):
     print("Asset manager created")
     print(f"[DEBUG] Asset manager type: {type(asset_manager)}")
     _draw_loading("Loading Thronglets... World")
+    
+    # [Phase 3] Check if a specific planet tile was selected to anchor the local map's climate
+    planet_tile = None
+    if locals().get("shell_choice") and "planet_tile" in shell_choice:
+        planet_tile = shell_choice["planet_tile"]
+
     world_map = WorldMap(
         asset_manager,
         scenario_profile=scenario_profile,
         seed=runtime_config.seed,
         snapshot_world=(snapshot_payload or {}).get("world"),
+        planet_tile=planet_tile,
     )
     print(f"World map created with {len(world_map.chunks)} chunks")
     
@@ -4338,6 +4533,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Initialize season and weather systems
     season = Season()
     weather_system = WeatherSystem()
+    temperature_grid = TemperatureGrid(world_width, world_height)
     apply_scenario_startup_conditions(scenario_profile, thronglets, advisor, season, weather_system, time.time())
     settlement_state = compute_settlement_snapshot(thronglets, buildings, world_map, season, weather_system)
     celebration_state = {
@@ -4415,7 +4611,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             else:
                 center_camera_on_colony(camera, thronglets, buildings)
                 camera.follow_mode = True
-            fog_of_war.update(thronglets, buildings)
+            fog_of_war.update(thronglets, buildings, world_map)
             territory_manager.update(thronglets, buildings)
             record_population_evolution_sample(advisor, thronglets, time.time(), time.time() - restored_elapsed_seconds, force=True)
             refresh_run_summary_cache(
@@ -4848,7 +5044,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             if frame_count > 1:
                 # Update fog of war
                 try:
-                    fog_of_war.update(thronglets, buildings)
+                    fog_of_war.update(thronglets, buildings, world_map)
                 except Exception as e:
                     print(f"[ERROR] Fog of war update failed: {e}")
                     game_logger.log_error(f"Fog of war update error: {e}")
@@ -5014,7 +5210,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             
             # Update season and weather
             season.update(current_time - game_start_time)
-            advisor.challenge_difficulty = advisor.calculate_difficulty(thronglets, buildings)
+            advisor.challenge_difficulty = advisor.calculate_difficulty(thronglets, buildings, resources)
+            temperature_grid.update(current_time, world_map, season, weather_system, buildings)
             weather_event = weather_system.check_event(current_time, advisor.challenge_difficulty, season.current)
             if weather_event and weather_event['type'] != 'clear':
                 narrative_panel.add_message(f"Weather Alert: {weather_event['type']}!", 'Crisis')
@@ -5023,7 +5220,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     affected_count = 0
                     for _t in thronglets:
                         if random.random() < 0.4:
-                            _t.health = max(1.0, _t.health - impact)
+                            _t.take_damage(impact, 'crush')
                             _t.needs['energy'] = max(0.0, _t.needs['energy'] - impact)
                             affected_count += 1
                     record_observer_timeline_event(
@@ -5126,6 +5323,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                 if thronglet is None or not hasattr(thronglet, 'id'):
                     continue
                 try:
+                    thronglet.update_temperature(delta_time, temperature_grid)
+                    
                     # Update age and health - check for death
                     if not thronglet.update_age_and_health(delta_time, advisor.game_modifiers):
                         # Create death particle effect
@@ -5341,6 +5540,11 @@ def main(runtime_config=RUNTIME_CONFIG):
                         # Use city planner location if set, otherwise use thronglet position
                         build_x = thronglet.next_build_location[0] if thronglet.next_build_location else thronglet.x
                         build_y = thronglet.next_build_location[1] if thronglet.next_build_location else thronglet.y
+                        
+                        # Snap perfectly to the grid (Rimworld style)
+                        build_x = round(build_x / TILE_SIZE) * TILE_SIZE
+                        build_y = round(build_y / TILE_SIZE) * TILE_SIZE
+                        
                         thronglet.next_build_location = None  # Clear for next build
                         
                         new_building = Building(build_x, build_y, building_type)
@@ -5578,7 +5782,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                                     elif encounter.encounter_type == 'oasis':
                                         # Heal all thronglets and restore thirst
                                         for t in thronglets:
-                                            t.health = min(100, t.health + 30)
+                                            t.heal_damage(30)
                                             t.needs['thirst'] = 100
                                             # Temporary disease immunity
                                             t.disease_immunity_until = current_time + 60
@@ -5677,7 +5881,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                                     elif npc.npc_type == 'rival_tribe':
                                         # Hostile encounter
                                         if random.random() < 0.5:  # 50% chance of negative encounter
-                                            thronglet.health = max(0, thronglet.health - 15)
+                                            thronglet.take_damage(15, 'cut')
                                             narrative_panel.add_message("Thronglet encountered hostile tribe! -15 health", 'Crisis')
                                     elif npc.npc_type == 'wildlife_herd':
                                         # Friendly encounter, chance to gain food
@@ -5746,7 +5950,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                         if thronglet.health < old_health and advisor.challenge_difficulty > 1.0:
                             damage_scale = advisor.challenge_difficulty
                             additional_damage = (old_health - thronglet.health) * (damage_scale - 1.0)
-                            thronglet.health = max(0, thronglet.health - additional_damage)
+                            thronglet.take_damage(additional_damage, 'difficulty')
             
             # Check for reproduction opportunities
             if len(thronglets) < MAX_POPULATION:

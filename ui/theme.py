@@ -236,3 +236,86 @@ def wrap_text(font: pygame.font.Font, text: str, max_width: int) -> list[str]:
         current = word
     lines.append(current)
     return lines
+
+
+def draw_text_input(
+    surface: pygame.Surface,
+    rect: pygame.Rect,
+    theme: UITheme,
+    text: str,
+    *,
+    active: bool = False,
+    placeholder: str = "",
+) -> None:
+    border_color = theme.palette.ochre if active else theme.palette.panel_border
+    fill_color = theme.palette.ink
+    draw_panel(surface, rect, theme, fill=fill_color, border=border_color, alpha=255, radius=theme.radius_small)
+    
+    display_text = text if text or not placeholder else placeholder
+    text_color = theme.palette.bright_text if text else theme.palette.muted_text
+    
+    text_surface = theme.fonts.label.render(display_text, True, text_color)
+    
+    # Clip text if it's too long
+    clip_rect = pygame.Rect(rect.x + 8, rect.y, rect.w - 16, rect.h)
+    old_clip = surface.get_clip()
+    surface.set_clip(clip_rect)
+    
+    text_x = rect.x + 12
+    # If active and text is too long, align right. Otherwise align left.
+    if text_surface.get_width() > clip_rect.w - 8:
+        text_x = rect.right - 12 - text_surface.get_width()
+        
+    surface.blit(text_surface, (text_x, rect.y + rect.h // 2 - text_surface.get_height() // 2))
+    
+    # Draw cursor if active
+    if active and (pygame.time.get_ticks() % 1000 < 500):
+        cursor_x = text_x + text_surface.get_width() + 2 if text else text_x
+        pygame.draw.line(
+            surface, 
+            theme.palette.bright_text, 
+            (cursor_x, rect.y + rect.h // 2 - text_surface.get_height() // 2 + 2),
+            (cursor_x, rect.y + rect.h // 2 + text_surface.get_height() // 2 - 2),
+            2
+        )
+        
+    surface.set_clip(old_clip)
+
+
+def draw_slider(
+    surface: pygame.Surface,
+    rect: pygame.Rect,
+    theme: UITheme,
+    value: float,
+    *,
+    min_val: float = 0.0,
+    max_val: float = 1.0,
+    active: bool = False,
+    display_format: str = "{:.2f}",
+) -> None:
+    # Draw track
+    track_rect = pygame.Rect(rect.x, rect.y + rect.h // 2 - 2, rect.w, 4)
+    pygame.draw.rect(surface, theme.palette.slate, track_rect, border_radius=2)
+    
+    # Calculate knob position
+    normalized = max(0.0, min(1.0, (value - min_val) / (max_val - min_val if max_val > min_val else 1.0)))
+    knob_x = rect.x + int(normalized * rect.w)
+    
+    # Draw filled track portion
+    if normalized > 0:
+        fill_rect = pygame.Rect(rect.x, track_rect.y, int(normalized * rect.w), track_rect.h)
+        pygame.draw.rect(surface, theme.palette.moss, fill_rect, border_radius=2)
+    
+    # Draw knob
+    knob_color = theme.palette.ochre if active else theme.palette.parchment
+    pygame.draw.circle(surface, knob_color, (knob_x, rect.y + rect.h // 2), 8)
+    if active:
+        pygame.draw.circle(surface, theme.palette.ink, (knob_x, rect.y + rect.h // 2), 4)
+
+    # Draw value text above the knob
+    if active:
+        val_str = display_format.format(value)
+        val_surf = theme.fonts.caption.render(val_str, True, theme.palette.parchment)
+        val_x = min(max(rect.x, knob_x - val_surf.get_width() // 2), rect.right - val_surf.get_width())
+        val_y = rect.y - 18
+        surface.blit(val_surf, (val_x, val_y))

@@ -13,35 +13,100 @@ class FogOfWar:
         self.world_width = world_width
         self.world_height = world_height
     
-    def update(self, thronglets, buildings=None):
-        """Update fog based on thronglet positions and watchtowers"""
+    def update(self, thronglets, buildings=None, world_map=None):
+        """Update fog using Line of Sight (Raycasting)"""
+        # Precompute vision-blocking tiles from buildings securely
+        blocking_tiles = set()
+        if buildings:
+            for b in buildings:
+                if getattr(b, 'building_type', '') not in ['watchtower', 'well', 'farm']:
+                    tx = int(b.x // TILE_SIZE)
+                    ty = int(b.y // TILE_SIZE)
+                    blocking_tiles.add((tx, ty))
+
+        def _blocks_vision(tx, ty):
+            if (tx, ty) in blocking_tiles:
+                return True
+            if world_map is not None:
+                wx = tx * TILE_SIZE
+                wy = ty * TILE_SIZE
+                try:
+                    biome = world_map.get_biome_at(wx, wy)
+                    if biome in ['mountains']: 
+                        return True
+                except Exception:
+                    pass
+            return False
+
+        def _reveal_los(center_x, center_y, tile_radius, ignore_blocks=False):
+            # Reveal center
+            self.fog_grid[(center_x, center_y)] = 255
+            
+            # Midpoint circle algorithm to get perimeter points
+            perimeter = set()
+            x = tile_radius
+            y = 0
+            err = 0
+
+            while x >= y:
+                perimeter.add((center_x + x, center_y + y))
+                perimeter.add((center_x + y, center_y + x))
+                perimeter.add((center_x - y, center_y + x))
+                perimeter.add((center_x - x, center_y + y))
+                perimeter.add((center_x - x, center_y - y))
+                perimeter.add((center_x - y, center_y - x))
+                perimeter.add((center_x + y, center_y - x))
+                perimeter.add((center_x + x, center_y - y))
+                
+                y += 1
+                if err <= 0:
+                    err += 2 * y + 1
+                if err > 0:
+                    x -= 1
+                    err -= 2 * x + 1
+                    
+            # Cast ray to each perimeter point using Bresenham's line algorithm
+            for px, py in perimeter:
+                x0, y0 = center_x, center_y
+                x1, y1 = px, py
+                dx = abs(x1 - x0)
+                dy = -abs(y1 - y0)
+                sx = 1 if x0 < x1 else -1
+                sy = 1 if y0 < y1 else -1
+                err = dx + dy
+                
+                cx, cy = x0, y0
+                while True:
+                    # Reveal current tile
+                    self.fog_grid[(cx, cy)] = 255
+                    
+                    if cx == x1 and cy == y1:
+                        break
+                        
+                    # If this tile blocks vision, stop this ray
+                    if not ignore_blocks and (cx != center_x or cy != center_y) and _blocks_vision(cx, cy):
+                        break
+                        
+                    e2 = 2 * err
+                    if e2 >= dy:
+                        err += dy
+                        cx += sx
+                    if e2 <= dx:
+                        err += dx
+                        cy += sy
+
         for thronglet in thronglets:
             # Apply exploration skill bonus to visibility radius
             radius = self.visibility_radius
             if thronglet.role == 'explorer':
                 radius = int(self.visibility_radius * thronglet.get_exploration_bonus())
             
-            # Reveal a small circular area around each thronglet
-            # Check tiles in a grid around the thronglet
             tile_radius = int(radius / TILE_SIZE) + 1
-            
-            # Get the thronglet's tile position
             tile_center_x = int(thronglet.x // TILE_SIZE)
             tile_center_y = int(thronglet.y // TILE_SIZE)
             
-            # Reveal tiles in a square grid, but only those within circular radius
-            for dx in range(-tile_radius, tile_radius + 1):
-                for dy in range(-tile_radius, tile_radius + 1):
-                    # Calculate distance from thronglet center
-                    tile_x = tile_center_x + dx
-                    tile_y = tile_center_y + dy
-                    
-                    # Check if within circular radius
-                    distance = math.sqrt((dx * TILE_SIZE)**2 + (dy * TILE_SIZE)**2)
-                    if distance <= radius:
-                        key = (tile_x, tile_y)
-                        self.fog_grid[key] = 255
-                        
+            _reveal_los(tile_center_x, tile_center_y, tile_radius)
+            
         if buildings:
             for building in buildings:
                 if building.building_type == 'watchtower':
@@ -50,11 +115,9 @@ class FogOfWar:
                     tile_radius = int(radius / TILE_SIZE) + 1
                     tile_center_x = int(building.x // TILE_SIZE)
                     tile_center_y = int(building.y // TILE_SIZE)
-                    for dx in range(-tile_radius, tile_radius + 1):
-                        for dy in range(-tile_radius, tile_radius + 1):
-                            distance = math.sqrt((dx * TILE_SIZE)**2 + (dy * TILE_SIZE)**2)
-                            if distance <= radius:
-                                self.fog_grid[(tile_center_x + dx, tile_center_y + dy)] = 255
+                    
+                    # Watchtowers see over obstacles
+                    _reveal_los(tile_center_x, tile_center_y, tile_radius, ignore_blocks=True)
     
     def is_visible(self, x, y):
         """Check if a world position is visible"""
@@ -442,8 +505,19 @@ class CityPlanner:
         return self.zones.get((tile_x, tile_y), 'mixed')
     
     def score_building_location(self, x, y, building_type, buildings, hazards, world_map, thronglets=None):
-        """Score a building location 0-100"""
+        """Score a building location 0-100, checking strict grid footprints for collision."""
         score = 50  # Base score
+        
+        # Pull footprint sizes
+        from graphics.content import BUILDING_FOOTPRINT_ART
+        from thronglets_game import TILE_SIZE
+        # Default to 1x1 if unknown
+        recipe = BUILDING_FOOTPRINT_ART.get(building_type)
+        gw = recipe.grid_width if recipe else 1
+        gh = recipe.grid_height if recipe else 1
+        
+        # Define the proposed bounding box in world pixels
+        prop_rect = (x, y, x + gw * TILE_SIZE, y + gh * TILE_SIZE)
         
         # Territory bonus
         if self.territory_manager.is_claimed(x, y, threshold=40):
@@ -470,33 +544,48 @@ class CityPlanner:
             elif nearby_thronglet_count == 0:
                 score -= 5  # Isolated location (slight penalty)
         
-        # Proximity bonuses
+        # Proximity and COLLISION bonuses/penalties
         for building in buildings:
-            distance = math.sqrt((building.x - x)**2 + (building.y - y)**2)
+            b_recipe = BUILDING_FOOTPRINT_ART.get(getattr(building, "building_type", "house"))
+            b_gw = b_recipe.grid_width if b_recipe else 1
+            b_gh = b_recipe.grid_height if b_recipe else 1
+            
+            # Existing building bounding box
+            bx, by = building.x, building.y
+            b_rect = (bx, by, bx + b_gw * TILE_SIZE, by + b_gh * TILE_SIZE)
+            
+            # Strict AABB overlap check - NEVER allow overlapping buildings!
+            if not (prop_rect[2] <= b_rect[0] or prop_rect[0] >= b_rect[2] or prop_rect[3] <= b_rect[1] or prop_rect[1] >= b_rect[3]):
+                return 0  # Fatal collision! Location invalid.
+            
+            # Center-to-center distance for adjacency calculations
+            prop_cx = x + (gw * TILE_SIZE) / 2
+            prop_cy = y + (gh * TILE_SIZE) / 2
+            b_cx = bx + (b_gw * TILE_SIZE) / 2
+            b_cy = by + (b_gh * TILE_SIZE) / 2
+            distance = math.sqrt((b_cx - prop_cx)**2 + (b_cy - prop_cy)**2)
             
             # Clustering rules
-            if building_type == 'house' and building.building_type == 'house':
-                # Houses cluster together
-                if distance < 80:
+            btype = str(getattr(building, "building_type", ""))
+            if building_type == 'house' and btype == 'house':
+                if distance < 120:  # Scaled for larger tiles
                     score += 20
-                elif distance > 200:
+                elif distance > 300:
                     score -= 10
             
-            elif building_type == 'farm' and building.building_type == 'storage':
-                # Farms near storage
-                if distance < 100:
+            elif building_type == 'farm' and btype == 'storage':
+                if distance < 150:
                     score += 15
-                elif distance > 250:
+                elif distance > 350:
                     score -= 10
             
-            elif building_type == 'workshop' and building.building_type == 'house':
-                # Workshops near houses
-                if distance < 120:
+            elif building_type == 'workshop' and btype == 'house':
+                if distance < 150:
                     score += 10
             
-            # Avoid too close to any building
-            if distance < 30:
-                score -= 20
+            # Avoid placing directly touching (provide a small 1 tile buffer if possible)
+            if distance < TILE_SIZE * 1.5:
+                score -= 10
         
         # Hazard avoidance
         for hazard in hazards:
@@ -543,12 +632,17 @@ class CityPlanner:
         best_x, best_y = search_center
         
         # Sample 30 candidate positions
+        from thronglets_game import TILE_SIZE
         for _ in range(30):
             # Random offset within search radius
             angle = random.uniform(0, 2 * math.pi)
             distance = random.uniform(0, search_radius)
             candidate_x = search_center[0] + distance * math.cos(angle)
             candidate_y = search_center[1] + distance * math.sin(angle)
+            
+            # Snap rigidly to TILE_SIZE grid to create perfectly aligned Rimworld-style rooms
+            candidate_x = round(candidate_x / TILE_SIZE) * TILE_SIZE
+            candidate_y = round(candidate_y / TILE_SIZE) * TILE_SIZE
             
             # Score this location
             score = self.score_building_location(
