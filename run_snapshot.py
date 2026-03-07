@@ -58,6 +58,15 @@ def _serialize_bonds(praxan) -> dict[str, float]:
     }
 
 
+def _serialize_opinions(praxan) -> dict[str, float]:
+    opinions = getattr(praxan, "opinions", {})
+    return {
+        str(other_id): round(max(-100.0, min(100.0, float(score))), 3)
+        for other_id, score in opinions.items()
+        if isinstance(score, (int, float))
+    }
+
+
 def _serialize_known_resources(praxan) -> list[dict[str, float]]:
     known_resources = []
     for resource_pos in getattr(praxan, "known_resources", []):
@@ -438,6 +447,7 @@ def build_run_snapshot(
                 "birth_origin": getattr(praxan, "birth_origin", "founder"),
                 "skills": _serialize_skills(praxan),
                 "bonds": _serialize_bonds(praxan),
+                "opinions": _serialize_opinions(praxan),
                 "relationships": {str(k): v for k, v in getattr(praxan, "relationships", {}).items()},
                 "traits": list(getattr(praxan, "traits", [])),
                 "name": getattr(praxan, "name", None),

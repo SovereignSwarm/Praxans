@@ -4077,6 +4077,19 @@ def restore_session_from_snapshot(
                 except (TypeError, ValueError):
                     continue
 
+        # Restore opinions (interaction preconditions depend on these)
+        opinions_data = praxan_data.get("opinions", {})
+        praxan.opinions = {}
+        if isinstance(opinions_data, dict):
+            for other_id, opinion_score in opinions_data.items():
+                parsed_other_id = _parse_optional_int(other_id)
+                if parsed_other_id is None:
+                    continue
+                try:
+                    praxan.opinions[parsed_other_id] = max(-100.0, min(100.0, float(opinion_score)))
+                except (TypeError, ValueError):
+                    continue
+
         # Restore typed relationships
         relationships_data = praxan_data.get("relationships", {})
         praxan.relationships = {}

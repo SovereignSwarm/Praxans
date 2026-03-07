@@ -315,5 +315,64 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(loaded["world"]["npcs"][0]["trade_rates"]["food_for_wood"], 2)
 
 
+    def test_opinions_survive_snapshot_round_trip(self):
+        """opinions dict must be serialized so interaction preconditions work after reload."""
+        praxan = SimpleNamespace(
+            id=1,
+            role="gatherer",
+            x=100.0, y=100.0,
+            health=100.0, happiness=50.0, morale=50.0, inspiration=0.0,
+            favorite_biome="plains", age=120.0,
+            diseased=False, resilience=1.0, settlement_prosperity=0.5,
+            inventory={"food": 0, "wood": 0, "stone": 0},
+            needs={"hunger": 80.0, "energy": 80.0, "thirst": 80.0},
+            state="idle", current_action="wander",
+            personal_goal=None, goal_progress=0.0,
+            personality={"curiosity": 0.5, "sociability": 0.5, "diligence": 0.5},
+            genetics={},
+            generation=1, parent_ids=[], lineage_id=1, mutation_count=0,
+            birth_origin="founder",
+            skills={},
+            bonds={2: 40.0},
+            opinions={2: -45.0, 3: 30.0},  # rival (negative) and friend (positive)
+            relationships={}, traits=[], name="Test", faction_id=None,
+            known_resources=[],
+            last_reproduction_time=0.0, goal_assigned_time=0.0,
+            episodic_memory=None,
+        )
+        advisor = SimpleNamespace(
+            research_points=0, points_spent=0, stability_counter=0,
+            current_focus="resources",
+            directives=[], json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={}, advisory_history=[], session_stats={},
+            current_settlement_state={}, query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[], civilization_age=1, total_deaths=0,
+            achievements=[], history=[], events_history=[], last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [praxan], [], [], advisor, season, weather_system,
+            current_time=200.0, game_start_time=100.0,
+        )
+
+        praxan_snap = snapshot["praxans"][0]
+        self.assertIn("opinions", praxan_snap, "opinions must be serialized in snapshot")
+        self.assertAlmostEqual(praxan_snap["opinions"]["2"], -45.0)
+        self.assertAlmostEqual(praxan_snap["opinions"]["3"], 30.0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = write_run_snapshot(temp_dir, "opinions_test", snapshot)
+            loaded = load_run_snapshot(path)
+
+        loaded_opinions = loaded["praxans"][0]["opinions"]
+        self.assertAlmostEqual(loaded_opinions["2"], -45.0)
+        self.assertAlmostEqual(loaded_opinions["3"], 30.0)
+
+
 if __name__ == "__main__":
     unittest.main()
