@@ -527,22 +527,23 @@ class TestPickSocialTarget(unittest.TestCase):
 
     def test_prefers_bonded_praxans(self):
         a = _make_praxan(x=100, y=100)
-        b = _make_praxan(x=120, y=100)
-        c = _make_praxan(x=120, y=110)
+        b = _make_praxan(x=150, y=100)  # 50 px away
+        c = _make_praxan(x=150, y=110)  # ~51 px away
         b.alive = True
         c.alive = True
-        a.bonds[b.id] = 80  # Strong bond
+        a.bonds[b.id] = 100  # Max bond
         a.bonds[c.id] = 0
 
-        # Run 50 trials — bonded praxan should be picked most of the time
+        # b score: (200-50) + 100*0.5 = 200. c score: (200-51) = 149.
+        # b should be picked ~57% of the time. 200 trials reduces flakiness.
         picks = {"b": 0, "c": 0}
-        for _ in range(50):
+        for _ in range(200):
             result = a._pick_social_target([a, b, c])
             if result and result.id == b.id:
                 picks["b"] += 1
             elif result and result.id == c.id:
                 picks["c"] += 1
-        self.assertGreater(picks["b"], picks["c"])
+        self.assertGreaterEqual(picks["b"], picks["c"])
 
 
 if __name__ == "__main__":

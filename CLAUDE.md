@@ -77,6 +77,7 @@ python -m py_compile praxans_game.py runtime_config.py
 | `advisor.py` | LLM-powered advisor |
 | `society.py` | Society/faction mechanics, trade system |
 | `diplomacy.py` | **Inter-faction diplomacy**: standings (-100..+100), relation tiers (Allied/Friendly/Neutral/Tense/Hostile), treaties (Trade/NAP/Alliance), diplomatic incidents, autonomous actions. Replaces hardcoded rivalries. |
+| `social_interactions.py` | **InteractionDef execution engine.** 8 data-driven social interactions (chat, deep conversation, argument, share meal, teach, comfort, play, insult) with precondition checking, personality-weighted selection, outcome application (moodlets, bonds, opinions, social need, XP, memory), cooldowns, and EventBus publishing. Defs in `defs/core/interactions.json`. |
 | `spatial.py` | Spatial indexing |
 | `storyteller.py` | Event/crisis storytelling |
 
@@ -96,9 +97,10 @@ Four async channels processed by `LLMScheduler`:
 |---|---|
 | `buildings.json` | `BuildingDef` |
 | `technologies.json` | `TechDef` |
-| `items.json` | `ArmorDef`, `WeaponDef` *(new, untracked)* |
-| `jobs.json` | `JobDef` *(new, untracked)* |
-| `moods.json` | `MoodDef` *(new, untracked)* |
+| `items.json` | `ArmorDef`, `WeaponDef` |
+| `jobs.json` | `JobDef` — CookMeal, SmithArmor, CraftWeapon |
+| `moods.json` | `MoodDef` — AteRawFood, AteFineFood, Catharsis, FoughtOffInfection, + 7 social moodlets (HadChat, HadDeepTalk, HadArgument, WasInsulted, WasComforted, SharedMeal, HadFun, etc.) |
+| `interactions.json` | `InteractionDef` — 8 social interaction types with preconditions, outcomes, drama weights, memory events |
 
 `game_content.py` exposes `BUILDING_DEFINITIONS` as a lazy proxy dict that always reads from `DefDatabase` — never hardcode building data, always go through `DefDatabase`.
 
