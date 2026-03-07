@@ -443,6 +443,11 @@ def build_run_snapshot(
                 "name": getattr(praxan, "name", None),
                 "faction_id": getattr(praxan, "faction_id", None),
                 "known_resources": _serialize_known_resources(praxan),
+                "episodic_memory": (
+                    praxan.episodic_memory.to_dict()
+                    if hasattr(praxan, "episodic_memory") and praxan.episodic_memory is not None
+                    else None
+                ),
                 "disease_elapsed": round(
                     max(0.0, current_time - float(getattr(praxan, "disease_start_time", 0.0)))
                     if bool(getattr(praxan, "diseased", False)) and getattr(praxan, "disease_start_time", 0.0)

@@ -71,6 +71,7 @@ python -m py_compile praxans_game.py runtime_config.py
 |---|---|
 | `def_database.py` | **RimWorld-style content registry.** Recursively loads all `defs/**/*.json` at startup. Access via `DefDatabase.get_all("BuildingDef")` etc. |
 | `ticker.py` | **Staggered tick engine** (RimWorld-inspired). Normal tick every frame; Rare every 250 ticks (~4s); Long every 2000 ticks (~33s). Prevents performance spikes at scale. |
+| `praxan_memory.py` | **Per-Praxan autobiographical memory.** Each Praxan carries a bounded (24-entry), personality-weighted episodic memory. Events (birth, grief, partnership, combat, masterwork, etc.) are auto-recorded with emotional weights influenced by curiosity/sociability/diligence. Surfaced in inspect drawer, LLM council views, and snapshots. Defs in `defs/core/memory_events.json`. |
 | `policies.py` | Colony policy manager: food (lavish/simple/raw_only), medical (best/herbal/none), hostility (flee/fight/ignore). |
 | `dev_mode.py` | F12 developer overlay — entity spawning, force kill/heal, incident triggers, speed override, god mode. |
 | `advisor.py` | LLM-powered advisor |

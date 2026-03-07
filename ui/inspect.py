@@ -80,7 +80,7 @@ def build_inspect_view_model(
 
     if selected_type == "praxan":
         praxan = selected_entity
-        tabs = [("overview", "Overview"), ("needs", "Needs"), ("health", "Health"), ("traits", "Traits"), ("social", "Social")]
+        tabs = [("overview", "Overview"), ("needs", "Needs"), ("health", "Health"), ("traits", "Traits"), ("social", "Social"), ("memory", "Memory")]
         active_tab = active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview"
         praxan_name = getattr(praxan, 'name', None) or f'#{praxan.id}'
         life_stage = getattr(praxan, 'life_stage', 'adult').title()
@@ -256,8 +256,7 @@ def build_inspect_view_model(
             parent_text = ', '.join(_pname(pid) for pid in parent_ids) if parent_ids else 'Founder'
 
             sections = [
-                _section(
-                    "Lineage",
+                _section("Lineage",
                     f"Generation  {int(getattr(praxan, 'generation', 0) or 0)}",
                     f"Lineage  L{int(getattr(praxan, 'lineage_id', getattr(praxan, 'id', 0)))}",
                     f"Parents  {parent_text}",
@@ -270,6 +269,38 @@ def build_inspect_view_model(
                 title="Praxan", subtitle=subtitle, entity_type="praxan",
                 accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
                 sections=sections, need_bars=need_bars, commands=commands,
+            )
+
+        elif active_tab == "memory":
+            # Autobiographical / Episodic Memory tab
+            episodic = getattr(praxan, 'episodic_memory', None)
+            if episodic and episodic.memory_count > 0:
+                story = episodic.life_story_summary()
+                recent_lines = []
+                for entry in reversed(episodic.recent(6)):
+                    from systems.praxan_memory import get_event_label
+                    label = get_event_label(entry.category)
+                    weight_str = f"[{'★' * min(5, int(entry.emotional_weight / 2))}]"
+                    recent_lines.append(f"  {weight_str} {label}: {entry.summary}")
+                sections = [
+                    _section("Life Story", story),
+                    _section(f"Memories ({episodic.memory_count})", *recent_lines),
+                ]
+                # Show most significant if different from recent
+                sig_entries = episodic.most_significant(3)
+                if sig_entries:
+                    sig_lines = []
+                    for entry in sig_entries:
+                        from systems.praxan_memory import get_event_label
+                        label = get_event_label(entry.category)
+                        sig_lines.append(f"  {label}: {entry.summary}")
+                    sections.append(_section("Most Significant", *sig_lines))
+            else:
+                sections = [_section("Memories", "No memories yet.")]
+            return InspectViewModel(
+                title="Praxan", subtitle=subtitle, entity_type="praxan",
+                accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
+                sections=sections, commands=commands,
             )
 
         else:

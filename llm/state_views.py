@@ -43,6 +43,7 @@ def build_council_view(
     praxan_lines = "\n".join(
         f"- {t.get('id', '?')}: role={t.get('role', 'unassigned')}, hunger={t.get('hunger', 0):.0f}, "
         f"energy={t.get('energy', 0):.0f}, health={t.get('health', 0):.0f}, morale={t.get('morale', 65):.0f}"
+        + (f", memory=[{t.get('memory_personal', '')}]" if t.get('memory_personal') else "")
         for t in praxan_snapshot[:8]
     ) or "- none"
 

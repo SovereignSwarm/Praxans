@@ -933,6 +933,11 @@ Directives:"""
                             "energy": t.needs["energy"],
                             "health": t.health,
                             "morale": getattr(t, "morale", 65),
+                            "memory_personal": (
+                                t.episodic_memory.most_significant_text(3)
+                                if hasattr(t, "episodic_memory") and t.episodic_memory and t.episodic_memory.memory_count > 0
+                                else ""
+                            ),
                         }
                         for t in praxans[:8]
                     ],

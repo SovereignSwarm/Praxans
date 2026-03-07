@@ -1,0 +1,88 @@
+{
+    "MemoryEventDef": [
+        {
+            "id": "birth",
+            "base_weight": 8,
+            "personality_factor": null,
+            "label": "Born"
+        },
+        {
+            "id": "partnership",
+            "base_weight": 7,
+            "personality_factor": "sociability",
+            "label": "Found a Partner"
+        },
+        {
+            "id": "parenthood",
+            "base_weight": 7,
+            "personality_factor": "sociability",
+            "label": "Became a Parent"
+        },
+        {
+            "id": "grief",
+            "base_weight": 9,
+            "personality_factor": "sociability",
+            "label": "Lost Someone"
+        },
+        {
+            "id": "friendship",
+            "base_weight": 5,
+            "personality_factor": "sociability",
+            "label": "Made a Friend"
+        },
+        {
+            "id": "rivalry",
+            "base_weight": 4,
+            "personality_factor": null,
+            "label": "Gained a Rival"
+        },
+        {
+            "id": "mental_break",
+            "base_weight": 6,
+            "personality_factor": null,
+            "label": "Had a Breakdown"
+        },
+        {
+            "id": "discovery",
+            "base_weight": 4,
+            "personality_factor": "curiosity",
+            "label": "Discovered Something"
+        },
+        {
+            "id": "masterwork",
+            "base_weight": 7,
+            "personality_factor": "diligence",
+            "label": "Created a Masterwork"
+        },
+        {
+            "id": "combat_wound",
+            "base_weight": 5,
+            "personality_factor": null,
+            "label": "Was Wounded"
+        },
+        {
+            "id": "building",
+            "base_weight": 3,
+            "personality_factor": "diligence",
+            "label": "Built Something"
+        },
+        {
+            "id": "migration",
+            "base_weight": 6,
+            "personality_factor": "curiosity",
+            "label": "Migrated"
+        },
+        {
+            "id": "near_death",
+            "base_weight": 8,
+            "personality_factor": null,
+            "label": "Nearly Died"
+        },
+        {
+            "id": "faction_change",
+            "base_weight": 5,
+            "personality_factor": null,
+            "label": "Changed Faction"
+        }
+    ]
+}

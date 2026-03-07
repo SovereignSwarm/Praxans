@@ -8,6 +8,7 @@ from collections import deque
 from praxans_game import *
 from graphics.palette import *
 from game_content import JOB_DEFS, QUALITY_LEVELS, QUALITY_MULTIPLIERS
+from systems.praxan_memory import EpisodicMemory
 
 class Praxan:
     """A cute AI-powered creature"""
@@ -190,6 +191,13 @@ class Praxan:
         self.work_priorities = {work_type: 3 for work_type in WORK_TYPES}
         self.hauling_target_resource = None
         self.hauling_target_storage = None
+
+        # Autobiographical / Episodic Memory
+        self.episodic_memory = EpisodicMemory(personality=self.personality)
+        self.episodic_memory.record(
+            "birth", f"{self.name} came into being",
+            timestamp=self.birth_time,
+        )
     
     def add_moodlet(self, name, value, duration, current_time):
         for m in self.moodlets:
@@ -245,6 +253,11 @@ class Praxan:
         self.current_action = f"Mental Break: {self.mental_state}"
         self.mental_break_cooldown = 300  # 5 minutes before another break
         self.add_moodlet("Catharsis", 30, 300, current_time)
+        self.episodic_memory.record(
+            "mental_break",
+            f"{self.name} suffered a {severity} mental break: {self.mental_state}",
+            timestamp=current_time,
+        )
         print(f"[Mental Break] Praxan {self.id} suffered a {severity} break: {self.mental_state}")
 
     def execute_mental_break(self, resources, buildings, delta_time, current_time):
@@ -457,6 +470,13 @@ class Praxan:
                 equipment_type = 'weapon' if 'Weapon' in bill_id else 'armor'
                 self.equipment[equipment_type] = f"{qual} {output_item}"
                 self.build_message = f"Made {qual} {output_item}"
+
+            # Record masterwork+ crafting as a significant memory
+            if qual in ('Masterwork', 'Legendary'):
+                self.episodic_memory.record(
+                    "masterwork",
+                    f"{self.name} created a {qual} {output_item}",
+                )
                 
             self.build_message_time = time.time()
             self.gain_skill_xp(skill_type, 35)
@@ -2047,6 +2067,16 @@ class Praxan:
         parent1.set_relationship(child.id, REL_CHILD)
         parent2.set_relationship(child.id, REL_CHILD)
 
+        # Record parenthood memories
+        parent1.episodic_memory.record(
+            "parenthood", f"{parent1.name} became a parent to {child.name}",
+            related_ids=[child.id],
+        )
+        parent2.episodic_memory.record(
+            "parenthood", f"{parent2.name} became a parent to {child.name}",
+            related_ids=[child.id],
+        )
+
         # Form partnership if parents have strong bond and neither is already partnered
         existing_partners_p1 = [pid for pid, r in parent1.relationships.items() if r == REL_PARTNER]
         existing_partners_p2 = [pid for pid, r in parent2.relationships.items() if r == REL_PARTNER]
@@ -2131,7 +2161,25 @@ class Praxan:
 
     def set_relationship(self, other_id, rel_type):
         """Set a typed relationship, overwriting any existing one."""
+        old_rel = self.relationships.get(other_id)
         self.relationships[other_id] = rel_type
+        # Record significant relationship changes in episodic memory
+        if rel_type != old_rel:
+            if rel_type == REL_PARTNER:
+                self.episodic_memory.record(
+                    "partnership", f"{self.name} found a partner",
+                    related_ids=[other_id],
+                )
+            elif rel_type == REL_FRIEND and old_rel != REL_FRIEND:
+                self.episodic_memory.record(
+                    "friendship", f"{self.name} made a new friend",
+                    related_ids=[other_id],
+                )
+            elif rel_type == REL_RIVAL and old_rel != REL_RIVAL:
+                self.episodic_memory.record(
+                    "rivalry", f"{self.name} gained a rival",
+                    related_ids=[other_id],
+                )
 
     def apply_grief(self, dead_id, current_time):
         """Apply grief moodlets when a related Praxan dies.
@@ -2144,19 +2192,32 @@ class Praxan:
             return
         self._griefed_ids.add(dead_id)
         rel = self.relationships.get(dead_id)
+        grief_summary = None
         if rel == REL_PARTNER:
             self.add_moodlet("Lost Partner", -25, 180, current_time)
+            grief_summary = f"{self.name} lost their partner"
         elif rel == REL_CHILD:
             self.add_moodlet("Lost Child", -20, 120, current_time)
+            grief_summary = f"{self.name} lost a child"
         elif rel == REL_PARENT:
             self.add_moodlet("Lost Parent", -12, 90, current_time)
+            grief_summary = f"{self.name} lost a parent"
         elif rel == REL_FRIEND:
             self.add_moodlet("Lost Friend", -8, 60, current_time)
+            grief_summary = f"{self.name} lost a friend"
         elif rel == REL_RIVAL:
             self.add_moodlet("Rival Perished", 5, 30, current_time)
+            grief_summary = f"{self.name}'s rival perished"
         # Also grieve for high-bond individuals even without typed relationship
         elif self.bonds.get(dead_id, 0) > 60:
             self.add_moodlet("Lost Companion", -10, 60, current_time)
+            grief_summary = f"{self.name} lost a companion"
+        if grief_summary:
+            self.episodic_memory.record(
+                "grief", grief_summary,
+                related_ids=[dead_id],
+                timestamp=current_time,
+            )
 
     def update_temperature(self, delta_time, temp_grid):
         """Update body temperature based on ambient temperature and apply effects"""
@@ -2766,6 +2827,21 @@ Best next action:"""
                 })
             
         self.calculate_capacities()
+        # Record near-death or significant combat wound memory
+        total_health = sum(p['health'] for p in self.body_parts.values())
+        max_health = sum(p['max'] for p in self.body_parts.values())
+        if max_health > 0 and (total_health / max_health) < 0.25:
+            self.episodic_memory.record(
+                "near_death",
+                f"{self.name} nearly died from {damage_type} damage to {target_part}",
+                timestamp=current_time,
+            )
+        elif amount > 10:
+            self.episodic_memory.record(
+                "combat_wound",
+                f"{self.name} was wounded ({damage_type} to {target_part})",
+                timestamp=current_time,
+            )
         if VERBOSE_LOGGING:
             print(f"[Anatomy] Praxan {self.id} took {amount:.1f} {damage_type} damage to {target_part}. Health: {self.health:.1f}%")
 
