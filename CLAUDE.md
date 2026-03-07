@@ -74,7 +74,8 @@ python -m py_compile praxans_game.py runtime_config.py
 | `policies.py` | Colony policy manager: food (lavish/simple/raw_only), medical (best/herbal/none), hostility (flee/fight/ignore). |
 | `dev_mode.py` | F12 developer overlay — entity spawning, force kill/heal, incident triggers, speed override, god mode. |
 | `advisor.py` | LLM-powered advisor |
-| `society.py` | Society/faction mechanics |
+| `society.py` | Society/faction mechanics, trade system |
+| `diplomacy.py` | **Inter-faction diplomacy**: standings (-100..+100), relation tiers (Allied/Friendly/Neutral/Tense/Hostile), treaties (Trade/NAP/Alliance), diplomatic incidents, autonomous actions. Replaces hardcoded rivalries. |
 | `spatial.py` | Spatial indexing |
 | `storyteller.py` | Event/crisis storytelling |
 
