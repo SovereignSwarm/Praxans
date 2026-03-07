@@ -511,11 +511,25 @@ def apply_scenario_startup_conditions(scenario_profile, praxans, advisor, season
 
     diseased_count = min(len(praxans), max(0, int(scenario_profile.get("starting_diseased", 0))))
     if diseased_count > 0:
-        for praxan in random.sample(praxans, diseased_count):
-            praxan.diseased = True
-            praxan.disease_start_time = current_time - random.uniform(5.0, 15.0)
-            praxan.health = clamp(praxan.health - disease_health_penalty, 10.0, 100.0)
-            praxan.add_moodlet("Sickly Start", -12.0, 600, current_time)
+        try:
+            from systems.disease import DiseaseManager, get_all_disease_ids
+            mgr = DiseaseManager()
+            disease_ids = get_all_disease_ids()
+            for praxan in random.sample(praxans, diseased_count):
+                did = random.choice(disease_ids) if disease_ids else None
+                if did:
+                    mgr.infect(praxan, did)
+                else:
+                    praxan.diseased = True
+                    praxan.disease_start_time = current_time - random.uniform(5.0, 15.0)
+                praxan.health = clamp(praxan.health - disease_health_penalty, 10.0, 100.0)
+                praxan.add_moodlet("Sickly Start", -12.0, 600, current_time)
+        except Exception:
+            for praxan in random.sample(praxans, diseased_count):
+                praxan.diseased = True
+                praxan.disease_start_time = current_time - random.uniform(5.0, 15.0)
+                praxan.health = clamp(praxan.health - disease_health_penalty, 10.0, 100.0)
+                praxan.add_moodlet("Sickly Start", -12.0, 600, current_time)
 
     advisor.research_points += max(0, int(scenario_profile.get("starting_research", 0)))
     advisor.last_pop_count = len(praxans)
@@ -4149,6 +4163,19 @@ def restore_session_from_snapshot(
         praxan.age = age_seconds
         disease_elapsed = max(0.0, float(praxan_data.get("disease_elapsed", 0.0)))
         praxan.disease_start_time = now - disease_elapsed if praxan.diseased and disease_elapsed > 0 else 0.0
+
+        # Restore typed diseases
+        typed_disease_data = praxan_data.get("typed_diseases", [])
+        immunity_data = praxan_data.get("disease_immunities", {})
+        if typed_disease_data or immunity_data:
+            try:
+                from systems.disease import DiseaseManager
+                if typed_disease_data:
+                    DiseaseManager.deserialize_diseases(praxan, typed_disease_data)
+                if immunity_data:
+                    DiseaseManager.deserialize_immunities(praxan, immunity_data)
+            except Exception:
+                pass
         reproduction_elapsed = max(0.0, float(praxan_data.get("last_reproduction_elapsed", 0.0)))
         praxan.last_reproduction_time = now - reproduction_elapsed if reproduction_elapsed > 0 else 0.0
         goal_assigned_elapsed = max(0.0, float(praxan_data.get("goal_assigned_elapsed", 0.0)))
@@ -5106,6 +5133,10 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Initialize ecology system
     from systems.ecology import EcologyManager
     ecology_manager = EcologyManager(world_width, world_height, world_map=world_map)
+
+    # Initialize disease system
+    from systems.disease import DiseaseManager
+    disease_manager = DiseaseManager()
     
     # Initialize season and weather systems
     season = Season()
@@ -5938,6 +5969,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 'buildings': buildings,
                 'resources': resources,
                 'narrative_panel': narrative_panel,
+                'event_bus': event_bus,
                 'world_width': camera.world_width,
                 'world_height': camera.world_height,
                 'praxan_class': Praxan,
@@ -6538,45 +6570,38 @@ def main(runtime_config=RUNTIME_CONFIG):
                             if praxan.exploring_encounter == encounter:
                                 praxan.exploring_encounter = None
             
-            # Check for disease outbreaks and recovery
+            # Check for disease outbreaks and recovery (typed disease system)
+            population_density = len(praxans) / (WINDOW_WIDTH * WINDOW_HEIGHT / 10000)
+            num_wells = sum(1 for b in buildings if b.building_type == 'well')
+            hygiene_factor = max(0.5, num_wells / max(1, len(praxans) / 5))
+
+            # Ambient contraction check (rare tick cadence)
             for praxan in praxans:
-                # Chance to contract disease based on population density, hygiene, health, and biome
-                population_density = len(praxans) / (WINDOW_WIDTH * WINDOW_HEIGHT / 10000)  # Normalized density
-                num_wells = sum(1 for b in buildings if b.building_type == 'well')
-                hygiene_factor = max(0.5, num_wells / max(1, len(praxans) / 5))  # More wells = better hygiene
-                
-                # Biome risk modifier
-                biome_risk_mod = 1.0
+                if not praxan.alive:
+                    continue
+                biome = "plains"
                 if world_map:
-                    biome_type = world_map.get_biome_at(praxan.x, praxan.y)
-                    biome_props = world_map.get_biome_properties(biome_type)
-                    biome_risk_mod = biome_props.get('disease_risk', 1.0)
-                
-                overpopulation_stress = 1.0 + (population_ratio - 0.9) * 2 if population_ratio >= 0.9 else 1.0
-                adaptability = getattr(praxan, "genetics", {}).get("adaptability", 1.0)
-                disease_chance = (
-                    DISEASE_CHANCE_BASE
-                    * population_density
-                    * (2 - hygiene_factor)
-                    * (100 - praxan.health)
-                    / 100
-                    * (biome_risk_mod / max(0.75, adaptability))
-                    * overpopulation_stress
+                    biome = world_map.get_biome_at(praxan.x, praxan.y)
+                current_season = season.current if season else "summer"
+                disease_manager.try_contract(
+                    praxan,
+                    biome=biome,
+                    season=current_season,
+                    population_density=population_density,
+                    hygiene_factor=hygiene_factor,
+                    event_bus=event_bus,
+                    narrative_panel=narrative_panel,
                 )
-                praxan.contract_disease(disease_chance)
-                
-                # Disease recovery (slow healing with rest)
-                if praxan.diseased and current_time - praxan.disease_start_time > 30:
-                    # Check if in house or good health
-                    in_house = any(b.occupants.count(praxan) > 0 for b in buildings if b.building_type == 'house')
-                    if in_house and praxan.needs['energy'] > 70:
-                        recovery_mod = advisor.game_modifiers.get_modifier('disease_recovery_rate')
-                        immune_strength = getattr(praxan, "genetics", {}).get("immune_strength", 1.0)
-                        recovery_chance = 0.1 * recovery_mod * immune_strength * delta_time
-                        if random.random() < recovery_chance:
-                            praxan.diseased = False
-                            praxan.disease_start_time = 0
-                            print("Praxan recovered from disease!")
+
+            # Progress all active diseases (transmission, immunity, recovery)
+            disease_manager.update(
+                praxans,
+                delta_time,
+                buildings=buildings,
+                world_map=world_map,
+                event_bus=event_bus,
+                narrative_panel=narrative_panel,
+            )
             
             # Check for NPC interactions
             for npc in world_map.npcs:

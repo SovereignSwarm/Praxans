@@ -67,6 +67,22 @@ def _serialize_opinions(praxan) -> dict[str, float]:
     }
 
 
+def _serialize_typed_diseases(praxan) -> list[dict]:
+    try:
+        from systems.disease import DiseaseManager
+        return DiseaseManager.serialize_diseases(praxan)
+    except Exception:
+        return []
+
+
+def _serialize_disease_immunities(praxan) -> dict[str, float]:
+    try:
+        from systems.disease import DiseaseManager
+        return DiseaseManager.serialize_immunities(praxan)
+    except Exception:
+        return {}
+
+
 def _serialize_known_resources(praxan) -> list[dict[str, float]]:
     known_resources = []
     for resource_pos in getattr(praxan, "known_resources", []):
@@ -464,6 +480,8 @@ def build_run_snapshot(
                     else 0.0,
                     3,
                 ),
+                "typed_diseases": _serialize_typed_diseases(praxan),
+                "disease_immunities": _serialize_disease_immunities(praxan),
                 "last_reproduction_elapsed": round(
                     max(0.0, current_time - float(getattr(praxan, "last_reproduction_time", 0.0)))
                     if getattr(praxan, "last_reproduction_time", 0.0)

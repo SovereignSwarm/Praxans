@@ -140,9 +140,11 @@ class Praxan:
         self.mental_state = None  # 'STATE_BINGE', 'STATE_SAD_WANDER', etc.
         self.mental_break_cooldown = 0
         
-        # New: Disease
-        self.diseased = False
-        self.disease_start_time = 0
+        # New: Disease (typed disease system — see systems/disease.py)
+        self.diseased = False          # backward compat flag
+        self.disease_start_time = 0    # backward compat
+        self.diseases = []             # list of DiseaseInstance objects
+        self.disease_immunities = {}   # {disease_id: expiry_timestamp}
         
         # New: Memory
         self.known_resources = []  # Positions of discovered resources
@@ -644,7 +646,12 @@ class Praxan:
             morale_delta += 0.6 * delta_time
         if nearby_hospital:
             self.heal_damage(5.0 * delta_time)
-            if self.diseased and random.random() < 0.2 * delta_time:
+            # Hospital tends active typed diseases (improves recovery)
+            typed_diseases = getattr(self, 'diseases', [])
+            if typed_diseases:
+                from systems.disease import DiseaseManager
+                DiseaseManager.tend_disease(self, tender_skill_level=3)
+            elif self.diseased and random.random() < 0.2 * delta_time:
                 self.diseased = False
         if nearby_school:
             for s in self.skills.values():
@@ -2245,15 +2252,23 @@ class Praxan:
             damage_taken += HEALTH_DECAY_BASE * 2.5 * delta_time * decay_scale
             
         if self.diseased:
-            damage_taken += HEALTH_DECAY_BASE * 5 * delta_time * decay_scale
-            
+            # Typed disease severity drives damage; fallback flat rate for boolean-only
+            typed_diseases = getattr(self, 'diseases', [])
+            if typed_diseases:
+                from systems.disease import STAGE_SYMPTOMATIC
+                for d in typed_diseases:
+                    if d.stage == STAGE_SYMPTOMATIC:
+                        damage_taken += HEALTH_DECAY_BASE * (3 + d.severity * 7) * delta_time * decay_scale
+            else:
+                damage_taken += HEALTH_DECAY_BASE * 5 * delta_time * decay_scale
+
         if damage_taken > 0:
             self.take_damage(damage_taken, 'decay')
-            
+
         health_regen = modifiers.get_modifier('health_regen') if modifiers else 0
         if health_regen > 0 and self.health < 100 and not self.diseased:
             self.heal_damage(health_regen * delta_time * 0.1)
-            
+
         if self.morale > 70 and not self.diseased:
             self.heal_damage(0.015 * delta_time * self.resilience)
             
@@ -2609,9 +2624,14 @@ class Praxan:
         friend_count = sum(1 for friend_id in self.bonds if friend_id in alive_ids and self.bonds[friend_id] > 50)
         happiness += friend_count * 5
         
-        # Disease reduces happiness
+        # Disease reduces happiness (typed diseases give specific mood offsets)
         if self.diseased:
-            happiness -= 30
+            typed_diseases = getattr(self, 'diseases', [])
+            if typed_diseases:
+                from systems.disease import DiseaseManager
+                happiness += DiseaseManager.get_mood_offset(self)  # negative value
+            else:
+                happiness -= 30
 
         happiness += (self.morale - 50) * 0.32
         happiness += self.inspiration * 0.08
@@ -2684,12 +2704,29 @@ class Praxan:
         self.base_mood = max(0, min(100, happiness))
     
     def contract_disease(self, chance):
-        """Disease mechanics"""
+        """Legacy disease mechanics — kept for backward compat with main loop.
+
+        The new typed disease system (DiseaseManager.try_contract) is the
+        primary path.  This method is still called from the main loop's
+        ambient-infection block and falls through to the old boolean logic
+        only when no typed disease is contracted.
+        """
         immune_strength = getattr(self, "genetics", {}).get("immune_strength", 1.0)
         if not self.diseased and random.random() < (chance / max(0.65, immune_strength)):
+            # Try to assign a typed disease via DiseaseManager
+            try:
+                from systems.disease import DiseaseManager
+                mgr = DiseaseManager()
+                result = mgr.infect(self, random.choice(
+                    __import__('systems.disease', fromlist=['get_all_disease_ids']).get_all_disease_ids() or ['gut_rot']
+                ))
+                if result:
+                    return  # typed disease applied
+            except Exception:
+                pass
+            # Fallback to boolean
             self.diseased = True
             self.disease_start_time = time.time()
-            print("Praxan contracted disease!")
     
     def share_knowledge(self, other_praxan):
         """Share discovered resources"""
@@ -2939,7 +2976,16 @@ Best next action:"""
         self.capacities['manipulation'] = max(0.0, min(1.0, manipulation))
         
         self.capacities['sight'] = self.body_parts['eyes']['efficiency'] * self.capacities['consciousness']
-        
+
+        # Apply typed disease capacity penalties
+        typed_diseases = getattr(self, 'diseases', [])
+        if typed_diseases:
+            from systems.disease import DiseaseManager
+            disease_penalties = DiseaseManager.get_capacity_penalties(self)
+            for cap, mult in disease_penalties.items():
+                if cap in self.capacities:
+                    self.capacities[cap] = max(0.0, self.capacities[cap] * mult)
+
         total_hp = sum(p['health'] for p in self.body_parts.values())
         max_hp = sum(p['max'] for p in self.body_parts.values())
         self.health = (total_hp / max_hp) * 100.0

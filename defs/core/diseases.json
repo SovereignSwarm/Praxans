@@ -1,0 +1,177 @@
+{
+    "DiseaseDef": [
+        {
+            "id": "gut_rot",
+            "label": "Gut Rot",
+            "description": "A painful intestinal infection from contaminated food or water.",
+            "severity_per_second": 0.008,
+            "incubation_seconds": 15.0,
+            "transmission_radius": 25.0,
+            "transmission_chance": 0.003,
+            "lethality": 0.15,
+            "immunity_gain_rate": 0.012,
+            "treatment_speed_factor": 1.5,
+            "capacity_penalties": {
+                "moving": 0.75,
+                "manipulation": 0.9
+            },
+            "mood_offset": -12,
+            "biome_weights": {
+                "swamp": 2.5,
+                "jungle": 1.8,
+                "plains": 1.0,
+                "forest": 0.8,
+                "desert": 0.6,
+                "tundra": 0.5,
+                "mountain": 0.7,
+                "volcanic": 1.2
+            },
+            "season_weights": {
+                "summer": 1.5,
+                "autumn": 1.0,
+                "spring": 1.2,
+                "winter": 0.6
+            },
+            "tags": ["food_borne", "common"]
+        },
+        {
+            "id": "grey_lung",
+            "label": "Grey Lung",
+            "description": "A respiratory illness that spreads through close contact in crowded conditions.",
+            "severity_per_second": 0.006,
+            "incubation_seconds": 20.0,
+            "transmission_radius": 40.0,
+            "transmission_chance": 0.008,
+            "lethality": 0.25,
+            "immunity_gain_rate": 0.008,
+            "treatment_speed_factor": 1.3,
+            "capacity_penalties": {
+                "moving": 0.6,
+                "consciousness": 0.85
+            },
+            "mood_offset": -18,
+            "biome_weights": {
+                "swamp": 1.5,
+                "jungle": 1.2,
+                "plains": 1.0,
+                "forest": 1.0,
+                "desert": 0.7,
+                "tundra": 1.8,
+                "mountain": 1.5,
+                "volcanic": 2.0
+            },
+            "season_weights": {
+                "summer": 0.5,
+                "autumn": 1.2,
+                "spring": 0.8,
+                "winter": 2.0
+            },
+            "tags": ["airborne", "crowding"]
+        },
+        {
+            "id": "swamp_fever",
+            "label": "Swamp Fever",
+            "description": "A debilitating fever carried by insects in wetland biomes.",
+            "severity_per_second": 0.012,
+            "incubation_seconds": 10.0,
+            "transmission_radius": 15.0,
+            "transmission_chance": 0.002,
+            "lethality": 0.35,
+            "immunity_gain_rate": 0.006,
+            "treatment_speed_factor": 1.0,
+            "capacity_penalties": {
+                "consciousness": 0.7,
+                "moving": 0.5,
+                "sight": 0.8
+            },
+            "mood_offset": -25,
+            "biome_weights": {
+                "swamp": 4.0,
+                "jungle": 2.5,
+                "plains": 0.3,
+                "forest": 0.5,
+                "desert": 0.1,
+                "tundra": 0.0,
+                "mountain": 0.1,
+                "volcanic": 0.2
+            },
+            "season_weights": {
+                "summer": 2.0,
+                "autumn": 1.5,
+                "spring": 1.5,
+                "winter": 0.3
+            },
+            "tags": ["insect_borne", "biome_locked"]
+        },
+        {
+            "id": "blood_plague",
+            "label": "Blood Plague",
+            "description": "A rare and lethal disease that ravages the body. Highly contagious once symptomatic.",
+            "severity_per_second": 0.018,
+            "incubation_seconds": 25.0,
+            "transmission_radius": 50.0,
+            "transmission_chance": 0.015,
+            "lethality": 0.6,
+            "immunity_gain_rate": 0.004,
+            "treatment_speed_factor": 0.7,
+            "capacity_penalties": {
+                "consciousness": 0.5,
+                "moving": 0.4,
+                "manipulation": 0.6,
+                "sight": 0.7
+            },
+            "mood_offset": -35,
+            "biome_weights": {
+                "swamp": 1.5,
+                "jungle": 1.5,
+                "plains": 1.0,
+                "forest": 1.0,
+                "desert": 1.0,
+                "tundra": 1.0,
+                "mountain": 1.0,
+                "volcanic": 1.5
+            },
+            "season_weights": {
+                "summer": 1.0,
+                "autumn": 1.0,
+                "spring": 1.0,
+                "winter": 1.0
+            },
+            "tags": ["rare", "lethal", "epidemic"]
+        },
+        {
+            "id": "muscle_worm",
+            "label": "Muscle Worm",
+            "description": "A parasitic infection that weakens the limbs over time.",
+            "severity_per_second": 0.004,
+            "incubation_seconds": 30.0,
+            "transmission_radius": 0.0,
+            "transmission_chance": 0.0,
+            "lethality": 0.05,
+            "immunity_gain_rate": 0.015,
+            "treatment_speed_factor": 2.0,
+            "capacity_penalties": {
+                "moving": 0.55,
+                "manipulation": 0.65
+            },
+            "mood_offset": -15,
+            "biome_weights": {
+                "swamp": 2.0,
+                "jungle": 2.0,
+                "plains": 0.8,
+                "forest": 1.2,
+                "desert": 0.3,
+                "tundra": 0.2,
+                "mountain": 0.5,
+                "volcanic": 0.4
+            },
+            "season_weights": {
+                "summer": 1.5,
+                "autumn": 1.0,
+                "spring": 1.3,
+                "winter": 0.4
+            },
+            "tags": ["parasitic", "non_contagious"]
+        }
+    ]
+}

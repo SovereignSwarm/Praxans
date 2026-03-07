@@ -83,6 +83,24 @@
             "base_weight": 5,
             "personality_factor": null,
             "label": "Changed Faction"
+        },
+        {
+            "id": "disease_contracted",
+            "base_weight": 4,
+            "personality_factor": null,
+            "label": "Fell Ill"
+        },
+        {
+            "id": "disease_recovered",
+            "base_weight": 5,
+            "personality_factor": null,
+            "label": "Recovered from Illness"
+        },
+        {
+            "id": "survived_epidemic",
+            "base_weight": 7,
+            "personality_factor": null,
+            "label": "Survived an Epidemic"
         }
     ]
 }

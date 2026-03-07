@@ -78,6 +78,7 @@ python -m py_compile praxans_game.py runtime_config.py
 | `society.py` | Society/faction mechanics, trade system |
 | `diplomacy.py` | **Inter-faction diplomacy**: standings (-100..+100), relation tiers (Allied/Friendly/Neutral/Tense/Hostile), treaties (Trade/NAP/Alliance), diplomatic incidents, autonomous actions. Replaces hardcoded rivalries. |
 | `social_interactions.py` | **InteractionDef execution engine.** 8 data-driven social interactions (chat, deep conversation, argument, share meal, teach, comfort, play, insult) with precondition checking, personality-weighted selection, outcome application (moodlets, bonds, opinions, social need, XP, memory), cooldowns, and EventBus publishing. Defs in `defs/core/interactions.json`. |
+| `disease.py` | **Named disease/epidemic system.** 5 typed diseases (Gut Rot, Grey Lung, Swamp Fever, Blood Plague, Muscle Worm) with incubation→symptomatic→recovery stages, proximity-based transmission, capacity penalties, immunity buildup, quarantine at hospitals, epidemic detection. Replaces the old `diseased` boolean. Defs in `defs/core/diseases.json`. |
 | `spatial.py` | Spatial indexing |
 | `storyteller.py` | Event/crisis storytelling |
 
@@ -101,6 +102,7 @@ Four async channels processed by `LLMScheduler`:
 | `jobs.json` | `JobDef` — CookMeal, SmithArmor, CraftWeapon |
 | `moods.json` | `MoodDef` — AteRawFood, AteFineFood, Catharsis, FoughtOffInfection, + 7 social moodlets (HadChat, HadDeepTalk, HadArgument, WasInsulted, WasComforted, SharedMeal, HadFun, etc.) |
 | `interactions.json` | `InteractionDef` — 8 social interaction types with preconditions, outcomes, drama weights, memory events |
+| `diseases.json` | `DiseaseDef` — 5 named diseases with severity rates, incubation periods, transmission vectors, biome/season weights, capacity penalties, lethality |
 
 `game_content.py` exposes `BUILDING_DEFINITIONS` as a lazy proxy dict that always reads from `DefDatabase` — never hardcode building data, always go through `DefDatabase`.
 

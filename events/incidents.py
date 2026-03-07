@@ -70,16 +70,54 @@ def incident_resource_pod(game_state: dict):
 def incident_disease_outbreak(game_state: dict):
     praxans = game_state.get('praxans', [])
     if not praxans: return
-    
+
+    # Use the typed disease system — pick a disease weighted by severity
+    try:
+        from systems.disease import DiseaseManager, get_all_disease_ids, get_disease_def
+        disease_ids = get_all_disease_ids()
+        if disease_ids:
+            # Prefer non-rare diseases for ambient outbreaks; rare for high-drama
+            weights = []
+            for did in disease_ids:
+                ddef = get_disease_def(did)
+                w = 1.0
+                if ddef and "rare" in ddef.get("tags", []):
+                    w = 0.15
+                if ddef and "common" in ddef.get("tags", []):
+                    w = 2.0
+                weights.append(w)
+            disease_id = random.choices(disease_ids, weights=weights, k=1)[0]
+        else:
+            disease_id = None
+    except Exception:
+        disease_id = None
+
     infected_count = max(1, len(praxans) // 4)
     targets = random.sample(praxans, min(infected_count, len(praxans)))
-    
-    for t in targets:
-        t.diseased = True
-        
+    event_bus = game_state.get('event_bus')
     narrative_panel = game_state.get('narrative_panel')
-    if narrative_panel:
-        narrative_panel.add_message(f"Disease outbreak! {len(targets)} praxans infected.", "Crisis")
+
+    actually_infected = 0
+    disease_label = "unknown illness"
+    for t in targets:
+        if disease_id:
+            try:
+                mgr = DiseaseManager()
+                if mgr.infect(t, disease_id, event_bus=event_bus, narrative_panel=narrative_panel):
+                    actually_infected += 1
+                    ddef = get_disease_def(disease_id)
+                    disease_label = ddef.get("label", disease_id) if ddef else disease_id
+            except Exception:
+                t.diseased = True
+                actually_infected += 1
+        else:
+            t.diseased = True
+            actually_infected += 1
+
+    if narrative_panel and actually_infected > 0:
+        narrative_panel.add_message(
+            f"Outbreak of {disease_label}! {actually_infected} praxans infected.", "Crisis"
+        )
 
 def register_all_incidents(storyteller):
     storyteller.add_incident("crop_blight", INCIDENT_BAD, 40.0, incident_crop_blight)

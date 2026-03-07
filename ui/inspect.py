@@ -23,6 +23,15 @@ def _section(title: str, *lines: str) -> InspectSection:
     return InspectSection(title=title, lines=[line for line in lines if str(line).strip()])
 
 
+def _disease_summary(praxan) -> str:
+    """Return a short disease status string for the inspect drawer."""
+    try:
+        from systems.disease import DiseaseManager
+        return DiseaseManager.get_disease_summary(praxan)
+    except Exception:
+        return "Diseased" if getattr(praxan, "diseased", False) else "Healthy"
+
+
 def _need_bar(label: str, value: float, max_val: float = 100.0, color: tuple[int, int, int] | None = None) -> NeedBar:
     """Create a need bar with auto-color based on value if no explicit color."""
     if color is None:
@@ -412,7 +421,7 @@ def _build_praxan_model(praxan, active_tab: str, current_time: float, praxans, f
                 "Activity",
                 f"Current Task  {str(getattr(praxan, 'current_action', 'idle')).replace('_', ' ').title()}",
                 f"Favorite Biome  {str(getattr(praxan, 'favorite_biome', 'plains')).title()}",
-                f"Diseased  {'Yes' if bool(getattr(praxan, 'diseased', False)) else 'No'}",
+                f"Health  {_disease_summary(praxan)}",
                 f"Can Reproduce  {'Yes' if hasattr(praxan, 'can_reproduce') and praxan.can_reproduce() else 'No'}",
                 f"Age  {int(max(0.0, current_time - float(getattr(praxan, 'birth_time', current_time) or current_time)))}s",
             ),
