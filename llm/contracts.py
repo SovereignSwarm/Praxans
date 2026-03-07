@@ -476,6 +476,66 @@ def parse_memory_summary_payload(response_text: str | None) -> dict[str, Any] | 
 
 
 # =====================================================================
+# 6. Muse Payload (Inner Monologue & Sentience)
+# =====================================================================
+
+_VALID_PERSONAL_GOALS = {"wander_to", "socialize_with", "hoard_resource", "build_something", "explore_unknown", "rest"}
+
+def muse_payload_defaults() -> dict[str, Any]:
+    return {
+        "inner_monologue": "(Thinking...)",
+        "spark_of_invention": "",
+        "personal_goal": {
+            "type": "wander_to",
+            "target": "none"
+        },
+        "behavior_modifier": {}
+    }
+
+def parse_muse_payload(response_text: str | None) -> dict[str, Any] | None:
+    cleaned = _clean_response_text(response_text)
+    if not cleaned:
+        return muse_payload_defaults()
+    if _is_no_change(cleaned):
+        return None
+
+    parsed = _try_parse_json(cleaned)
+    if parsed is None:
+        return muse_payload_defaults()
+
+    goal_raw = parsed.get("personal_goal", {})
+    if not isinstance(goal_raw, dict):
+        goal_raw = {}
+    
+    goal_type = _validate_enum(goal_raw.get("type"), _VALID_PERSONAL_GOALS, "wander_to")
+    goal_target = _safe_str(goal_raw.get("target", "none"), 60)
+
+    # Behavior modifier could be e.g. {"exploring": 2, "gathering": -1}
+    mod_raw = parsed.get("behavior_modifier", {})
+    if not isinstance(mod_raw, dict):
+        mod_raw = {}
+    
+    behavior_modifier = {}
+    for k, v in list(mod_raw.items())[:3]:
+        key_str = _safe_str(k, 30).lower()
+        try:
+            val_int = int(v)
+            behavior_modifier[key_str] = val_int
+        except (TypeError, ValueError):
+            continue
+
+    return {
+        "inner_monologue": _safe_str(parsed.get("inner_monologue"), 200),
+        "spark_of_invention": _safe_str(parsed.get("spark_of_invention"), 150),
+        "personal_goal": {
+            "type": goal_type,
+            "target": goal_target
+        },
+        "behavior_modifier": behavior_modifier
+    }
+
+
+# =====================================================================
 # Legacy compatibility — aliases for advisor_contract.py shim
 # =====================================================================
 

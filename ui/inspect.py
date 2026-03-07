@@ -8,6 +8,17 @@ from ui.theme import draw_button, draw_divider, draw_panel, wrap_text
 from game_content import JOB_DEFS
 
 
+def _format_equipment(equip) -> str:
+    """Format an equipment slot value for display."""
+    if equip is None:
+        return "None"
+    if isinstance(equip, dict):
+        name = equip.get('name', equip.get('id', '?'))
+        qual = equip.get('quality', '')
+        return f"{qual} {name}".strip()
+    return str(equip)
+
+
 def _section(title: str, *lines: str) -> InspectSection:
     return InspectSection(title=title, lines=[line for line in lines if str(line).strip()])
 
@@ -25,379 +36,115 @@ def _need_bar(label: str, value: float, max_val: float = 100.0, color: tuple[int
     return NeedBar(label=label, value=value, max_value=max_val, color=color)
 
 
-def build_inspect_view_model(
-    selected_entity,
-    selected_type: str | None,
-    advisor,
-    current_time: float,
-    settlement_state: dict,
-    faction_manager=None,
-    active_tab: str = "overview",
-    praxans=None,
-    diplomacy_manager=None,
-) -> InspectViewModel:
-    if not selected_entity or not selected_type:
-        tabs = [("overview", "Overview"), ("evolution", "Evolution"), ("risks", "Risks")]
+def _build_settlement_model(settlement_state: dict, advisor, active_tab: str) -> InspectViewModel:
+    tabs = [("overview", "Overview"), ("evolution", "Evolution"), ("risks", "Risks")]
+    sections = [
+        _section(
+            "Settlement",
+            f"District  {str(settlement_state.get('district_identity', 'homestead')).replace('_', ' ').title()}",
+            f"Prosperity  {int(float(settlement_state.get('prosperity_score', 0.0) or 0.0) * 100)}%",
+            f"Culture  {int(float(settlement_state.get('culture_score', 0.0) or 0.0) * 100)}%",
+            f"Festival Readiness  {int(float(settlement_state.get('festival_readiness', 0.0) or 0.0) * 100)}%",
+            f"Stores  F{int(settlement_state.get('stored_food', 0) or 0)}  W{int(settlement_state.get('stored_wood', 0) or 0)}  S{int(settlement_state.get('stored_stone', 0) or 0)}",
+        )
+    ]
+    if active_tab == "evolution":
+        evo = dict((getattr(advisor, "session_stats", {}) or {}).get("current_evolution_summary", {}) or {})
         sections = [
             _section(
-                "Settlement",
-                f"District  {str(settlement_state.get('district_identity', 'homestead')).replace('_', ' ').title()}",
-                f"Prosperity  {int(float(settlement_state.get('prosperity_score', 0.0) or 0.0) * 100)}%",
-                f"Culture  {int(float(settlement_state.get('culture_score', 0.0) or 0.0) * 100)}%",
-                f"Festival Readiness  {int(float(settlement_state.get('festival_readiness', 0.0) or 0.0) * 100)}%",
-                f"Stores  F{int(settlement_state.get('stored_food', 0) or 0)}  W{int(settlement_state.get('stored_wood', 0) or 0)}  S{int(settlement_state.get('stored_stone', 0) or 0)}",
+                "Evolution",
+                f"Average Generation  {float(evo.get('avg_generation', 0.0) or 0.0):.1f}",
+                f"Max Generation  {int(evo.get('max_generation', 0) or 0)}",
+                f"Founder Lines  {int(evo.get('founder_lines', 0) or 0)}",
+                f"Dominant Lineage  L{evo.get('dominant_lineage', '?')}",
             )
         ]
-        if active_tab == "evolution":
-            evo = dict((getattr(advisor, "session_stats", {}) or {}).get("current_evolution_summary", {}) or {})
-            sections = [
-                _section(
-                    "Evolution",
-                    f"Average Generation  {float(evo.get('avg_generation', 0.0) or 0.0):.1f}",
-                    f"Max Generation  {int(evo.get('max_generation', 0) or 0)}",
-                    f"Founder Lines  {int(evo.get('founder_lines', 0) or 0)}",
-                    f"Dominant Lineage  L{evo.get('dominant_lineage', '?')}",
-                )
-            ]
-        elif active_tab == "risks":
-            sections = [
-                _section(
-                    "Risks",
-                    f"Challenges Active  {len(getattr(advisor, 'active_challenges', []) or [])}",
-                    f"Deaths Recorded  {int(getattr(advisor, 'total_deaths', 0) or 0)}",
-                    f"Research Points  {int(getattr(advisor, 'research_points', 0) or 0)}",
-                )
-            ]
-        return InspectViewModel(
-            title="Settlement",
-            subtitle="Colony state and observer context",
-            entity_type="settlement",
-            accent=(153, 194, 196),
-            tabs=tabs,
-            active_tab=active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview",
-            sections=sections,
-        )
-
-    if selected_type == "praxan":
-        praxan = selected_entity
-        tabs = [("overview", "Overview"), ("needs", "Needs"), ("health", "Health"), ("traits", "Traits"), ("social", "Social"), ("memory", "Memory")]
-        active_tab = active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview"
-        praxan_name = getattr(praxan, 'name', None) or f'#{praxan.id}'
-        life_stage = getattr(praxan, 'life_stage', 'adult').title()
-        role_text = str(getattr(praxan, 'role', 'unassigned')).replace('_', ' ').title()
-        subtitle = f"{praxan_name}  |  {life_stage}  |  {role_text}"
-
-        # Commands always available for praxans
-        commands = [
-            InspectCommand(id="force_rest", label="Force Rest", action="force_rest", payload=praxan.id),
-            InspectCommand(id="force_haul", label="Prioritize Haul", action="force_haul", payload=praxan.id),
+    elif active_tab == "risks":
+        sections = [
+            _section(
+                "Risks",
+                f"Challenges Active  {len(getattr(advisor, 'active_challenges', []) or [])}",
+                f"Deaths Recorded  {int(getattr(advisor, 'total_deaths', 0) or 0)}",
+                f"Research Points  {int(getattr(advisor, 'research_points', 0) or 0)}",
+            )
         ]
+    return InspectViewModel(
+        title="Settlement",
+        subtitle="Colony state and observer context",
+        entity_type="settlement",
+        accent=(153, 194, 196),
+        tabs=tabs,
+        active_tab=active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview",
+        sections=sections,
+    )
 
-        if active_tab == "needs":
-            # Mood breakdown tab
-            needs = getattr(praxan, "needs", {})
-            need_bars = [
-                _need_bar("Hunger", float(needs.get("hunger", 0))),
-                _need_bar("Energy", float(needs.get("energy", 0))),
-                _need_bar("Thirst", float(needs.get("thirst", 0))),
-                _need_bar("Beauty", float(needs.get("beauty", 50))),
-                _need_bar("Comfort", float(needs.get("comfort", 50))),
-                _need_bar("Social", float(needs.get("social", 50))),
-                _need_bar("Outdoors", float(needs.get("outdoors", 50))),
-            ]
-            # Build moodlet lines
-            base_mood = float(getattr(praxan, "base_mood", 50))
-            happiness = float(getattr(praxan, "happiness", 50))
-            moodlets = list(getattr(praxan, "moodlets", []) or [])
-            mood_lines = [f"Base Mood  {int(base_mood)}"]
-            for m in moodlets[:8]:
-                val = float(m.get("value", 0))
-                sign = "+" if val >= 0 else ""
-                mood_lines.append(f"  {sign}{int(val)}  {m.get('name', '?')}")
-            mood_lines.append(f"Final Happiness  {int(happiness)}")
-            mental = getattr(praxan, "mental_state", None)
-            if mental:
-                mood_lines.append(f"⚠ Mental State  {str(mental).replace('_', ' ').title()}")
-            sections = [_section("Mood Breakdown", *mood_lines)]
-            return InspectViewModel(
-                title="Praxan", subtitle=subtitle, entity_type="praxan",
-                accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
-                sections=sections, need_bars=need_bars, commands=commands,
-            )
-
-        elif active_tab == "health":
-            # Body parts and hediffs
-            body_parts = dict(getattr(praxan, "body_parts", {}))
-            hediffs = list(getattr(praxan, "hediffs", []))
-            pain = float(getattr(praxan, "pain", 0))
-            caps = dict(getattr(praxan, "capacities", {}))
-
-            need_bars = []
-            for part_name, part_data in body_parts.items():
-                hp = float(part_data.get("health", 0))
-                max_hp = float(part_data.get("max", 100))
-                status = part_data.get("status", "intact")
-                label = f"{part_name.replace('_', ' ').title()} [{status}]"
-                color = (80, 180, 90) if status == "intact" else (200, 100, 60)
-                need_bars.append(_need_bar(label, hp, max_hp, color))
-
-            hediff_lines = []
-            if hediffs:
-                for h in hediffs[:6]:
-                    sev = f"Sev {float(h.get('severity', 0)):.1f}"
-                    tended = "✓ Tended" if h.get("tended") else "✗ Untended"
-                    hediff_lines.append(f"  {h.get('type', '?')} on {h.get('part', '?')}  {sev}  {tended}")
-            else:
-                hediff_lines.append("  No active conditions")
-
-            cap_lines = [f"  {cap.replace('_', ' ').title()}  {int(float(val) * 100)}%" for cap, val in caps.items()]
-
-            sections = [
-                _section("Pain", f"Pain Level  {int(pain * 100)}%"),
-                _section("Conditions", *hediff_lines),
-                _section("Capacities", *cap_lines),
-            ]
-            return InspectViewModel(
-                title="Praxan", subtitle=subtitle, entity_type="praxan",
-                accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
-                sections=sections, need_bars=need_bars, commands=commands,
-            )
-
-        elif active_tab == "traits":
-            sections = [
-                _section(
-                    "Genetics",
-                    *[
-                        f"{str(trait_name).replace('_', ' ').title()}  {float(trait_value):.2f}x"
-                        for trait_name, trait_value in list(getattr(praxan, "genetics", {}).items())[:8]
-                    ],
-                ),
-                _section(
-                    "Deep Traits",
-                    *[str(t) for t in getattr(praxan, "traits", [])],
-                ),
-                _section(
-                    "Skills",
-                    *[
-                        f"{str(skill_name).replace('_', ' ').title()}  L{int(skill_data.get('level', 1) or 1)}"
-                        for skill_name, skill_data in getattr(praxan, "skills", {}).items()
-                        if isinstance(skill_data, dict)
-                    ],
-                ),
-            ]
-            return InspectViewModel(
-                title="Praxan", subtitle=subtitle, entity_type="praxan",
-                accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
-                sections=sections, commands=commands,
-            )
-
-        elif active_tab == "social":
-            faction_lines = []
-            faction_id = getattr(praxan, "faction_id", None)
-            if faction_manager is not None and faction_id is not None:
-                faction = getattr(faction_manager, "factions", {}).get(faction_id)
-                if faction is not None:
-                    faction_lines = [
-                        f"Faction  F{int(faction_id)}",
-                        f"Doctrine  {str(getattr(faction, 'primary_doctrine', 'survival')).title()}",
-                        f"Cohesion  {int(float(getattr(faction, 'cohesion', 0.0) or 0.0) * 100)}%",
-                        f"Schism Pressure  {int(getattr(faction, 'schism_pressure', 0) or 0)}",
-                        f"Migration Pressure  {int(getattr(faction, 'migration_pressure', 0) or 0)}",
-                        f"Members  {len(getattr(faction, 'member_ids', []))}",
-                        f"Rivals  {len(getattr(faction, 'rival_faction_ids', []))}",
-                    ]
-                    # Add diplomacy relations summary
-                    if diplomacy_manager is not None:
-                        relations = diplomacy_manager.get_faction_relations_summary(faction_id)
-                        for rel in relations[:4]:
-                            treaty_str = f" [{', '.join(rel['treaties'])}]" if rel.get("treaties") else ""
-                            faction_lines.append(
-                                f"  F{rel['faction_id']}  {rel['tier']} ({rel['standing']:+.0f}){treaty_str}"
-                            )
-
-            # Build name lookup from praxans list
-            name_lookup = {}
-            if praxans:
-                for p in praxans:
-                    name_lookup[p.id] = getattr(p, 'name', None) or f'#{p.id}'
-
-            def _pname(pid):
-                return name_lookup.get(pid, f'#{pid}')
-
-            # Typed relationships first, then opinions
-            relationships = dict(getattr(praxan, "relationships", {}))
-            opinions = dict(getattr(praxan, "opinions", {}))
-            rel_lines = []
-            # Show typed relationships
-            for pid, rel_type in sorted(relationships.items(), key=lambda x: x[1]):
-                opinion_score = opinions.get(pid, 0)
-                sign = "+" if opinion_score >= 0 else ""
-                rel_lines.append(f"  {_pname(pid)}  {rel_type.title()} ({sign}{int(opinion_score)})")
-            # Show remaining strong opinions not in typed relationships
-            for pid, score in sorted(opinions.items(), key=lambda x: -abs(x[1]))[:5]:
-                if pid in relationships:
-                    continue
-                if abs(score) < 20:
-                    continue
-                sign = "+" if score >= 0 else ""
-                label = getattr(praxan, "get_relationship_label", lambda x: "Known")(pid)
-                rel_lines.append(f"  {_pname(pid)}  {sign}{int(score)} ({label})")
-
-            # Social Needs
-            needs = getattr(praxan, "needs", {})
-            need_bars = [
-                _need_bar("Social", float(needs.get("social", 100))),
-                _need_bar("Comfort", float(needs.get("comfort", 100))),
-                _need_bar("Beauty", float(needs.get("beauty", 100))),
-            ]
-
-            # Parent names
-            parent_ids = getattr(praxan, 'parent_ids', [])[:2]
-            parent_text = ', '.join(_pname(pid) for pid in parent_ids) if parent_ids else 'Founder'
-
-            sections = [
-                _section("Lineage",
-                    f"Generation  {int(getattr(praxan, 'generation', 0) or 0)}",
-                    f"Lineage  L{int(getattr(praxan, 'lineage_id', getattr(praxan, 'id', 0)))}",
-                    f"Parents  {parent_text}",
-                    f"Mutations  {int(getattr(praxan, 'mutation_count', 0) or 0)}",
-                ),
-                _section("Faction", *faction_lines) if faction_lines else _section("Faction", "Unaffiliated"),
-                _section("Relationships", *rel_lines) if rel_lines else _section("Relationships", "  No relationships"),
-            ]
-            return InspectViewModel(
-                title="Praxan", subtitle=subtitle, entity_type="praxan",
-                accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
-                sections=sections, need_bars=need_bars, commands=commands,
-            )
-
-        elif active_tab == "memory":
-            # Autobiographical / Episodic Memory tab
-            episodic = getattr(praxan, 'episodic_memory', None)
-            if episodic and episodic.memory_count > 0:
-                story = episodic.life_story_summary()
-                recent_lines = []
-                for entry in reversed(episodic.recent(6)):
-                    from systems.praxan_memory import get_event_label
-                    label = get_event_label(entry.category)
-                    weight_str = f"[{'★' * min(5, int(entry.emotional_weight / 2))}]"
-                    recent_lines.append(f"  {weight_str} {label}: {entry.summary}")
-                sections = [
-                    _section("Life Story", story),
-                    _section(f"Memories ({episodic.memory_count})", *recent_lines),
-                ]
-                # Show most significant if different from recent
-                sig_entries = episodic.most_significant(3)
-                if sig_entries:
-                    sig_lines = []
-                    for entry in sig_entries:
-                        from systems.praxan_memory import get_event_label
-                        label = get_event_label(entry.category)
-                        sig_lines.append(f"  {label}: {entry.summary}")
-                    sections.append(_section("Most Significant", *sig_lines))
-            else:
-                sections = [_section("Memories", "No memories yet.")]
-            return InspectViewModel(
-                title="Praxan", subtitle=subtitle, entity_type="praxan",
-                accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
-                sections=sections, commands=commands,
-            )
-
-        else:
-            # Overview — use bars for vitals
-            needs = getattr(praxan, "needs", {})
-            need_bars = [
-                _need_bar("Health", float(getattr(praxan, "health", 0))),
-                _need_bar("Hunger", float(needs.get("hunger", 0))),
-                _need_bar("Energy", float(needs.get("energy", 0))),
-                _need_bar("Thirst", float(needs.get("thirst", 0))),
-                _need_bar("Happiness", float(getattr(praxan, "happiness", 0))),
-                _need_bar("Morale", float(getattr(praxan, "morale", 0))),
-            ]
-            sections = [
-                _section(
-                    "Activity",
-                    f"Current Task  {str(getattr(praxan, 'current_action', 'idle')).replace('_', ' ').title()}",
-                    f"Favorite Biome  {str(getattr(praxan, 'favorite_biome', 'plains')).title()}",
-                    f"Diseased  {'Yes' if bool(getattr(praxan, 'diseased', False)) else 'No'}",
-                    f"Can Reproduce  {'Yes' if hasattr(praxan, 'can_reproduce') and praxan.can_reproduce() else 'No'}",
-                    f"Age  {int(max(0.0, current_time - float(getattr(praxan, 'birth_time', current_time) or current_time)))}s",
-                ),
-            ]
-            return InspectViewModel(
-                title="Praxan", subtitle=subtitle, entity_type="praxan",
-                accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
-                sections=sections, need_bars=need_bars, commands=commands,
-            )
-
-    if selected_type == "building":
-        building = selected_entity
-        tabs = [("overview", "Overview"), ("economy", "Stores")]
+def _build_building_model(building, active_tab: str) -> InspectViewModel:
+    tabs = [("overview", "Overview"), ("economy", "Stores")]
+    
+    if getattr(building, 'building_type', '') in ['farm', 'workshop']:
+        tabs.append(("production", "Production"))
         
-        # Add Production tab for crafting stations
-        if getattr(building, 'building_type', '') in ['farm', 'workshop']:
-            tabs.append(("production", "Production"))
+    active_tab = active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview"
+    stored_resources = dict(getattr(building, "stored_resources", {}) or {})
+    commands = [
+        InspectCommand(id="deconstruct", label="Deconstruct", action="deconstruct_building", payload=building),
+    ]
+    
+    if active_tab == "economy":
+        sections = [_section("Stores", *[f"{name.title()}  {int(value)}" for name, value in stored_resources.items()])]
+    elif active_tab == "production":
+        bills = getattr(building, 'bills', [])
+        bill_lines = []
+        if bills:
+            for idx, bill_id in enumerate(bills):
+                from game_content import JOB_DEFS
+                job = JOB_DEFS.get(bill_id, {})
+                label = bill_id.replace('Craft', '').replace('Smith', '').replace('Cook', '')
+                bill_lines.append(f"{idx+1}. {label} ({job.get('skill_factor', 'unknown').title()})")
+        else:
+            bill_lines.append("No active bills")
             
-        active_tab = active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview"
-        stored_resources = dict(getattr(building, "stored_resources", {}) or {})
-        commands = [
-            InspectCommand(id="deconstruct", label="Deconstruct", action="deconstruct_building", payload=building),
-        ]
-        
-        if active_tab == "economy":
-            sections = [_section("Stores", *[f"{name.title()}  {int(value)}" for name, value in stored_resources.items()])]
-        elif active_tab == "production":
-            bills = getattr(building, 'bills', [])
-            bill_lines = []
-            if bills:
-                for idx, bill_id in enumerate(bills):
-                    job = JOB_DEFS.get(bill_id, {})
-                    label = bill_id.replace('Craft', '').replace('Smith', '').replace('Cook', '')
-                    bill_lines.append(f"{idx+1}. {label} ({job.get('skill_factor', 'unknown').title()})")
-            else:
-                bill_lines.append("No active bills")
-                
-            sections = [_section("Bills Queue", *bill_lines)]
-        else:
-            sections = [
-                _section(
-                    "Building",
-                    f"Type  {str(getattr(building, 'building_type', 'structure')).title()}",
-                    f"Level  {int(getattr(building, 'level', 1) or 1)}",
-                    f"Built By  #{getattr(building, 'built_by', 'Unknown')}",
-                    f"Occupants  {len(getattr(building, 'occupants', []))}",
-                )
-            ]
-        return InspectViewModel(
-            title=str(getattr(building, "building_type", "Building")).title(),
-            subtitle="Structure and operational status",
-            entity_type="building",
-            accent=(166, 181, 116),
-            tabs=tabs,
-            active_tab=active_tab,
-            sections=sections,
-            commands=commands,
-        )
-
-    if selected_type == "resource":
-        resource = selected_entity
+        sections = [_section("Bills Queue", *bill_lines)]
+    else:
         sections = [
             _section(
-                "Resource",
-                f"Type  {str(getattr(resource, 'resource_type', 'resource')).title()}",
-                f"Status  {'Respawning' if getattr(resource, 'collected', False) else 'Available'}",
+                "Building",
+                f"Type  {str(getattr(building, 'building_type', 'structure')).title()}",
+                f"Level  {int(getattr(building, 'level', 1) or 1)}",
+                f"Built By  #{getattr(building, 'built_by', 'Unknown')}",
+                f"Occupants  {len(getattr(building, 'occupants', []))}",
             )
         ]
-        return InspectViewModel(
-            title=f"{str(getattr(resource, 'resource_type', 'resource')).title()} Resource",
-            subtitle="Map resource node",
-            entity_type="resource",
-            accent=(153, 194, 196),
-            tabs=[("overview", "Overview")],
-            active_tab="overview",
-            sections=sections,
-        )
+    return InspectViewModel(
+        title=str(getattr(building, "building_type", "Building")).title(),
+        subtitle="Structure and operational status",
+        entity_type="building",
+        accent=(166, 181, 116),
+        tabs=tabs,
+        active_tab=active_tab,
+        sections=sections,
+        commands=commands,
+    )
 
+def _build_resource_model(resource) -> InspectViewModel:
+    sections = [
+        _section(
+            "Resource",
+            f"Type  {str(getattr(resource, 'resource_type', 'resource')).title()}",
+            f"Status  {'Respawning' if getattr(resource, 'collected', False) else 'Available'}",
+        )
+    ]
+    return InspectViewModel(
+        title=f"{str(getattr(resource, 'resource_type', 'resource')).title()} Resource",
+        subtitle="Map resource node",
+        entity_type="resource",
+        accent=(153, 194, 196),
+        tabs=[("overview", "Overview")],
+        active_tab="overview",
+        sections=sections,
+    )
+
+def _build_generic_model(selected_entity, selected_type: str) -> InspectViewModel:
     subject_name = selected_type.replace("_", " ").title()
     sections = [
         _section(
@@ -417,7 +164,291 @@ def build_inspect_view_model(
         sections=sections,
     )
 
+def _build_praxan_model(praxan, active_tab: str, current_time: float, praxans, faction_manager, diplomacy_manager) -> InspectViewModel:
+    praxan = selected_entity
+    tabs = [("overview", "Overview"), ("needs", "Needs"), ("health", "Health"), ("traits", "Traits"), ("social", "Social"), ("memory", "Memory")]
+    active_tab = active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview"
+    praxan_name = getattr(praxan, 'name', None) or f'#{praxan.id}'
+    life_stage = getattr(praxan, 'life_stage', 'adult').title()
+    role_text = str(getattr(praxan, 'role', 'unassigned')).replace('_', ' ').title()
+    subtitle = f"{praxan_name}  |  {life_stage}  |  {role_text}"
 
+    # Commands always available for praxans
+    commands = [
+        InspectCommand(id="force_rest", label="Force Rest", action="force_rest", payload=praxan.id),
+        InspectCommand(id="force_haul", label="Prioritize Haul", action="force_haul", payload=praxan.id),
+    ]
+
+    if active_tab == "needs":
+        # Mood breakdown tab
+        needs = getattr(praxan, "needs", {})
+        need_bars = [
+            _need_bar("Hunger", float(needs.get("hunger", 0))),
+            _need_bar("Energy", float(needs.get("energy", 0))),
+            _need_bar("Thirst", float(needs.get("thirst", 0))),
+            _need_bar("Beauty", float(needs.get("beauty", 50))),
+            _need_bar("Comfort", float(needs.get("comfort", 50))),
+            _need_bar("Social", float(needs.get("social", 50))),
+            _need_bar("Outdoors", float(needs.get("outdoors", 50))),
+        ]
+        # Build moodlet lines
+        base_mood = float(getattr(praxan, "base_mood", 50))
+        happiness = float(getattr(praxan, "happiness", 50))
+        moodlets = list(getattr(praxan, "moodlets", []) or [])
+        mood_lines = [f"Base Mood  {int(base_mood)}"]
+        for m in moodlets[:8]:
+            val = float(m.get("value", 0))
+            sign = "+" if val >= 0 else ""
+            mood_lines.append(f"  {sign}{int(val)}  {m.get('name', '?')}")
+        mood_lines.append(f"Final Happiness  {int(happiness)}")
+        mental = getattr(praxan, "mental_state", None)
+        if mental:
+            mood_lines.append(f"⚠ Mental State  {str(mental).replace('_', ' ').title()}")
+        sections = [_section("Mood Breakdown", *mood_lines)]
+        return InspectViewModel(
+            title="Praxan", subtitle=subtitle, entity_type="praxan",
+            accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
+            sections=sections, need_bars=need_bars, commands=commands,
+        )
+
+    elif active_tab == "health":
+        # Body parts and hediffs
+        body_parts = dict(getattr(praxan, "body_parts", {}))
+        hediffs = list(getattr(praxan, "hediffs", []))
+        pain = float(getattr(praxan, "pain", 0))
+        caps = dict(getattr(praxan, "capacities", {}))
+
+        need_bars = []
+        for part_name, part_data in body_parts.items():
+            hp = float(part_data.get("health", 0))
+            max_hp = float(part_data.get("max", 100))
+            status = part_data.get("status", "intact")
+            label = f"{part_name.replace('_', ' ').title()} [{status}]"
+            color = (80, 180, 90) if status == "intact" else (200, 100, 60)
+            need_bars.append(_need_bar(label, hp, max_hp, color))
+
+        hediff_lines = []
+        if hediffs:
+            for h in hediffs[:6]:
+                sev = f"Sev {float(h.get('severity', 0)):.1f}"
+                tended = "✓ Tended" if h.get("tended") else "✗ Untended"
+                hediff_lines.append(f"  {h.get('type', '?')} on {h.get('part', '?')}  {sev}  {tended}")
+        else:
+            hediff_lines.append("  No active conditions")
+
+        cap_lines = [f"  {cap.replace('_', ' ').title()}  {int(float(val) * 100)}%" for cap, val in caps.items()]
+
+        sections = [
+            _section("Pain", f"Pain Level  {int(pain * 100)}%"),
+            _section("Conditions", *hediff_lines),
+            _section("Capacities", *cap_lines),
+        ]
+        return InspectViewModel(
+            title="Praxan", subtitle=subtitle, entity_type="praxan",
+            accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
+            sections=sections, need_bars=need_bars, commands=commands,
+        )
+
+    elif active_tab == "traits":
+        sections = [
+            _section(
+                "Genetics",
+                *[
+                    f"{str(trait_name).replace('_', ' ').title()}  {float(trait_value):.2f}x"
+                    for trait_name, trait_value in list(getattr(praxan, "genetics", {}).items())[:8]
+                ],
+            ),
+            _section(
+                "Deep Traits",
+                *[str(t) for t in getattr(praxan, "traits", [])],
+            ),
+            _section(
+                "Skills",
+                *[
+                    f"{str(skill_name).replace('_', ' ').title()}  L{int(skill_data.get('level', 1) or 1)}"
+                    for skill_name, skill_data in getattr(praxan, "skills", {}).items()
+                    if isinstance(skill_data, dict)
+                ],
+            ),
+            _section(
+                "Equipment",
+                *[
+                    f"{slot.title()}: {_format_equipment(equip)}"
+                    for slot, equip in getattr(praxan, "equipment", {}).items()
+                ],
+            ),
+        ]
+        return InspectViewModel(
+            title="Praxan", subtitle=subtitle, entity_type="praxan",
+            accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
+            sections=sections, commands=commands,
+        )
+
+    elif active_tab == "social":
+        faction_lines = []
+        faction_id = getattr(praxan, "faction_id", None)
+        if faction_manager is not None and faction_id is not None:
+            faction = getattr(faction_manager, "factions", {}).get(faction_id)
+            if faction is not None:
+                faction_lines = [
+                    f"Faction  F{int(faction_id)}",
+                    f"Doctrine  {str(getattr(faction, 'primary_doctrine', 'survival')).title()}",
+                    f"Cohesion  {int(float(getattr(faction, 'cohesion', 0.0) or 0.0) * 100)}%",
+                    f"Schism Pressure  {int(getattr(faction, 'schism_pressure', 0) or 0)}",
+                    f"Migration Pressure  {int(getattr(faction, 'migration_pressure', 0) or 0)}",
+                    f"Members  {len(getattr(faction, 'member_ids', []))}",
+                    f"Rivals  {len(getattr(faction, 'rival_faction_ids', []))}",
+                ]
+                # Add diplomacy relations summary
+                if diplomacy_manager is not None:
+                    relations = diplomacy_manager.get_faction_relations_summary(faction_id)
+                    for rel in relations[:4]:
+                        treaty_str = f" [{', '.join(rel['treaties'])}]" if rel.get("treaties") else ""
+                        faction_lines.append(
+                            f"  F{rel['faction_id']}  {rel['tier']} ({rel['standing']:+.0f}){treaty_str}"
+                        )
+
+        # Build name lookup from praxans list
+        name_lookup = {}
+        if praxans:
+            for p in praxans:
+                name_lookup[p.id] = getattr(p, 'name', None) or f'#{p.id}'
+
+        def _pname(pid):
+            return name_lookup.get(pid, f'#{pid}')
+
+        # Typed relationships first, then opinions
+        relationships = dict(getattr(praxan, "relationships", {}))
+        opinions = dict(getattr(praxan, "opinions", {}))
+        rel_lines = []
+        # Show typed relationships
+        for pid, rel_type in sorted(relationships.items(), key=lambda x: x[1]):
+            opinion_score = opinions.get(pid, 0)
+            sign = "+" if opinion_score >= 0 else ""
+            rel_lines.append(f"  {_pname(pid)}  {rel_type.title()} ({sign}{int(opinion_score)})")
+        # Show remaining strong opinions not in typed relationships
+        for pid, score in sorted(opinions.items(), key=lambda x: -abs(x[1]))[:5]:
+            if pid in relationships:
+                continue
+            if abs(score) < 20:
+                continue
+            sign = "+" if score >= 0 else ""
+            label = getattr(praxan, "get_relationship_label", lambda x: "Known")(pid)
+            rel_lines.append(f"  {_pname(pid)}  {sign}{int(score)} ({label})")
+
+        # Social Needs
+        needs = getattr(praxan, "needs", {})
+        need_bars = [
+            _need_bar("Social", float(needs.get("social", 100))),
+            _need_bar("Comfort", float(needs.get("comfort", 100))),
+            _need_bar("Beauty", float(needs.get("beauty", 100))),
+        ]
+
+        # Parent names
+        parent_ids = getattr(praxan, 'parent_ids', [])[:2]
+        parent_text = ', '.join(_pname(pid) for pid in parent_ids) if parent_ids else 'Founder'
+
+        sections = [
+            _section("Lineage",
+                f"Generation  {int(getattr(praxan, 'generation', 0) or 0)}",
+                f"Lineage  L{int(getattr(praxan, 'lineage_id', getattr(praxan, 'id', 0)))}",
+                f"Parents  {parent_text}",
+                f"Mutations  {int(getattr(praxan, 'mutation_count', 0) or 0)}",
+            ),
+            _section("Faction", *faction_lines) if faction_lines else _section("Faction", "Unaffiliated"),
+            _section("Relationships", *rel_lines) if rel_lines else _section("Relationships", "  No relationships"),
+        ]
+        return InspectViewModel(
+            title="Praxan", subtitle=subtitle, entity_type="praxan",
+            accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
+            sections=sections, need_bars=need_bars, commands=commands,
+        )
+
+    elif active_tab == "memory":
+        # Autobiographical / Episodic Memory tab
+        episodic = getattr(praxan, 'episodic_memory', None)
+        if episodic and episodic.memory_count > 0:
+            story = episodic.life_story_summary()
+            recent_lines = []
+            for entry in reversed(episodic.recent(6)):
+                from systems.praxan_memory import get_event_label
+                label = get_event_label(entry.category)
+                weight_str = f"[{'★' * min(5, int(entry.emotional_weight / 2))}]"
+                recent_lines.append(f"  {weight_str} {label}: {entry.summary}")
+            sections = [
+                _section("Life Story", story),
+                _section(f"Memories ({episodic.memory_count})", *recent_lines),
+            ]
+            # Show most significant if different from recent
+            sig_entries = episodic.most_significant(3)
+            if sig_entries:
+                sig_lines = []
+                for entry in sig_entries:
+                    from systems.praxan_memory import get_event_label
+                    label = get_event_label(entry.category)
+                    sig_lines.append(f"  {label}: {entry.summary}")
+                sections.append(_section("Most Significant", *sig_lines))
+        else:
+            sections = [_section("Memories", "No memories yet.")]
+        return InspectViewModel(
+            title="Praxan", subtitle=subtitle, entity_type="praxan",
+            accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
+            sections=sections, commands=commands,
+        )
+
+    else:
+        # Overview — use bars for vitals
+        needs = getattr(praxan, "needs", {})
+        need_bars = [
+            _need_bar("Health", float(getattr(praxan, "health", 0))),
+            _need_bar("Hunger", float(needs.get("hunger", 0))),
+            _need_bar("Energy", float(needs.get("energy", 0))),
+            _need_bar("Thirst", float(needs.get("thirst", 0))),
+            _need_bar("Happiness", float(getattr(praxan, "happiness", 0))),
+            _need_bar("Morale", float(getattr(praxan, "morale", 0))),
+        ]
+        sections = [
+            _section(
+                "Activity",
+                f"Current Task  {str(getattr(praxan, 'current_action', 'idle')).replace('_', ' ').title()}",
+                f"Favorite Biome  {str(getattr(praxan, 'favorite_biome', 'plains')).title()}",
+                f"Diseased  {'Yes' if bool(getattr(praxan, 'diseased', False)) else 'No'}",
+                f"Can Reproduce  {'Yes' if hasattr(praxan, 'can_reproduce') and praxan.can_reproduce() else 'No'}",
+                f"Age  {int(max(0.0, current_time - float(getattr(praxan, 'birth_time', current_time) or current_time)))}s",
+            ),
+        ]
+        return InspectViewModel(
+            title="Praxan", subtitle=subtitle, entity_type="praxan",
+            accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
+            sections=sections, need_bars=need_bars, commands=commands,
+        )
+
+
+
+def build_inspect_view_model(
+    selected_entity,
+    selected_type: str | None,
+    advisor,
+    current_time: float,
+    settlement_state: dict,
+    faction_manager=None,
+    active_tab: str = "overview",
+    praxans=None,
+    diplomacy_manager=None,
+) -> InspectViewModel:
+    if not selected_entity or not selected_type:
+        return _build_settlement_model(settlement_state, advisor, active_tab)
+
+    if selected_type == "building":
+        return _build_building_model(selected_entity, active_tab)
+
+    if selected_type == "resource":
+        return _build_resource_model(selected_entity)
+
+    if selected_type == "praxan":
+        return _build_praxan_model(selected_entity, active_tab, current_time, praxans, faction_manager, diplomacy_manager)
+
+    return _build_generic_model(selected_entity, selected_type)
 def _draw_need_bar(surface: pygame.Surface, theme, x: int, y: int, width: int, bar: NeedBar) -> int:
     """Draw a single need bar. Returns the height consumed."""
     bar_h = 14

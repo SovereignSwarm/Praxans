@@ -35,25 +35,29 @@ def compute_run_layout(width: int, height: int) -> RunLayout:
     notes_w = 336 if not compact else 280
     inspect_w = 360 if not compact else 320
     margin = 18 if not compact else 14
+    # Collapse side panels on very small windows
+    if width < 1000:
+        notes_w = max(180, min(notes_w, width // 4))
+        inspect_w = max(180, min(inspect_w, width // 4))
     world_left = margin + notes_w + margin
     world_top = margin + ribbon_h + 10
-    world_right = width - inspect_w - margin
-    world_bottom = height - transport_h - margin - 14
+    world_right = max(world_left + 120, width - inspect_w - margin)
+    world_bottom = max(world_top + 120, height - transport_h - margin - 14)
     minimap_w = min(320, max(250, width // 6))
     minimap_h = min(230, max(176, height // 5))
     minimap_rect = pygame.Rect(world_right - minimap_w, world_bottom - minimap_h, minimap_w, minimap_h)
     modal = pygame.Rect(max(28, width // 2 - min(1120, width - 80) // 2), max(24, height // 2 - min(700, height - 80) // 2), min(1120, width - 80), min(700, height - 80))
     return RunLayout(
-        top_ribbon=pygame.Rect(margin, margin, width - margin * 2, ribbon_h),
-        notes_rail=pygame.Rect(margin, world_top, notes_w, max(300, world_bottom - world_top)),
-        inspect_drawer=pygame.Rect(width - inspect_w - margin, world_top, inspect_w, max(300, world_bottom - world_top)),
+        top_ribbon=pygame.Rect(margin, margin, max(120, width - margin * 2), ribbon_h),
+        notes_rail=pygame.Rect(margin, world_top, notes_w, max(200, world_bottom - world_top)),
+        inspect_drawer=pygame.Rect(width - inspect_w - margin, world_top, inspect_w, max(200, world_bottom - world_top)),
         transport_bar=pygame.Rect(max(28, width // 2 - min(980, width - 120) // 2), height - transport_h - margin, min(980, width - 120), transport_h),
         minimap=minimap_rect,
-        world_view=pygame.Rect(world_left, world_top, max(240, world_right - world_left - margin), max(240, world_bottom - world_top)),
+        world_view=pygame.Rect(world_left, world_top, max(120, world_right - world_left - margin), max(120, world_bottom - world_top)),
         modal=modal,
         overlay_chip=pygame.Rect(margin + 16, margin + 50, 154, 24),
-        pawn_roster=pygame.Rect(world_left, margin, world_right - world_left - margin, 40),
-        bottom_spine=pygame.Rect(world_left, world_bottom + 10, world_right - world_left - margin, transport_h),
+        pawn_roster=pygame.Rect(world_left, margin, max(120, world_right - world_left - margin), 40),
+        bottom_spine=pygame.Rect(world_left, world_bottom + 10, max(120, world_right - world_left - margin), transport_h),
     )
 
 

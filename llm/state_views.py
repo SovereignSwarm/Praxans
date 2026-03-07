@@ -231,3 +231,52 @@ Previous civilization digest:
 
 Previous map digest:
 {current_map_digest}"""
+
+
+# ---------------------------------------------------------------------------
+# Muse view (Inner Monologue & Sentience)
+# ---------------------------------------------------------------------------
+
+def build_muse_view(
+    *,
+    id: int,
+    name: str,
+    role: str | None,
+    personality: dict[str, float],
+    traits: list[str],
+    needs: dict[str, float],
+    health: float,
+    happiness: float,
+    current_action: str,
+    favorite_biome: str,
+    recent_memories: str,
+    significant_memories: str,
+    nearby_buildings: str,
+    nearby_praxans: str,
+) -> str:
+    pers_str = ", ".join(f"{k}: {v:.2f}" for k, v in personality.items())
+    traits_str = ", ".join(traits) if traits else "None"
+    needs_str = ", ".join(f"{k}: {v:.0f}" for k, v in needs.items())
+
+    return f"""Identity: {name} (ID: {id})
+Role: {role or 'unassigned'}
+Personality: {pers_str}
+Traits: {traits_str}
+Favorite Biome: {favorite_biome}
+
+Current Status:
+- Health: {health:.0f}/100
+- Happiness: {happiness:.0f}/100
+- Needs: {needs_str}
+- Doing right now: {current_action}
+
+Immediate Environment:
+- Nearby Buildings: {nearby_buildings or 'None'}
+- Nearby Praxans: {nearby_praxans or 'None'}
+
+Top Significant Memories:
+{significant_memories}
+
+Recent Memories:
+{recent_memories}"""
+

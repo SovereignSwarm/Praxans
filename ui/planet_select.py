@@ -16,6 +16,7 @@ class PlanetSelectUI:
         self.selected_tile = None
         self.running = True
         self.result = {"action": "quit", "planet_tile": None}
+        self._land_button_rect = None  # Stores the "LAND HERE" button rect for click detection
 
     def _get_biome_color(self, biome: str) -> tuple[int, int, int]:
         colors = {
@@ -107,9 +108,12 @@ class PlanetSelectUI:
             if self.selected_tile and self.selected_tile.is_land:
                 y += 50
                 btn = pygame.Rect(40, y, 220, 40)
+                self._land_button_rect = btn
                 pygame.draw.rect(self.screen, self.theme.palette.ochre, btn, border_radius=4)
                 text = self.theme.fonts.label.render("LAND HERE (Enter)", True, (20, 20, 20))
                 self.screen.blit(text, (btn.centerx - text.get_width()//2, btn.centery - text.get_height()//2))
+            else:
+                self._land_button_rect = None
 
     def _handle_events(self, hovered_tile):
         for event in pygame.event.get():
@@ -129,10 +133,7 @@ class PlanetSelectUI:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     # Check if clicking the Land button
-                    if self.selected_tile and self.selected_tile.is_land:
-                        # naive hardcoded bounds check for demo
-                        mx, my = event.pos
-                        if 40 <= mx <= 260 and 300 <= my <= 400: # rough
+                    if self._land_button_rect and self._land_button_rect.collidepoint(event.pos):
                             self.result = {"action": "start", "planet_tile": self.selected_tile}
                             self.running = False
                             return

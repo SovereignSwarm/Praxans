@@ -26,7 +26,7 @@ from llm.memory import LLMMemory
 from llm.state_views import build_council_view, build_faction_view, build_historian_view, build_memory_view
 from llm.prompts import build_council_prompt, build_faction_prompt, build_historian_prompt, build_memory_prompt
 from llm.interpreters import apply_council_payload, apply_faction_intent, apply_historian, apply_memory_summary
-from llm import CHANNEL_COUNCIL, CHANNEL_FACTION, CHANNEL_HISTORIAN, CHANNEL_MEMORY
+from llm import CHANNEL_COUNCIL, CHANNEL_FACTION, CHANNEL_HISTORIAN, CHANNEL_MEMORY, CHANNEL_MUSE
 from game_scenarios import DEFAULT_SCENARIO_ID, get_scenario_profile
 from graphics import GraphicsConfig, SceneRenderer, build_render_frame
 from graphics.content import SNAP_ZOOM_LEVELS
@@ -2104,13 +2104,13 @@ class BehaviorTree:
                         if job_def.get('station') != b.building_type:
                             continue
                             
-                        # Are ingredients available globally or in building?
-                        # For simplicity, we assume ingredients are magical global for now similar to existing code
+                        # Check ingredients in the building's stored_resources
                         can_craft = True
                         for ing in job_def.get('ingredients', []):
-                            # In Thonglets, global inventory is managed loosely. Let's assume they have it if not explicitly preventing
-                            # Actually, we can check a global inventory if it exists in ctx, or just pass for now
-                            pass
+                            available = b.stored_resources.get(ing['type'], 0)
+                            if available < ing['amount']:
+                                can_craft = False
+                                break
                         
                         if can_craft:
                             dist = math.sqrt((t.x - b.x)**2 + (t.y - b.y)**2)
@@ -3410,13 +3410,13 @@ class Building:
             current_time = time.time()
             mod = modifiers.get_modifier('farm_production_rate') if modifiers else 1.0
             mod *= 1.0 + (self.level - 1) * 0.18
-            
+
             # Apply weather drought effect (reduces production rate)
             if weather_effects and 'food' in weather_effects:
                 # drought effect is -0.5, so multiply production time by (1 + abs(effect))
                 # -0.5 makes production 1.5x slower
                 mod *= (1.0 + abs(weather_effects['food']))
-            
+
             production_time = 10.0 / mod
             if current_time - self.last_production_time >= production_time:
                 # Calculate how many cycles passed
@@ -3430,7 +3430,32 @@ class Building:
                     else:
                         self.stored_resources['wood'] = 0.0
                     self.last_production_time = current_time
+
+        # Auto-populate bills when resources are available and queue is empty
+        self._auto_populate_bills()
     
+    def _auto_populate_bills(self):
+        """Automatically queue crafting bills when the building has enough
+        stored resources and its bill queue is empty.  This keeps workshops
+        and farms productive without manual player intervention (observer-only
+        game).  At most one bill is queued per rare-tick to avoid draining
+        resources instantly."""
+        if self.bills:
+            return  # already has pending work
+
+        for job_id, job_def in JOB_DEFS.items():
+            if job_def.get('station') != self.building_type:
+                continue
+            # Check if building has enough ingredients
+            can_do = True
+            for ing in job_def.get('ingredients', []):
+                if self.stored_resources.get(ing['type'], 0) < ing['amount']:
+                    can_do = False
+                    break
+            if can_do:
+                self.bills.append(job_id)
+                return  # one bill per tick
+
     def can_enter(self, praxan, modifiers=None):
         """Check if praxan can use this building"""
         if self.building_type == 'house':
@@ -4073,6 +4098,16 @@ def restore_session_from_snapshot(
             if valid_traits:
                 praxan.traits = valid_traits
 
+        # Restore equipment (dicts with def data + quality, or None)
+        saved_equipment = praxan_data.get("equipment", {})
+        if isinstance(saved_equipment, dict):
+            for slot in ('armor', 'weapon'):
+                val = saved_equipment.get(slot)
+                if isinstance(val, dict):
+                    praxan.equipment[slot] = val
+                else:
+                    praxan.equipment[slot] = None
+
         praxan.faction_id = _parse_optional_int(praxan_data.get("faction_id"))
         praxan.known_resources = []
         for resource_entry in praxan_data.get("known_resources", []):
@@ -4129,6 +4164,11 @@ def restore_session_from_snapshot(
         stored_resources = building_data.get("stored_resources", {})
         for resource_name in building.stored_resources:
             building.stored_resources[resource_name] = max(0.0, float(stored_resources.get(resource_name, 0.0)))
+
+        # Restore pending crafting bills
+        saved_bills = building_data.get("bills", [])
+        if isinstance(saved_bills, list):
+            building.bills = [b for b in saved_bills if isinstance(b, str) and b in JOB_DEFS]
 
         restored_buildings.append(building)
         building_occupancy_refs.append((building, building_data.get("occupant_ids", [])))
@@ -4619,7 +4659,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     # #endregion
     
     # Initialize display window first
-    from ui.panels import InfoPanel, EvolutionStatsPanel, ObserverAnalyticsPanel, ArchiveReviewPanel
+
     from systems.spatial import FogOfWar, TerritoryManager, CityPlanner
     from systems.society import Faction, FactionManager, TradeSystem
     from systems.diplomacy import DiplomacyManager
@@ -5026,11 +5066,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Initialize selection manager
     selection_manager = SelectionManager()
     
-    # Initialize info panel
-    info_panel = InfoPanel()
-    evolution_stats_panel = EvolutionStatsPanel()
-    observer_analytics_panel = ObserverAnalyticsPanel()
-    archive_review_panel = ArchiveReviewPanel()
+
     
     # Initialize read-only observer HUD
     observer_overlay = ObserverOverlay()
@@ -5475,7 +5511,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     elif event.key == pygame.K_SLASH:
                         search_overlay.toggle()
                     elif search_overlay.active:
-                        search_overlay.handle_key(event, game_state if 'game_state' in dir() else {}, camera)
+                        search_overlay.handle_key(event, game_state if 'game_state' in dir() else {}, camera, window_size=(WINDOW_WIDTH, WINDOW_HEIGHT))
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     run_layout = compute_run_layout(WINDOW_WIDTH, WINDOW_HEIGHT)
                     ui_hit = ui_registry.hit_test(event.pos)
@@ -5782,8 +5818,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             record_population_evolution_sample(advisor, praxans, current_time, game_start_time, force=False)
             
             # Record history samples for the History Graph (Pillar 4)
-            storyteller_ref = getattr(advisor, 'storyteller', None)
-            history_tracker.update(current_time, praxans, buildings, storyteller_ref)
+            history_tracker.update(current_time, praxans, buildings, storyteller)
             
             # Award research points (time-based and milestones)
             days_survived = int((current_time - game_start_time) / DAY_LENGTH)
@@ -6895,6 +6930,13 @@ def main(runtime_config=RUNTIME_CONFIG):
 
             # Draw tooltip (pass faction_manager for enhanced info)
             tooltip_system.draw_tooltip(screen, mouse_screen_pos[0], mouse_screen_pos[1], faction_manager)
+
+            # Draw search overlay (toggled via /)
+            search_overlay.draw(screen, ui_theme.fonts.label, camera, theme=ui_theme)
+            search_overlay.draw_world_highlights(screen, camera)
+
+            # Draw colony history graph overlay (toggled via H)
+            history_renderer.draw(screen, history_tracker, ui_theme.fonts.caption, theme=ui_theme)
             
             # Quick on-screen debug watermark for the first 3 seconds after start
             if current_time - game_start_time < 3.0:

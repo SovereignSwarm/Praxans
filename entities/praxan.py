@@ -7,8 +7,17 @@ import random
 from collections import deque
 from praxans_game import *
 from graphics.palette import *
-from game_content import JOB_DEFS, QUALITY_LEVELS, QUALITY_MULTIPLIERS
+from game_content import JOB_DEFS, QUALITY_LEVELS, QUALITY_MULTIPLIERS, ARMOR_DEFS, WEAPON_DEFS, MOOD_DEFS
 from systems.praxan_memory import EpisodicMemory
+
+def _building_has_ingredients(building, job_def):
+    """Check if a building's stored_resources can cover a job's ingredients."""
+    for ing in job_def.get('ingredients', []):
+        available = building.stored_resources.get(ing['type'], 0)
+        if available < ing['amount']:
+            return False
+    return True
+
 
 class Praxan:
     """A cute AI-powered creature"""
@@ -404,25 +413,39 @@ class Praxan:
         return None
 
     def craft_item(self, buildings):
-        """Logic for crafting items at a workbench/farm."""
+        """Logic for crafting items at a workbench/farm.
+
+        Consumes ingredients from the target building's stored_resources,
+        produces output (meals → inventory, equipment → equipment slot with
+        full def data + quality multiplier), awards XP, and records memory
+        events for masterwork+ quality items.
+        """
         if not hasattr(self, 'current_bill') or not getattr(self, 'target_building', None):
             self.transition_to_state(STATE_IDLE)
             return None
-            
+
         bill_id = self.current_bill
         job_def = JOB_DEFS.get(bill_id)
         if not job_def:
             self.transition_to_state(STATE_IDLE)
             return None
-            
+
         b = self.target_building
         if b not in buildings:
             self.transition_to_state(STATE_IDLE)
             return None
-            
+
+        # Verify ingredients are still available in building before starting/continuing
+        if not hasattr(self, 'crafting_start_time'):
+            if not _building_has_ingredients(b, job_def):
+                # Resources were consumed by someone else; abort
+                self.current_bill = None
+                self.target_building = None
+                self.transition_to_state(STATE_IDLE)
+                return None
+
         dist = math.sqrt((self.x - b.x)**2 + (self.y - b.y)**2)
         if dist > 40:
-            # Move towards station
             dx = b.x - self.x
             dy = b.y - self.y
             length = math.sqrt(dx**2 + dy**2)
@@ -431,28 +454,31 @@ class Praxan:
                 self.vy = (dy/length) * PRAXAN_SPEED
                 self.current_action = f"Crafting: Going to {b.building_type}"
             return None
-            
-        # At station. Start/continue crafting
+
+        # At station — start or continue crafting
         self.vx, self.vy = 0, 0
         if not hasattr(self, 'crafting_start_time'):
+            # Deduct ingredients from building at craft *start* (reservation)
+            for ing in job_def.get('ingredients', []):
+                res = ing['type']
+                b.stored_resources[res] = max(0, b.stored_resources.get(res, 0) - ing['amount'])
             self.crafting_start_time = time.time()
             self.current_action = f"Crafting {bill_id}..."
-            
+
         elapsed = time.time() - self.crafting_start_time
-        required_time = job_def.get('base_work', 400) / 100.0  # e.g. 4 seconds
-        
-        # Skill bonus speeds up crafting 
+        required_time = job_def.get('base_work', 400) / 100.0
+
+        # Skill bonus speeds up crafting
         skill_type = job_def.get('skill_factor', 'crafting')
         skill_data = self.skills.get(skill_type, {})
         level = skill_data.get('level', 1) if isinstance(skill_data, dict) else 1
         time_divisor = 1.0 + (level - 1) * 0.15
-        
+
         if elapsed >= (required_time / time_divisor):
-            # Finish crafting
+            # --- Finish crafting ---
             output_item = job_def['output']
-            
-            # Roll quality
-            # Base logic: higher skill = higher chance of good quality
+
+            # Quality roll (higher skill → better quality)
             roll = random.uniform(0, 10) + (level * 1.5)
             if roll < 4: qual = 'Awful'
             elif roll < 8: qual = 'Poor'
@@ -461,31 +487,50 @@ class Praxan:
             elif roll < 19: qual = 'Excellent'
             elif roll < 22: qual = 'Masterwork'
             else: qual = 'Legendary'
-            
-            # Add to building storage or praxan inventory
+
+            qual_mult = QUALITY_MULTIPLIERS.get(qual, 1.0)
+
             if output_item == 'meal':
-                self.inventory['food'] = self.inventory.get('food', 0) + 10
-                self.build_message = f"Cooked {qual} Meal"
+                # Cooked meals give more food and a mood bonus
+                meal_amount = int(5 * qual_mult)
+                self.inventory['food'] = self.inventory.get('food', 0) + meal_amount
+                self.build_message = f"Cooked {qual} Meal (+{meal_amount})"
+                # Track that this praxan has cooked food available
+                self._has_cooked_food = True
             else:
+                # Equipment: look up the base def and attach quality
                 equipment_type = 'weapon' if 'Weapon' in bill_id else 'armor'
-                self.equipment[equipment_type] = f"{qual} {output_item}"
+                defs_source = WEAPON_DEFS if equipment_type == 'weapon' else ARMOR_DEFS
+                base_def = defs_source.get(output_item)
+                if base_def:
+                    equip_data = dict(base_def)
+                    equip_data['quality'] = qual
+                    equip_data['quality_mult'] = qual_mult
+                    # Scale key stats by quality
+                    if equipment_type == 'armor':
+                        equip_data['armor_rating'] = equip_data.get('armor_rating', 0) * qual_mult
+                    else:
+                        equip_data['damage'] = equip_data.get('damage', 5) * qual_mult
+                    self.equipment[equipment_type] = equip_data
+                else:
+                    # Fallback: store as descriptive dict
+                    self.equipment[equipment_type] = {
+                        'id': output_item, 'name': output_item.replace('_', ' ').title(),
+                        'quality': qual, 'quality_mult': qual_mult,
+                    }
                 self.build_message = f"Made {qual} {output_item}"
 
-            # Record masterwork+ crafting as a significant memory
+            # Memory event for masterwork+ quality
             if qual in ('Masterwork', 'Legendary'):
                 self.episodic_memory.record(
                     "masterwork",
                     f"{self.name} created a {qual} {output_item}",
                 )
-                
+
             self.build_message_time = time.time()
             self.gain_skill_xp(skill_type, 35)
-            
-            # Consume ingredients (global pool for now or from inventory)
-            for ing in job_def.get('ingredients', []):
-                self.inventory[ing['type']] = max(0, self.inventory.get(ing['type'], 0) - ing['amount'])
-                
-            # Remove bill from building if 'Do X times' implemented, but let's just pop it
+
+            # Pop the completed bill
             if b.bills and b.bills[0] == bill_id:
                 b.bills.pop(0)
 
@@ -497,7 +542,7 @@ class Praxan:
         else:
             pct = int((elapsed / (required_time / time_divisor)) * 100)
             self.current_action = f"Crafting {bill_id} ({pct}%)"
-            
+
         return None
 
     def build_structure(self, buildings, resources, other_praxans, city_planner, territory_manager, hazards):
@@ -1323,6 +1368,47 @@ class Praxan:
                 if VERBOSE_LOGGING:
                     print(f"[Praxan {self.id}] Behavior tree error: {e}")
         
+        # Process Muse personal goals if available
+        if getattr(self, 'personal_goal', None):
+            goal = self.personal_goal
+            self.personal_goal = None
+            
+            gtype = goal.get('type')
+            gtarget = goal.get('target', '').lower()
+            
+            if gtype == 'rest':
+                self.state = STATE_RESTING
+                self.current_action = "resting (muse idea)"
+                return None
+            elif gtype in ('wander_to', 'socialize_with', 'explore_unknown'):
+                tx, ty = None, None
+                if buildings:
+                    for b in buildings:
+                        if getattr(b, 'building_type', '') in gtarget:
+                            tx, ty = b.x, b.y
+                            break
+                if tx is None and other_praxans:
+                    for p in other_praxans:
+                        if getattr(p, 'name', '').lower() in gtarget or str(p.id) in gtarget:
+                            tx, ty = p.x, p.y
+                            break
+                if tx is not None:
+                    tx += random.randint(-40, 40)
+                    ty += random.randint(-40, 40)
+                    path = self.calculate_path(tx, ty, buildings if buildings else [], None, None, other_praxans)
+                    if len(path) > 1:
+                        self.path = path
+                        self.current_waypoint_index = 1
+                        waypoint = path[1]
+                        dx = waypoint[0] - self.x
+                        dy = waypoint[1] - self.y
+                        distance = max(0.1, math.sqrt(dx*dx + dy*dy))
+                        speed = 40 * self.life_stage_modifiers.get('speed', 1.0)
+                        self.vx = (dx / distance) * speed
+                        self.vy = (dy / distance) * speed
+                        self.current_action = f"muse: {gtarget}"
+                        return None
+        
         # Check if we're gathering resources for a building directive and need to continue
         if self.building_resource_goal and self.state == STATE_EXECUTE_DIRECTIVE:
             # Check if we have enough resources now (including pooled)
@@ -1418,12 +1504,26 @@ class Praxan:
         
         # Priority 0: Auto-eat if hungry and carrying food
         if self.needs['hunger'] < 70 and self.inventory['food'] > 0:
-            # Consume food to restore hunger
             self.inventory['food'] -= 1
-            self.needs['hunger'] = min(100, self.needs['hunger'] + 30)
-            self.current_action = "eating"
+            # Cooked food restores more and gives a mood boost
+            has_cooked = getattr(self, '_has_cooked_food', False)
+            if has_cooked:
+                self.needs['hunger'] = min(100, self.needs['hunger'] + 40)
+                mood_def = MOOD_DEFS.get('AteFineFood')
+                if mood_def:
+                    self.add_moodlet("Ate fine food", mood_def.get('mood_offset', 5),
+                                    mood_def.get('duration', 86400), time.time())
+                self._has_cooked_food = False
+                self.current_action = "eating cooked meal"
+            else:
+                self.needs['hunger'] = min(100, self.needs['hunger'] + 25)
+                mood_def = MOOD_DEFS.get('AteRawFood')
+                if mood_def:
+                    self.add_moodlet("Ate raw food", mood_def.get('mood_offset', -7),
+                                    mood_def.get('duration', 86400), time.time())
+                self.current_action = "eating"
             if VERBOSE_LOGGING:
-                print(f"[Praxan] Auto-ate food, hunger now: {self.needs['hunger']:.1f}")
+                print(f"[Praxan] Auto-ate food ({'cooked' if has_cooked else 'raw'}), hunger now: {self.needs['hunger']:.1f}")
         
         # State Machine Decision Logic - Priority Order: Needs > Directives > Traits > Wander
         # Check for critical needs first

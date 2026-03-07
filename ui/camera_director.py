@@ -18,6 +18,8 @@ class CameraCue:
     x: float
     y: float
     until: float
+    start_x: float | None = None
+    start_y: float | None = None
 
 
 class CameraDirector:
@@ -75,8 +77,23 @@ class CameraDirector:
         if manual_override:
             return self.current_cue.label
             
-        # Set targets for the camera to glide to
-        camera.target_x = float(self.current_cue.x) - (float(window_size[0]) / (2.0 * max(0.01, float(camera.target_zoom))))
-        camera.target_y = float(self.current_cue.y) - (float(window_size[1]) / (2.0 * max(0.01, float(camera.target_zoom))))
+        # Initialize start position if this is the first frame of the cue
+        if self.current_cue.start_x is None:
+            self.current_cue.start_x = camera.target_x
+            self.current_cue.start_y = camera.target_y
+            
+        # Calculate destination (centered)
+        dest_x = float(self.current_cue.x) - (float(window_size[0]) / (2.0 * max(0.01, float(camera.target_zoom))))
+        dest_y = float(self.current_cue.y) - (float(window_size[1]) / (2.0 * max(0.01, float(camera.target_zoom))))
+        
+        # Calculate ease-out curve
+        time_elapsed = self.focus_seconds - (self.current_cue.until - current_time)
+        t = max(0.0, min(1.0, time_elapsed / (self.focus_seconds * 0.4))) # complete pan in first 40% of focus time
+        ease = 1.0 - (1.0 - t) ** 3 # cubic ease out
+        
+        # Apply easing
+        camera.target_x = self.current_cue.start_x + (dest_x - self.current_cue.start_x) * ease
+        camera.target_y = self.current_cue.start_y + (dest_y - self.current_cue.start_y) * ease
+        
         camera.clamp_camera(window_size[0], window_size[1])
         return self.current_cue.label

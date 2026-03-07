@@ -13,13 +13,6 @@ import math
 class SearchOverlay:
     """Search and highlight entities across the game world."""
 
-    COLOR_BG = (20, 20, 30, 220)
-    COLOR_INPUT_BG = (40, 40, 55)
-    COLOR_INPUT_BORDER = (100, 140, 255)
-    COLOR_TEXT = (220, 220, 240)
-    COLOR_HIGHLIGHT = (255, 200, 60)
-    COLOR_RESULT = (180, 220, 255)
-
     def __init__(self):
         self.active = False
         self.query = ""
@@ -33,7 +26,7 @@ class SearchOverlay:
             self.results.clear()
             self.selected_index = 0
 
-    def handle_key(self, event: pygame.event.Event, game_state: dict, camera=None):
+    def handle_key(self, event: pygame.event.Event, game_state: dict, camera=None, window_size: tuple[int, int] = (1920, 1080)):
         """Handle keyboard input while search is active."""
         if not self.active:
             return
@@ -46,8 +39,10 @@ class SearchOverlay:
             # Jump to selected result
             if self.results and camera:
                 r = self.results[self.selected_index % len(self.results)]
-                camera.target_x = r["x"] - 960 / max(0.1, camera.target_zoom)
-                camera.target_y = r["y"] - 540 / max(0.1, camera.target_zoom)
+                half_w = window_size[0] / 2.0
+                half_h = window_size[1] / 2.0
+                camera.target_x = r["x"] - half_w / max(0.1, camera.target_zoom)
+                camera.target_y = r["y"] - half_h / max(0.1, camera.target_zoom)
             return
 
         if event.key == pygame.K_DOWN:
@@ -113,10 +108,18 @@ class SearchOverlay:
         # Cap results
         self.results = self.results[:50]
 
-    def draw(self, surface: pygame.Surface, font: pygame.font.Font, camera=None):
+    def draw(self, surface: pygame.Surface, font: pygame.font.Font, camera=None, theme=None):
         """Draw the search overlay."""
         if not self.active:
             return
+
+        # Use theme palette when available, fall back to sensible defaults
+        color_bg = (theme.palette.overlay[0], theme.palette.overlay[1], theme.palette.overlay[2], 220) if theme else (20, 20, 30, 220)
+        color_input_bg = theme.palette.panel_fill if theme else (40, 40, 55)
+        color_input_border = theme.palette.frost if theme else (100, 140, 255)
+        color_text = theme.palette.bright_text if theme else (220, 220, 240)
+        color_highlight = theme.palette.ochre if theme else (255, 200, 60)
+        color_result = theme.palette.frost if theme else (180, 220, 255)
 
         sw, sh = surface.get_size()
 
@@ -128,22 +131,22 @@ class SearchOverlay:
 
         # Background
         bg = pygame.Surface((bar_w + 20, bar_h + 10 + len(self.results[:8]) * 24 + 10), pygame.SRCALPHA)
-        bg.fill(self.COLOR_BG)
+        bg.fill(color_bg)
         surface.blit(bg, (bar_x - 10, bar_y - 5))
 
         # Input field
-        pygame.draw.rect(surface, self.COLOR_INPUT_BG, (bar_x, bar_y, bar_w, bar_h))
-        pygame.draw.rect(surface, self.COLOR_INPUT_BORDER, (bar_x, bar_y, bar_w, bar_h), 2)
+        pygame.draw.rect(surface, color_input_bg, (bar_x, bar_y, bar_w, bar_h))
+        pygame.draw.rect(surface, color_input_border, (bar_x, bar_y, bar_w, bar_h), 2)
 
         # Search icon + text
         prompt = f"🔍 {self.query}_" if self.query else "🔍 Search praxans, buildings, resources..."
-        text_surf = font.render(prompt, True, self.COLOR_TEXT)
+        text_surf = font.render(prompt, True, color_text)
         surface.blit(text_surf, (bar_x + 8, bar_y + 8))
 
         # Results dropdown
         result_y = bar_y + bar_h + 6
         for i, r in enumerate(self.results[:8]):
-            color = self.COLOR_HIGHLIGHT if i == self.selected_index else self.COLOR_RESULT
+            color = color_highlight if i == self.selected_index else color_result
             prefix = "►" if i == self.selected_index else " "
             line = f"{prefix} [{r['type'][:3].upper()}] {r['label']} ({int(r['x'])}, {int(r['y'])})"
             text = font.render(line, True, color)

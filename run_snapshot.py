@@ -466,6 +466,7 @@ def build_run_snapshot(
                     else 0.0,
                     3,
                 ),
+                "equipment": getattr(praxan, "equipment", {'armor': None, 'weapon': None}),
             }
             for praxan in praxans
         ],
@@ -483,6 +484,7 @@ def build_run_snapshot(
                     for occupant in getattr(building, "occupants", [])
                     if hasattr(occupant, "id")
                 ],
+                "bills": list(getattr(building, "bills", [])),
             }
             for building in buildings
         ],

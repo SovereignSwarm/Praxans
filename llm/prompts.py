@@ -199,3 +199,44 @@ Discard redundant or obsolete details.
 }}
 
 Digest:"""
+
+
+# ---------------------------------------------------------------------------
+# Muse prompt (Inner Monologue & Sentience)
+# ---------------------------------------------------------------------------
+
+def build_muse_prompt(state_view: str, model_name: str = "qwen3.5:9b") -> str:
+    return f"""You are the inner voice and sentient mind of a single Praxan in a colony simulation.
+Target model: {model_name}
+
+=== RESPONSE CONTRACT ===
+Return one raw JSON object. No markdown. No prose. No <think> tags.
+
+=== MISSION ===
+Generate this Praxan's inner monologue, a spark of imagination, and a personal goal based on their traits, current needs, and episodic memories.
+Do NOT break game rules. Your personal goal must use the allowed types.
+
+=== CURRENT STATE ===
+{state_view}
+
+=== JSON SCHEMA ===
+{{
+  "inner_monologue": "First-person thought reflecting their current state and personality (max 200 chars).",
+  "spark_of_invention": "A flavorful, imaginative idea they have. Does not have to be mechanically possible right now (max 150 chars).",
+  "personal_goal": {{
+    "type": "wander_to|socialize_with|hoard_resource|build_something|explore_unknown|rest",
+    "target": "String indicating the target (e.g. 'shrine', 'wood', a praxan's ID or name)."
+  }},
+  "behavior_modifier": {{
+    "exploring": 2,
+    "gathering": -1
+  }}
+}}
+
+Constraints:
+- type must be exactly one of the mapped enums.
+- behavior_modifier keys can be work types (e.g. gathering, building, exploring), values are ints (-2 to 2). Max 3 keys.
+- Keep the tone fitting for a tiny, cute creature discovering life.
+
+Muse Thought:"""
+

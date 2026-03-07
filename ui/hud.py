@@ -284,6 +284,7 @@ def _region_overlay_lookup(world_map) -> dict[str, dict]:
 
 def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_state, context: dict) -> None:
     rect = layout.minimap
+def _draw_minimap_background(surface: pygame.Surface, theme: UITheme, rect: pygame.Rect, registry, ui_state) -> None:
     draw_panel(surface, rect, theme, fill=(17, 21, 23), alpha=238, radius=theme.radius_large)
     registry.register("minimap_jump", rect, action="minimap_jump", layer=6)
     title = theme.fonts.label.render(f"Observer Map  |  {ui_state.map_overlay.title()}", True, theme.palette.parchment)
@@ -292,16 +293,8 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
     registry.register("cycle_overlay_legend", legend_rect, action="cycle_overlay", layer=7)
     surface.blit(theme.fonts.caption.render("Click map to jump  |  Click legend to cycle overlay", True, theme.palette.muted_text), legend_rect.topleft)
 
-    map_x = rect.x + 10
-    map_y = rect.y + 34
-    map_w = rect.w - 20
-    map_h = rect.h - 66
+def _draw_minimap_chunks(surface: pygame.Surface, theme: UITheme, context: dict, map_x: int, map_y: int, scale_x: float, scale_y: float) -> None:
     world_map = context.get("world_map")
-    camera = context.get("camera")
-    if world_map is None or camera is None or camera.world_width <= 0 or camera.world_height <= 0:
-        return
-    scale_x = map_w / camera.world_width
-    scale_y = map_h / camera.world_height
     biome_colors = context.get("biome_colors", {})
     for chunk in getattr(world_map, "chunks", {}).values():
         mini_x = int(map_x + getattr(chunk, "world_x", 0.0) * scale_x)
@@ -311,8 +304,12 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
         center_tile = getattr(chunk, "tiles", {}).get((8, 8), "plains")
         pygame.draw.rect(surface, biome_colors.get(center_tile, theme.palette.slate_soft), (mini_x, mini_y, mini_w, mini_h))
 
+def _draw_minimap_overlay(surface: pygame.Surface, theme: UITheme, context: dict, ui_state, map_x: int, map_y: int, scale_x: float, scale_y: float) -> None:
     overlay = ui_state.map_overlay
+    world_map = context.get("world_map")
+    biome_colors = context.get("biome_colors", {})
     region_lookup = _region_overlay_lookup(world_map)
+
     if overlay == "biome":
         for region in region_lookup.values():
             rect_data = region.get("world_rect")
@@ -423,6 +420,8 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
             by = int(map_y + float(bookmark.get("y", 0.0)) * scale_y)
             pygame.draw.circle(surface, theme.palette.frost, (bx, by), 4, 1)
 
+def _draw_minimap_entities(surface: pygame.Surface, theme: UITheme, context: dict, map_x: int, map_y: int, scale_x: float, scale_y: float) -> None:
+    camera = context.get("camera")
     for praxan in context.get("praxans", []):
         mini_x = int(map_x + praxan.x * scale_x)
         mini_y = int(map_y + praxan.y * scale_y)
@@ -438,6 +437,27 @@ def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_
         max(2, int(context.get("window_size", (1, 1))[1] * scale_y / max(0.01, camera.zoom))),
     )
     pygame.draw.rect(surface, theme.palette.parchment, viewport, 2)
+
+def _draw_minimap(surface: pygame.Surface, theme: UITheme, layout, registry, ui_state, context: dict) -> None:
+    rect = layout.minimap
+    _draw_minimap_background(surface, theme, rect, registry, ui_state)
+
+    map_x = rect.x + 10
+    map_y = rect.y + 34
+    map_w = rect.w - 20
+    map_h = rect.h - 66
+    world_map = context.get("world_map")
+    camera = context.get("camera")
+    if world_map is None or camera is None or camera.world_width <= 0 or camera.world_height <= 0:
+        return
+        
+    scale_x = map_w / camera.world_width
+    scale_y = map_h / camera.world_height
+
+    _draw_minimap_chunks(surface, theme, context, map_x, map_y, scale_x, scale_y)
+    _draw_minimap_overlay(surface, theme, context, ui_state, map_x, map_y, scale_x, scale_y)
+    _draw_minimap_entities(surface, theme, context, map_x, map_y, scale_x, scale_y)
+
 
 
 def _build_alerts(praxans, buildings, advisor) -> list[dict]:
@@ -497,6 +517,24 @@ def _draw_alert_stack(surface: pygame.Surface, theme: UITheme, layout, alerts: l
         y += 32
 
 
+def _draw_hotkeys(surface: pygame.Surface, theme: UITheme) -> None:
+    hotkeys = [
+        ("Space", "Pause/Play"),
+        ("/", "Search"),
+        ("H", "History Graph"),
+        ("LClick", "Select"),
+        ("RClick", "Context Menu"),
+    ]
+    x = 20
+    y = surface.get_height() - 30
+    for key, action in hotkeys:
+        key_surf = theme.fonts.caption.render(f"[{key}]", True, theme.palette.copper)
+        act_surf = theme.fonts.caption.render(action, True, theme.palette.muted_text)
+        surface.blit(key_surf, (x, y))
+        surface.blit(act_surf, (x + key_surf.get_width() + 4, y))
+        x += key_surf.get_width() + act_surf.get_width() + 16
+
+
 def draw_run_hud(
     surface: pygame.Surface,
     theme: UITheme,
@@ -513,6 +551,7 @@ def draw_run_hud(
     _draw_notes(surface, theme, layout, registry, field_notes)
     _draw_transport_bar(surface, theme, layout, registry, ui_state, current_speed_index)
     _draw_minimap(surface, theme, layout, registry, ui_state, minimap_context)
+    _draw_hotkeys(surface, theme)
 
     # New Layers
     praxans = minimap_context.get("praxans", [])

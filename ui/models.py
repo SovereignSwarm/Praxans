@@ -75,32 +75,48 @@ class ArchiveCard:
     payload: dict[str, Any]
 
 
+_field_notes_cache_events: list[dict[str, Any]] = []
+_field_notes_cache_len: int = -1
+
 def build_field_notes(timeline: list[dict[str, Any]], current_time: float, limit: int = 5) -> list[FieldNote]:
-    seen_keys: set[tuple[str, str]] = set()
+    global _field_notes_cache_events, _field_notes_cache_len
+    t_len = len(timeline) if timeline else 0
+    
+    if t_len != _field_notes_cache_len:
+        _field_notes_cache_len = t_len
+        seen_keys: set[tuple[str, str]] = set()
+        events_to_cache = []
+        for event in reversed(list(timeline or [])):
+            category = str(event.get("category", "sim"))
+            summary = str(event.get("summary", "Event")).strip()
+            if not summary:
+                continue
+            dedupe_key = (category, summary)
+            if dedupe_key in seen_keys:
+                continue
+            seen_keys.add(dedupe_key)
+            events_to_cache.append(event)
+            if len(events_to_cache) >= limit:
+                break
+        _field_notes_cache_events = list(reversed(events_to_cache))
+
     notes: list[FieldNote] = []
-    for event in reversed(list(timeline or [])):
+    for event in _field_notes_cache_events:
         category = str(event.get("category", "sim"))
         summary = str(event.get("summary", "Event")).strip()
-        if not summary:
-            continue
-        dedupe_key = (category, summary)
-        if dedupe_key in seen_keys:
-            continue
-        seen_keys.add(dedupe_key)
+        time_val = float(event.get("time", current_time) or current_time)
         notes.append(
             FieldNote(
                 category=category,
                 title=category.replace("_", " ").title(),
                 body=summary,
-                age_seconds=max(0.0, current_time - float(event.get("time", current_time) or current_time)),
+                age_seconds=max(0.0, current_time - time_val),
                 pinned=category in {"crisis", "extinction", "faction", "birth", "migration",
                                      "trade", "diplomacy", "disaster", "cultural_shift",
                                      "doctrine_change", "schism", "building", "milestone", "death"},
             )
         )
-        if len(notes) >= limit:
-            break
-    return list(reversed(notes))
+    return notes
 
 
 def build_archive_card(archive: dict[str, Any]) -> ArchiveCard:
