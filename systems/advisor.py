@@ -113,6 +113,7 @@ class CivilizationAdvisor:
             CHANNEL_FACTION: 0.0,
             CHANNEL_HISTORIAN: 0.0,
             CHANNEL_MEMORY: 0.0,
+            CHANNEL_MUSE: 0.0,
         }
     
     def _generate_state_summary(self, praxans, resources, buildings, territory_manager, world_map):
@@ -1018,6 +1019,38 @@ Directives:"""
             if sched.submit(CHANNEL_MEMORY, prompt, priority=2, stale_key=f"mem_{int(current_time)}"):
                 self._channel_last_fire[CHANNEL_MEMORY] = current_time
 
+        # --- Muse channel ---
+        MUSE_INTERVAL = 120.0
+        if praxans and current_time - self._channel_last_fire[CHANNEL_MUSE] >= MUSE_INTERVAL:
+            from llm.prompts import build_muse_prompt
+            from llm.state_views import build_muse_view
+            candidates = [p for p in praxans if (getattr(p, 'inspiration', 0) > 60 or p.personality.get('curiosity', 0) > 0.7) and getattr(p, 'alive', True)]
+            if candidates:
+                chosen = random.choice(candidates)
+                recent_mem_text = chosen.episodic_memory.recent_text(5) if hasattr(chosen, 'episodic_memory') and chosen.episodic_memory else ""
+                sig_mem_text = chosen.episodic_memory.most_significant_text(3) if hasattr(chosen, 'episodic_memory') and chosen.episodic_memory else ""
+                
+                view = build_muse_view(
+                    id=chosen.id,
+                    name=getattr(chosen, 'name', f'#{chosen.id}'),
+                    role=chosen.role,
+                    personality=chosen.personality,
+                    traits=getattr(chosen, 'traits', []),
+                    needs=chosen.needs,
+                    health=chosen.health,
+                    happiness=chosen.happiness,
+                    current_action=chosen.current_action,
+                    favorite_biome=chosen.favorite_biome,
+                    recent_memories=recent_mem_text,
+                    significant_memories=sig_mem_text,
+                    nearby_buildings="",
+                    nearby_praxans=""
+                )
+                prompt = build_muse_prompt(view, PREFERRED_OLLAMA_MODEL)
+                if sched.submit(CHANNEL_MUSE, prompt, priority=3, stale_key=f"muse_{chosen.id}"):
+                    self._channel_last_fire[CHANNEL_MUSE] = current_time
+                    self._last_muse_praxan_id = chosen.id
+
     def poll_llm_channels(self, praxans, resources, buildings, narrative_panel=None, faction_manager=None):
         """Process completed multi-channel LLM jobs."""
         if not self.llm_scheduler:
@@ -1091,6 +1124,36 @@ Directives:"""
                 payload = parse_memory_summary_payload(job.response_text)
                 if payload is not None:
                     apply_memory_summary(payload, self.llm_memory)
+
+            elif job.channel == CHANNEL_MUSE:
+                from llm.contracts import parse_muse_payload
+                payload = parse_muse_payload(job.response_text)
+                if payload is not None:
+                    # Extract target Praxan ID from the job's stale_key ("muse_<id>"),
+                    # which is set immutably at submit time.  Using _last_muse_praxan_id
+                    # would apply the result to the WRONG Praxan if a new muse job was
+                    # submitted while this one was still executing (120s interval race).
+                    pid = None
+                    if job.stale_key.startswith("muse_"):
+                        try:
+                            pid = int(job.stale_key[len("muse_"):])
+                        except ValueError:
+                            pid = getattr(self, '_last_muse_praxan_id', None)
+                    else:
+                        pid = getattr(self, '_last_muse_praxan_id', None)
+                    if pid is not None:
+                        for p in praxans:
+                            if p.id == pid:
+                                p.inner_monologue = payload.get("inner_monologue")
+                                p.spark_of_invention = payload.get("spark_of_invention")
+                                p.personal_goal = payload.get("personal_goal")
+                                mods = payload.get("behavior_modifier", {})
+                                for k, v in mods.items():
+                                    if k in p.work_priorities:
+                                        p.work_priorities[k] = max(1, min(4, p.work_priorities[k] - v))
+                                # Also grant a tiny inspiration boost
+                                p.inspiration = min(100.0, p.inspiration + 10)
+                                break
 
     def _build_compact_strategy_request(
         self,
