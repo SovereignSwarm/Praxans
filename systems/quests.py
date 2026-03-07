@@ -32,13 +32,17 @@ class QuestNode:
     def __init__(self, node_id: str, label: str, description: str = "",
                  condition_fn: Optional[Callable] = None,
                  on_complete_fn: Optional[Callable] = None,
-                 timer_seconds: float = 0.0):
+                 timer_seconds: float = 0.0,
+                 timer_is_success: bool = False):
         self.node_id = node_id
         self.label = label
         self.description = description
         self.condition_fn = condition_fn     # (game_state) -> bool
         self.on_complete_fn = on_complete_fn # (game_state) -> None
         self.timer_seconds = timer_seconds   # 0 = no time limit
+        # If True, timer expiry counts as SUCCESS (next_on_success) instead of failure.
+        # Use for timed survival quests where surviving the duration = win.
+        self.timer_is_success = timer_is_success
         self.next_on_success: Optional[str] = None  # node_id
         self.next_on_failure: Optional[str] = None   # node_id
         self.completed = False
@@ -57,6 +61,12 @@ class QuestNode:
         if self.timer_seconds > 0 and self.started_at > 0:
             elapsed = time.time() - self.started_at
             if elapsed >= self.timer_seconds:
+                if self.timer_is_success:
+                    self.completed = True
+                    if self.on_complete_fn:
+                        self.on_complete_fn({})
+                    logger.info(f"Quest node '{self.node_id}' survived timer — success")
+                    return self.next_on_success
                 self.failed = True
                 logger.info(f"Quest node '{self.node_id}' timed out")
                 return self.next_on_failure
@@ -134,8 +144,18 @@ class Quest:
             self.current_node_id = next_id
             self.nodes[next_id].start()
             return True
-
-        return False
+        else:
+            # next_id is non-None but unrecognized: the current node has already
+            # marked itself completed/failed, so check() will return None on every
+            # future tick — the quest would be permanently stuck in QUEST_ACTIVE.
+            # Fail the quest defensively and log a warning so the bug is visible.
+            logger.warning(
+                f"Quest '{self.name}' node '{self.current_node_id}' returned "
+                f"unrecognized next_id '{next_id}' — failing quest to prevent "
+                f"infinite stuck state."
+            )
+            self.state = QUEST_FAILED
+            return True
 
     def get_current_objective(self) -> Optional[str]:
         if self.current_node_id and self.current_node_id in self.nodes:
@@ -162,6 +182,10 @@ class QuestManager:
     def start_quest(self, quest_id: str):
         quest = self.quests.get(quest_id)
         if quest:
+            # Quest.start() guards on state == QUEST_AVAILABLE, but quests are
+            # created QUEST_HIDDEN. Promote to AVAILABLE so the start() call works.
+            if quest.state == QUEST_HIDDEN:
+                quest.state = QUEST_AVAILABLE
             quest.start()
 
     def update(self, game_state: dict):
@@ -251,15 +275,16 @@ class QuestManager:
         q3.rewards = {"research_points": 100}
         self.register_quest(q3)
 
-        # Quest 4: Survive the Night (timed)
+        # Quest 4: Survive the Storm (timed — surviving the full 300 s = success)
         q4 = Quest("survive_night", "Survive the Storm",
                     "Keep all praxans alive for 5 minutes during a climax phase.", "challenge")
         q4.add_node(QuestNode(
             "survive_5min",
             "Survive for 5 minutes",
             "Keep your colony alive through adversity.",
-            condition_fn=lambda gs: True,  # Auto-completes if timer doesn't expire
+            condition_fn=None,       # No early-exit success; only the timer resolves this node
             timer_seconds=300.0,
+            timer_is_success=True,   # Timer expiry = survived = COMPLETE (not FAIL)
         ), is_start=True)
         q4.nodes["survive_5min"].next_on_success = "__COMPLETE__"
         q4.nodes["survive_5min"].next_on_failure = "__FAIL__"
@@ -273,13 +298,36 @@ class QuestManager:
 
     def to_dict(self) -> dict:
         """Serialize quest state for save files."""
+        now = time.time()
+        quest_states = {}
+        for qid, q in self.quests.items():
+            entry: dict = {"state": q.state, "current_node": q.current_node_id}
+            # Persist elapsed time for the active node so timers survive reload.
+            if q.state == QUEST_ACTIVE and q.current_node_id and q.current_node_id in q.nodes:
+                node = q.nodes[q.current_node_id]
+                if node.started_at > 0:
+                    entry["node_elapsed_seconds"] = round(max(0.0, now - node.started_at), 3)
+            quest_states[qid] = entry
         return {
             "completed": self.completed_quest_ids,
-            "quest_states": {
-                qid: {
-                    "state": q.state,
-                    "current_node": q.current_node_id,
-                }
-                for qid, q in self.quests.items()
-            }
+            "quest_states": quest_states,
         }
+
+    def from_dict(self, data: dict):
+        """Restore quest state from a saved snapshot. Call after build_default_quests()."""
+        if not data:
+            return
+        self.completed_quest_ids = list(data.get("completed", []))
+        now = time.time()
+        for qid, saved in data.get("quest_states", {}).items():
+            quest = self.quests.get(qid)
+            if quest is None:
+                continue
+            quest.state = saved.get("state", quest.state)
+            quest.current_node_id = saved.get("current_node", quest.current_node_id)
+            # Resume the timer for the current node of active quests, preserving
+            # elapsed time so timed quests cannot be reset by save/reload.
+            if quest.state == QUEST_ACTIVE and quest.current_node_id in quest.nodes:
+                node = quest.nodes[quest.current_node_id]
+                elapsed = float(saved.get("node_elapsed_seconds", 0.0) or 0.0)
+                node.started_at = now - elapsed  # Restores effective start time

@@ -163,10 +163,11 @@ class FactionManager:
         self.last_update = 0
         self.update_interval = 10.0  # Update every 10 seconds
     
-    def update_factions(self, praxans, advisor=None):
+    def update_factions(self, praxans, advisor=None, diplomacy_manager=None,
+                        event_bus=None):
         """Auto-form and update factions based on bonds > 70"""
         current_time = time.time()
-        
+
         # Only update periodically for performance
         if current_time - self.last_update < self.update_interval:
             return
@@ -300,9 +301,15 @@ class FactionManager:
                     )
                     advisor.session_stats["golden_ages"] = advisor.session_stats.get("golden_ages", 0) + 1
 
-        self._update_rivalries()
-        self._evaluate_schisms(praxans, advisor, current_time)
-        self._update_rivalries()
+        if diplomacy_manager is not None:
+            diplomacy_manager.update(self, praxans, current_time,
+                                     event_bus=event_bus, advisor=advisor)
+        else:
+            self._update_rivalries()
+        self._evaluate_schisms(praxans, advisor, current_time,
+                               diplomacy_manager=diplomacy_manager)
+        if diplomacy_manager is None:
+            self._update_rivalries()
 
     def _update_rivalries(self):
         factions = list(self.factions.values())
@@ -367,7 +374,8 @@ class FactionManager:
                 if member.id in other.bonds:
                     other.bonds[member.id] = min(other.bonds[member.id], 42.0)
 
-    def _evaluate_schisms(self, praxans, advisor, current_time):
+    def _evaluate_schisms(self, praxans, advisor, current_time,
+                          diplomacy_manager=None):
         for faction in list(self.factions.values()):
             if len(faction.member_ids) < max(4, FACTION_DYNAMICS["minimum_schism_size"] * 2):
                 continue
@@ -427,6 +435,10 @@ class FactionManager:
             if new_goal:
                 new_faction.assign_shared_goal(new_goal, "Emergent post-schism doctrine", new_faction.primary_doctrine)
             self.factions[new_faction.id] = new_faction
+
+            # Register schism with diplomacy — child faction starts hostile to parent
+            if diplomacy_manager is not None:
+                diplomacy_manager.register_schism(faction.id, new_faction.id, current_time)
 
             if advisor is not None:
                 advisor.session_stats["faction_schisms"] = advisor.session_stats.get("faction_schisms", 0) + 1
@@ -559,7 +571,7 @@ class TradeSystem:
         self.trade_log = []  # [{time, from_faction, to_faction, resource, amount}]
         self.max_log = 20
 
-    def update(self, faction_manager, praxans, current_time):
+    def update(self, faction_manager, praxans, current_time, diplomacy_manager=None):
         """Run a trade round if enough time has passed."""
         if current_time - self.last_trade_time < self.TRADE_INTERVAL:
             return
@@ -577,23 +589,32 @@ class TradeSystem:
                     agg[res] = agg.get(res, 0) + qty
             faction_inventories[faction_id] = agg
 
-        # Attempt trades between non-rival factions
+        # Attempt trades between non-rival factions (diplomacy-aware)
         faction_ids = list(faction_manager.factions.keys())
         for i, fid_a in enumerate(faction_ids):
             fa = faction_manager.factions[fid_a]
-            rival_ids = set(getattr(fa, 'rival_faction_ids', []) or [])
             inv_a = faction_inventories.get(fid_a, {})
             for fid_b in faction_ids[i + 1:]:
-                if fid_b in rival_ids:
-                    continue
+                # Use diplomacy if available, else fall back to rival_ids
+                if diplomacy_manager is not None:
+                    rel = diplomacy_manager.get_relation(fid_a, fid_b)
+                    if not rel.can_trade():
+                        continue
+                else:
+                    rival_ids = set(getattr(fa, 'rival_faction_ids', []) or [])
+                    if fid_b in rival_ids:
+                        continue
+                    fb = faction_manager.factions[fid_b]
+                    if fid_a in set(getattr(fb, 'rival_faction_ids', []) or []):
+                        continue
                 fb = faction_manager.factions[fid_b]
-                if fid_a in set(getattr(fb, 'rival_faction_ids', []) or []):
-                    continue
                 inv_b = faction_inventories.get(fid_b, {})
-                self._try_trade(fa, fb, inv_a, inv_b, praxans, current_time)
+                traded = self._try_trade(fa, fb, inv_a, inv_b, praxans, current_time)
+                if traded and diplomacy_manager is not None:
+                    diplomacy_manager.register_trade(fid_a, fid_b, current_time)
 
     def _try_trade(self, fa, fb, inv_a, inv_b, praxans, current_time):
-        """Attempt a single resource exchange between two factions."""
+        """Attempt a single resource exchange between two factions. Returns True if traded."""
         # A has surplus, B has deficit
         for res, qty_a in inv_a.items():
             if qty_a <= self.SURPLUS_THRESHOLD:
@@ -619,7 +640,8 @@ class TradeSystem:
                 })
                 if len(self.trade_log) > self.max_log:
                     del self.trade_log[:-self.max_log]
-                return  # One trade per pair per round
+                return True  # One trade per pair per round
+        return False
 
     def get_trade_opportunities(self, faction_manager, praxans):
         """Return human-readable trade opportunity descriptions for LLM state view."""

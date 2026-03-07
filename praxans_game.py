@@ -154,6 +154,35 @@ PRAXAN_MAX_AGE = 420.0  # 7 minutes (increased for better survival)
 HEALTH_DECAY_BASE = 0.01
 DISEASE_CHANCE_BASE = 0.001
 
+# Life Stages (age thresholds in seconds)
+LIFE_STAGE_INFANT = 30.0    # 0-30s: dependent on parents, can't work
+LIFE_STAGE_YOUTH = 90.0     # 30-90s: can do basic work, can't reproduce, fast learner
+LIFE_STAGE_ADULT = 330.0    # 90-330s: full capabilities
+# 330-420s = Elder: reduced speed, wisdom bonus to faction
+
+# Relationship types (stored in praxan.relationships dict)
+REL_PARTNER = 'partner'
+REL_PARENT = 'parent'
+REL_CHILD = 'child'
+REL_FRIEND = 'friend'
+REL_RIVAL = 'rival'
+
+# Partnership threshold (bond strength needed to form partnership on reproduction)
+PARTNERSHIP_BOND_THRESHOLD = 50.0
+
+# Name generation syllables (alien-sounding but pronounceable)
+NAME_SYLLABLES = [
+    "ka", "ra", "mi", "no", "zu", "ta", "shi", "ko", "na", "ri",
+    "mu", "wa", "to", "se", "yu", "ha", "ke", "ro", "sa", "chi",
+    "ni", "fu", "ma", "ki", "te", "yo", "so", "ne", "hi", "ku",
+]
+
+def generate_praxan_name(seed_id=None):
+    """Generate a pronounceable name from syllables. Deterministic if seed_id given."""
+    rng = random.Random(seed_id) if seed_id is not None else random
+    length = rng.choice([2, 2, 2, 3])  # Mostly 2-syllable names
+    return ''.join(rng.choice(NAME_SYLLABLES) for _ in range(length)).capitalize()
+
 # Skills
 SKILL_XP_GATHERING = 10  # XP per resource
 SKILL_XP_BUILDING = 25   # XP per building
@@ -3909,6 +3938,7 @@ def restore_session_from_snapshot(
     territory_manager=None,
     faction_manager=None,
     city_planner=None,
+    praxan_class=None,
 ):
     """Restore the core colony state from a saved session snapshot."""
     now = time.time()
@@ -3953,7 +3983,7 @@ def restore_session_from_snapshot(
     for praxan_data in snapshot.get("praxans", []):
         x = clamp(float(praxan_data.get("x", world_width / 2)), 50.0, world_width - 50.0)
         y = clamp(float(praxan_data.get("y", world_height / 2)), 50.0, world_height - 50.0)
-        praxan = Praxan(x, y)
+        praxan = praxan_class(x, y)
 
         saved_id = int(praxan_data.get("id", praxan.id))
         praxan.id = saved_id
@@ -4022,6 +4052,27 @@ def restore_session_from_snapshot(
                 except (TypeError, ValueError):
                     continue
 
+        # Restore typed relationships
+        relationships_data = praxan_data.get("relationships", {})
+        praxan.relationships = {}
+        if isinstance(relationships_data, dict):
+            for other_id, rel_type in relationships_data.items():
+                parsed_other_id = _parse_optional_int(other_id)
+                if parsed_other_id is not None and isinstance(rel_type, str):
+                    praxan.relationships[parsed_other_id] = rel_type
+
+        # Restore name (or regenerate deterministically)
+        saved_name = praxan_data.get("name")
+        if saved_name and isinstance(saved_name, str):
+            praxan.name = saved_name
+
+        # Restore Deep Traits — must override the random sample from __init__
+        saved_traits = praxan_data.get("traits")
+        if isinstance(saved_traits, list):
+            valid_traits = [t for t in saved_traits if isinstance(t, str) and t in TRAIT_DEFINITIONS]
+            if valid_traits:
+                praxan.traits = valid_traits
+
         praxan.faction_id = _parse_optional_int(praxan_data.get("faction_id"))
         praxan.known_resources = []
         for resource_entry in praxan_data.get("known_resources", []):
@@ -4058,7 +4109,7 @@ def restore_session_from_snapshot(
         restored_praxans.append(praxan)
 
     if max_praxan_id >= 0:
-        Praxan._next_id = max_praxan_id + 1
+        praxan_class._next_id = max_praxan_id + 1
 
     praxan_lookup = {praxan.id: praxan for praxan in restored_praxans}
     restored_buildings = []
@@ -4571,6 +4622,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     from ui.panels import InfoPanel, EvolutionStatsPanel, ObserverAnalyticsPanel, ArchiveReviewPanel
     from systems.spatial import FogOfWar, TerritoryManager, CityPlanner
     from systems.society import Faction, FactionManager, TradeSystem
+    from systems.diplomacy import DiplomacyManager
     from systems.advisor import CivilizationAdvisor
     from entities.praxan import Praxan
     if screen is None:
@@ -4877,8 +4929,11 @@ def main(runtime_config=RUNTIME_CONFIG):
         # Ensure within bounds
         x = max(50, min(world_width - 50, x))
         y = max(50, min(world_height - 50, y))
-        praxans.append(Praxan(x, y))
-    
+        founder = Praxan(x, y)
+        founder.age = LIFE_STAGE_YOUTH  # Start founders as adults; age=0 triggers infant logic
+        founder.birth_time = founder.birth_time - LIFE_STAGE_YOUTH  # Keep birth_time consistent so update_age_and_health() doesn't reset age to ~0
+        praxans.append(founder)
+
     _draw_loading("Loading Praxans... Resources")
     # Initialize resources
     resources = []
@@ -4986,8 +5041,9 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Initialize territory manager
     territory_manager = TerritoryManager(world_width, world_height)
     
-    # Initialize faction manager
+    # Initialize faction manager and diplomacy
     faction_manager = FactionManager()
+    diplomacy_manager = DiplomacyManager()
     
     # Initialize city planner
     city_planner = CityPlanner(territory_manager, world_map)
@@ -5053,6 +5109,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 territory_manager=territory_manager,
                 faction_manager=faction_manager,
                 city_planner=city_planner,
+                praxan_class=Praxan,
             )
             praxans = restored_state["praxans"]
             buildings = restored_state["buildings"]
@@ -5068,6 +5125,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             advisor.session_stats["scenario_id"] = scenario_profile["id"]
             advisor.session_stats["scenario_name"] = scenario_profile["name"]
             advisor.session_stats["mutation_scale"] = ACTIVE_MUTATION_SCALE
+            # Restore quest state so resumed sessions don't re-award rewards
+            quest_manager.from_dict(snapshot_payload.get("quests", {}))
+            # Restore diplomacy state
+            diplomacy_manager.deserialize(snapshot_payload.get("diplomacy", {}))
             pending_resource_spawns = {}
             if restored_state.get("selected_model") and not selected_model:
                 selected_model = restored_state["selected_model"]
@@ -5718,9 +5779,6 @@ def main(runtime_config=RUNTIME_CONFIG):
             storyteller_ref = getattr(advisor, 'storyteller', None)
             history_tracker.update(current_time, praxans, buildings, storyteller_ref)
             
-            # Update Quest System (Pillar 8)
-            quest_manager.update(game_state)
-            
             # Award research points (time-based and milestones)
             days_survived = int((current_time - game_start_time) / DAY_LENGTH)
             if days_survived > advisor.civilization_age:
@@ -5948,7 +6006,9 @@ def main(runtime_config=RUNTIME_CONFIG):
             }
             tick_manager.sync_entities(praxans, buildings)
             tick_manager.tick(delta_time, game_state)
-            
+            # Update Quest System (Pillar 8) — must run after full game_state is built
+            quest_manager.update(game_state)
+
             # Remove monolithic O(N) updates and extract dead praxans for cleanup
             praxans_to_remove = []
             for idx, praxan in enumerate(praxans):
@@ -5958,8 +6018,14 @@ def main(runtime_config=RUNTIME_CONFIG):
                         # Create death particle effect
                         particle_system.create_particles(praxan.x, praxan.y, 'death', 10)
                         praxans_to_remove.append(idx)
-                        narrative_panel.add_message(f"A praxan has passed away...", 'Crisis')
+                        dead_name = getattr(praxan, 'name', f'#{praxan.id}')
+                        narrative_panel.add_message(f"{dead_name} has passed away...", 'Crisis')
                         advisor.total_deaths = getattr(advisor, 'total_deaths', 0) + 1
+
+                        # Apply grief moodlets to all surviving praxans with relationships
+                        for survivor in praxans:
+                            if survivor.alive and survivor.id != praxan.id:
+                                survivor.apply_grief(praxan.id, current_time)
                         
                         # Track death cause
                         if praxan.age >= PRAXAN_MAX_AGE:
@@ -5992,12 +6058,14 @@ def main(runtime_config=RUNTIME_CONFIG):
                             advisor,
                             current_time,
                             "death",
-                            f"Lineage loss: #{praxan.id} from L{getattr(praxan, 'lineage_id', praxan.id)}",
-                            f"Cause: {cause.replace('_', ' ')}.",
+                            f"{dead_name} (L{getattr(praxan, 'lineage_id', praxan.id)}) has died",
+                            f"Cause: {cause.replace('_', ' ')}. Stage: {getattr(praxan, 'life_stage', 'unknown')}.",
                         )
             
             # Update factions outside the loop for efficiency
-            faction_manager.update_factions(praxans, advisor)
+            faction_manager.update_factions(praxans, advisor,
+                                            diplomacy_manager=diplomacy_manager,
+                                            event_bus=event_bus)
             faction_manager.apply_autonomous_pressure(
                 praxans,
                 advisor,
@@ -6608,18 +6676,21 @@ def main(runtime_config=RUNTIME_CONFIG):
                         particle_system.create_particles(praxan1.x, praxan1.y, 'heart', 15)
                         particle_system.create_particles(praxan2.x, praxan2.y, 'heart', 15)
                         
-                        # Add narrative message
+                        # Add narrative message with names
+                        child_name = getattr(child, 'name', f'#{child.id}')
+                        p1_name = getattr(praxan1, 'name', f'#{praxan1.id}')
+                        p2_name = getattr(praxan2, 'name', f'#{praxan2.id}')
                         narrative_panel.add_message(
-                            f"New praxan born: Gen {child.generation} from L{child.lineage_id}. Population: {len(praxans)}",
+                            f"{child_name} born to {p1_name} & {p2_name} (Gen {child.generation}). Pop: {len(praxans)}",
                             'Achievement',
                         )
-                        
+
                         record_observer_timeline_event(
                             advisor,
                             current_time,
                             "birth",
-                            f"Birth: #{child.id} joins lineage {child.lineage_id}",
-                            f"Population now {len(praxans)}.",
+                            f"Birth: {child_name} joins lineage {child.lineage_id}",
+                            f"Parents: {p1_name} & {p2_name}. Population now {len(praxans)}.",
                         )
                         advisor.session_stats['births_total'] = advisor.session_stats.get('births_total', 0) + 1
                         append_bounded_history(
@@ -6781,6 +6852,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                 settlement_state,
                 faction_manager=faction_manager,
                 active_tab=ui_state.inspect_tab,
+                praxans=praxans,
+                diplomacy_manager=diplomacy_manager,
             )
             draw_inspect_drawer(
                 screen,
@@ -6981,6 +7054,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                     camera_bookmarks=camera_bookmarks,
                     scene_thumbnail_key=scene_thumbnail_key,
                     focus_moments=archive_payload.get("focus_moments", []),
+                    quest_manager=quest_manager if "quest_manager" in local_names else None,
+                    diplomacy_manager=diplomacy_manager if "diplomacy_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

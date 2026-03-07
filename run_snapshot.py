@@ -380,6 +380,8 @@ def build_run_snapshot(
     camera_bookmarks: list[dict[str, Any]] | None = None,
     scene_thumbnail_key: str | None = None,
     focus_moments: list[dict[str, Any]] | None = None,
+    quest_manager=None,
+    diplomacy_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -404,6 +406,8 @@ def build_run_snapshot(
         "factions": _serialize_factions(faction_manager, current_time),
         "city_planner": _serialize_city_planner(city_planner, current_time),
         "world": _serialize_world_state(world_map, current_time),
+        "quests": quest_manager.to_dict() if quest_manager is not None else {},
+        "diplomacy": diplomacy_manager.serialize() if diplomacy_manager is not None else {},
         "praxans": [
             {
                 "id": praxan.id,
@@ -434,6 +438,9 @@ def build_run_snapshot(
                 "birth_origin": getattr(praxan, "birth_origin", "founder"),
                 "skills": _serialize_skills(praxan),
                 "bonds": _serialize_bonds(praxan),
+                "relationships": {str(k): v for k, v in getattr(praxan, "relationships", {}).items()},
+                "traits": list(getattr(praxan, "traits", [])),
+                "name": getattr(praxan, "name", None),
                 "faction_id": getattr(praxan, "faction_id", None),
                 "known_resources": _serialize_known_resources(praxan),
                 "disease_elapsed": round(

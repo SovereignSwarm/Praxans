@@ -33,6 +33,8 @@ def build_inspect_view_model(
     settlement_state: dict,
     faction_manager=None,
     active_tab: str = "overview",
+    praxans=None,
+    diplomacy_manager=None,
 ) -> InspectViewModel:
     if not selected_entity or not selected_type:
         tabs = [("overview", "Overview"), ("evolution", "Evolution"), ("risks", "Risks")]
@@ -80,7 +82,10 @@ def build_inspect_view_model(
         praxan = selected_entity
         tabs = [("overview", "Overview"), ("needs", "Needs"), ("health", "Health"), ("traits", "Traits"), ("social", "Social")]
         active_tab = active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview"
-        subtitle = f"#{praxan.id}  |  {str(getattr(praxan, 'role', 'unassigned')).replace('_', ' ').title()}"
+        praxan_name = getattr(praxan, 'name', None) or f'#{praxan.id}'
+        life_stage = getattr(praxan, 'life_stage', 'adult').title()
+        role_text = str(getattr(praxan, 'role', 'unassigned')).replace('_', ' ').title()
+        subtitle = f"{praxan_name}  |  {life_stage}  |  {role_text}"
 
         # Commands always available for praxans
         commands = [
@@ -201,14 +206,42 @@ def build_inspect_view_model(
                         f"Members  {len(getattr(faction, 'member_ids', []))}",
                         f"Rivals  {len(getattr(faction, 'rival_faction_ids', []))}",
                     ]
+                    # Add diplomacy relations summary
+                    if diplomacy_manager is not None:
+                        relations = diplomacy_manager.get_faction_relations_summary(faction_id)
+                        for rel in relations[:4]:
+                            treaty_str = f" [{', '.join(rel['treaties'])}]" if rel.get("treaties") else ""
+                            faction_lines.append(
+                                f"  F{rel['faction_id']}  {rel['tier']} ({rel['standing']:+.0f}){treaty_str}"
+                            )
 
-            # Opinions
+            # Build name lookup from praxans list
+            name_lookup = {}
+            if praxans:
+                for p in praxans:
+                    name_lookup[p.id] = getattr(p, 'name', None) or f'#{p.id}'
+
+            def _pname(pid):
+                return name_lookup.get(pid, f'#{pid}')
+
+            # Typed relationships first, then opinions
+            relationships = dict(getattr(praxan, "relationships", {}))
             opinions = dict(getattr(praxan, "opinions", {}))
-            opinion_lines = []
+            rel_lines = []
+            # Show typed relationships
+            for pid, rel_type in sorted(relationships.items(), key=lambda x: x[1]):
+                opinion_score = opinions.get(pid, 0)
+                sign = "+" if opinion_score >= 0 else ""
+                rel_lines.append(f"  {_pname(pid)}  {rel_type.title()} ({sign}{int(opinion_score)})")
+            # Show remaining strong opinions not in typed relationships
             for pid, score in sorted(opinions.items(), key=lambda x: -abs(x[1]))[:5]:
+                if pid in relationships:
+                    continue
+                if abs(score) < 20:
+                    continue
                 sign = "+" if score >= 0 else ""
                 label = getattr(praxan, "get_relationship_label", lambda x: "Known")(pid)
-                opinion_lines.append(f"  P#{pid}  {sign}{int(score)} ({label})")
+                rel_lines.append(f"  {_pname(pid)}  {sign}{int(score)} ({label})")
 
             # Social Needs
             needs = getattr(praxan, "needs", {})
@@ -218,16 +251,20 @@ def build_inspect_view_model(
                 _need_bar("Beauty", float(needs.get("beauty", 100))),
             ]
 
+            # Parent names
+            parent_ids = getattr(praxan, 'parent_ids', [])[:2]
+            parent_text = ', '.join(_pname(pid) for pid in parent_ids) if parent_ids else 'Founder'
+
             sections = [
                 _section(
                     "Lineage",
                     f"Generation  {int(getattr(praxan, 'generation', 0) or 0)}",
                     f"Lineage  L{int(getattr(praxan, 'lineage_id', getattr(praxan, 'id', 0)))}",
-                    f"Parents  {', '.join(str(parent_id) for parent_id in getattr(praxan, 'parent_ids', [])[:2]) or 'Founder'}",
+                    f"Parents  {parent_text}",
                     f"Mutations  {int(getattr(praxan, 'mutation_count', 0) or 0)}",
                 ),
                 _section("Faction", *faction_lines) if faction_lines else _section("Faction", "Unaffiliated"),
-                _section("Relationships", *opinion_lines) if opinion_lines else _section("Relationships", "  No strong opinions"),
+                _section("Relationships", *rel_lines) if rel_lines else _section("Relationships", "  No relationships"),
             ]
             return InspectViewModel(
                 title="Praxan", subtitle=subtitle, entity_type="praxan",

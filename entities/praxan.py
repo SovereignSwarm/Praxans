@@ -113,7 +113,13 @@ class Praxan:
         
         # Opinions (per-pawn relationship scores)
         self.opinions = {}  # {pawn_id: opinion_score (-100 to 100)}
-        
+
+        # Typed relationships (partner/parent/child/friend/rival)
+        self.relationships = {}  # {praxan_id: relationship_type}
+
+        # Procedural name
+        self.name = generate_praxan_name(self.id)
+
         # New: Social
         self.bonds = {}  # {praxan_id: bond_strength}
         self.faction_id = None  # ID of faction this praxan belongs to
@@ -1228,13 +1234,38 @@ class Praxan:
         """AI decision making for the praxan needs and personality using state machine and behavior tree"""
         current_time = time.time()
         self.update_mood(current_time, delta_time)
-        
+
         if self.downed:
             return None
-            
+
+        # Infants follow their nearest parent instead of working
+        if self.life_stage == 'infant' and other_praxans:
+            parent_ids = getattr(self, 'parent_ids', [])
+            nearest_parent = None
+            nearest_dist = float('inf')
+            for other in other_praxans:
+                if other.id in parent_ids and other.alive:
+                    dist = math.sqrt((self.x - other.x)**2 + (self.y - other.y)**2)
+                    if dist < nearest_dist:
+                        nearest_dist = dist
+                        nearest_parent = other
+            if nearest_parent and nearest_dist > 25:
+                dx = nearest_parent.x - self.x
+                dy = nearest_parent.y - self.y
+                length = max(1.0, math.sqrt(dx*dx + dy*dy))
+                speed = 40 * self.life_stage_modifiers['speed']
+                self.vx = (dx / length) * speed
+                self.vy = (dy / length) * speed
+                self.current_action = "following parent"
+                return None
+            self.current_action = "playing"
+            self.vx *= 0.9
+            self.vy *= 0.9
+            return None
+
         if self.mental_state:
             return self.execute_mental_break(resources, buildings, delta_time, current_time)
-            
+
         # If currently gathering, don't decide a new action
         if self.gathering_resource is not None:
             return None
@@ -1961,6 +1992,9 @@ class Praxan:
     
     def can_reproduce(self):
         """Check if this praxan can reproduce"""
+        # Life stage check — only adults can reproduce
+        if not self.life_stage_modifiers['can_reproduce']:
+            return False
         # Check cooldown
         fertility_drive = getattr(self, "genetics", {}).get("fertility_drive", 1.0)
         effective_cooldown = REPRODUCTION_COOLDOWN / max(0.75, fertility_drive)
@@ -1990,12 +2024,12 @@ class Praxan:
         }
         child.genetics, inherited_mutations = inherit_genetic_profile(parent1, parent2)
         
-        # Set high initial needs
-        child.needs = {
+        # Set high initial needs (update rather than replace to preserve all keys from __init__)
+        child.needs.update({
             'hunger': random.uniform(80, 100),
             'energy': random.uniform(80, 100),
             'thirst': random.uniform(80, 100),
-        }
+        })
         child.favorite_biome = random.choice([parent1.favorite_biome, parent2.favorite_biome])
         child.resilience = clamp((parent1.resilience + parent2.resilience) / 2 + random.uniform(-0.05, 0.05), 0.8, 1.2)
         child.morale = clamp((parent1.morale + parent2.morale) / 2 + random.uniform(-8, 8), 45, 95)
@@ -2005,7 +2039,24 @@ class Praxan:
         child.lineage_id = min(getattr(parent1, "lineage_id", parent1.id), getattr(parent2, "lineage_id", parent2.id))
         child.mutation_count = inherited_mutations
         child.birth_origin = "offspring"
-        
+
+        # Set parent/child typed relationships
+        child.set_relationship(parent1.id, REL_PARENT)
+        child.set_relationship(parent2.id, REL_PARENT)
+        parent1.set_relationship(child.id, REL_CHILD)
+        parent2.set_relationship(child.id, REL_CHILD)
+
+        # Form partnership if parents have strong bond and neither is already partnered
+        existing_partners_p1 = [pid for pid, r in parent1.relationships.items() if r == REL_PARTNER]
+        existing_partners_p2 = [pid for pid, r in parent2.relationships.items() if r == REL_PARTNER]
+        bond_strength = parent1.bonds.get(parent2.id, 0)
+        if not existing_partners_p1 and not existing_partners_p2 and bond_strength >= PARTNERSHIP_BOND_THRESHOLD:
+            parent1.set_relationship(parent2.id, REL_PARTNER)
+            parent2.set_relationship(parent1.id, REL_PARTNER)
+            current_time = time.time()
+            parent1.add_moodlet("New Partner", 15, 120, current_time)
+            parent2.add_moodlet("New Partner", 15, 120, current_time)
+
         return child
     
     def update_age_and_health(self, delta_time, modifiers=None):
@@ -2047,7 +2098,57 @@ class Praxan:
             self.alive = False
             
         return self.alive
-        
+
+    # ------------------------------------------------------------------
+    # Life Stages
+    # ------------------------------------------------------------------
+
+    @property
+    def life_stage(self):
+        """Return current life stage based on age."""
+        if self.age < LIFE_STAGE_INFANT:
+            return 'infant'
+        if self.age < LIFE_STAGE_YOUTH:
+            return 'youth'
+        if self.age < LIFE_STAGE_ADULT:
+            return 'adult'
+        return 'elder'
+
+    @property
+    def life_stage_modifiers(self):
+        """Return capability modifiers for current life stage."""
+        return {
+            'infant': {'speed': 0.5, 'work': 0.0, 'xp_mult': 0.0, 'can_reproduce': False},
+            'youth':  {'speed': 0.85, 'work': 0.6, 'xp_mult': 1.5, 'can_reproduce': False},
+            'adult':  {'speed': 1.0, 'work': 1.0, 'xp_mult': 1.0, 'can_reproduce': True},
+            'elder':  {'speed': 0.7, 'work': 0.8, 'xp_mult': 0.8, 'can_reproduce': False},
+        }[self.life_stage]
+
+    def get_relationship_to(self, other_id):
+        """Return typed relationship or None."""
+        return self.relationships.get(other_id)
+
+    def set_relationship(self, other_id, rel_type):
+        """Set a typed relationship, overwriting any existing one."""
+        self.relationships[other_id] = rel_type
+
+    def apply_grief(self, dead_id, current_time):
+        """Apply grief moodlets when a related Praxan dies."""
+        rel = self.relationships.get(dead_id)
+        if rel == REL_PARTNER:
+            self.add_moodlet("Lost Partner", -25, 180, current_time)
+        elif rel == REL_CHILD:
+            self.add_moodlet("Lost Child", -20, 120, current_time)
+        elif rel == REL_PARENT:
+            self.add_moodlet("Lost Parent", -12, 90, current_time)
+        elif rel == REL_FRIEND:
+            self.add_moodlet("Lost Friend", -8, 60, current_time)
+        elif rel == REL_RIVAL:
+            self.add_moodlet("Rival Perished", 5, 30, current_time)
+        # Also grieve for high-bond individuals even without typed relationship
+        elif self.bonds.get(dead_id, 0) > 60:
+            self.add_moodlet("Lost Companion", -10, 60, current_time)
+
     def update_temperature(self, delta_time, temp_grid):
         """Update body temperature based on ambient temperature and apply effects"""
         ambient_temp = temp_grid.get_temperature_at(self.x, self.y)
@@ -2084,10 +2185,11 @@ class Praxan:
                 self.add_moodlet("Overheating", -15, 30, time.time())
     
     def gain_skill_xp(self, skill_type, amount):
-        """Level up skills"""
+        """Level up skills, modified by life stage XP multiplier"""
         if skill_type in self.skills:
             learning_affinity = getattr(self, "genetics", {}).get("learning_affinity", 1.0)
-            self.skills[skill_type]['xp'] += amount * learning_affinity
+            xp_mult = self.life_stage_modifiers.get('xp_mult', 1.0)
+            self.skills[skill_type]['xp'] += amount * learning_affinity * xp_mult
             
             # Check for level up
             if self.skills[skill_type]['xp'] >= SKILL_LEVEL_THRESHOLD * self.skills[skill_type]['level']:
@@ -2097,10 +2199,20 @@ class Praxan:
     
     def update_bonds(self, other_praxans, delta_time, modifiers=None):
         """Build/decay relationships"""
-        # Create a set of alive praxan IDs for reference checking
-        alive_ids = {t.id for t in other_praxans}
+        # Build the alive-ID set from praxans that are actually alive.
+        # Dead praxans (alive=False) may still be in the list on the same frame as their
+        # death (they are removed from the main list after tick_manager.tick() completes).
+        # Excluding them here ensures partner cleanup and bond pruning happen immediately.
+        alive_praxans = [t for t in other_praxans if getattr(t, 'alive', True)]
+        alive_ids = {t.id for t in alive_praxans}
         social_cohesion = getattr(self, "genetics", {}).get("social_cohesion", 1.0)
-        
+
+        # Clean up partner relationships to dead praxans so widowed praxans can re-partner.
+        # Family ties (parent/child) are kept permanently for lineage/grief display.
+        for praxan_id in list(self.relationships.keys()):
+            if self.relationships[praxan_id] == REL_PARTNER and praxan_id not in alive_ids:
+                del self.relationships[praxan_id]
+
         # Decay all existing bonds
         bond_decay_mod = modifiers.get_modifier('bond_decay') if modifiers else 1.0
         for praxan_id in list(self.bonds.keys()):
@@ -2111,12 +2223,12 @@ class Praxan:
             self.bonds[praxan_id] -= (BOND_DECAY_RATE * bond_decay_mod * delta_time) / max(0.75, social_cohesion)
             if self.bonds[praxan_id] <= 0:
                 del self.bonds[praxan_id]
-        
-        # Build bonds with nearby praxans
-        for other in other_praxans:
+
+        # Build bonds with nearby praxans (alive only)
+        for other in alive_praxans:
             if other == self:
                 continue
-            
+
             distance = math.sqrt((self.x - other.x)**2 + (self.y - other.y)**2)
             if distance < 30:  # Within bonding range (adjusted for smaller sprites)
                 if other.id not in self.bonds:
@@ -2125,6 +2237,23 @@ class Praxan:
                 bond_gain = BOND_INCREASE_RATE * delta_time * ((social_cohesion + other_social) / 2.0)
                 self.bonds[other.id] += bond_gain
                 self.bonds[other.id] = min(100, self.bonds[other.id])  # Cap at 100
+
+        # Promote untyped relationships based on opinion thresholds (alive only)
+        for other in alive_praxans:
+            if other.id == self.id:
+                continue
+            existing = self.relationships.get(other.id)
+            # Don't overwrite family/partner relationships
+            if existing in (REL_PARTNER, REL_PARENT, REL_CHILD):
+                continue
+            opinion = self.opinions.get(other.id, 0)
+            if opinion >= 60 and existing != REL_FRIEND:
+                self.relationships[other.id] = REL_FRIEND
+            elif opinion <= -40 and existing != REL_RIVAL:
+                self.relationships[other.id] = REL_RIVAL
+            elif -20 < opinion < 40 and existing in (REL_FRIEND, REL_RIVAL):
+                # Decayed back to neutral — remove typed relationship
+                del self.relationships[other.id]
 
     def update_opinions(self, other_praxans, delta_time):
         """Update per-pawn opinion scores based on proximity, faction, and events."""
@@ -2177,13 +2306,26 @@ class Praxan:
 
     def get_relationship_label(self, other_id):
         """Get a human-readable relationship label for another pawn."""
+        # Typed relationship takes priority
+        rel = self.relationships.get(other_id)
+        if rel == REL_PARTNER:
+            return "Partner"
+        elif rel == REL_PARENT:
+            return "Parent"
+        elif rel == REL_CHILD:
+            return "Child"
+        elif rel == REL_FRIEND:
+            return "Friend"
+        elif rel == REL_RIVAL:
+            return "Rival"
+        # Fall back to opinion-based label
         opinion = self.opinions.get(other_id, 0)
         if opinion >= 80:
-            return "Lover"
+            return "Beloved"
         elif opinion >= 50:
-            return "Friend"
+            return "Friendly"
         elif opinion <= -50:
-            return "Rival"
+            return "Hostile"
         elif opinion <= -20:
             return "Annoyed"
         return None
