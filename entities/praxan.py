@@ -116,6 +116,7 @@ class Praxan:
 
         # Typed relationships (partner/parent/child/friend/rival)
         self.relationships = {}  # {praxan_id: relationship_type}
+        self._griefed_ids: set = set()  # IDs for which grief was already applied (prevents double-fire)
 
         # Procedural name
         self.name = generate_praxan_name(self.id)
@@ -2133,7 +2134,15 @@ class Praxan:
         self.relationships[other_id] = rel_type
 
     def apply_grief(self, dead_id, current_time):
-        """Apply grief moodlets when a related Praxan dies."""
+        """Apply grief moodlets when a related Praxan dies.
+
+        Safe to call multiple times for the same dead_id: only the first call
+        fires a moodlet.  This prevents double-grief when update_bonds cleans up
+        the partner relationship in the same tick as the death loop runs.
+        """
+        if dead_id in self._griefed_ids:
+            return
+        self._griefed_ids.add(dead_id)
         rel = self.relationships.get(dead_id)
         if rel == REL_PARTNER:
             self.add_moodlet("Lost Partner", -25, 180, current_time)
@@ -2209,8 +2218,13 @@ class Praxan:
 
         # Clean up partner relationships to dead praxans so widowed praxans can re-partner.
         # Family ties (parent/child) are kept permanently for lineage/grief display.
+        # apply_grief is called here BEFORE deletion so that partner grief fires even if
+        # this long-tick runs in the same tick_manager.tick() call as the death (rare-tick).
+        # The _griefed_ids guard in apply_grief prevents double-grief if the death loop
+        # also calls apply_grief for the same praxan later in the same frame.
         for praxan_id in list(self.relationships.keys()):
             if self.relationships[praxan_id] == REL_PARTNER and praxan_id not in alive_ids:
+                self.apply_grief(praxan_id, time.time())
                 del self.relationships[praxan_id]
 
         # Decay all existing bonds

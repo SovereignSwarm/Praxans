@@ -5053,6 +5053,10 @@ def main(runtime_config=RUNTIME_CONFIG):
     from events.incidents import register_all_incidents, INCIDENT_GOOD, INCIDENT_NEUTRAL, INCIDENT_BAD
     storyteller = Storyteller()
     register_all_incidents(storyteller)
+
+    # Initialize ecology system
+    from systems.ecology import EcologyManager
+    ecology_manager = EcologyManager(world_width, world_height, world_map=world_map)
     
     # Initialize season and weather systems
     season = Season()
@@ -5134,11 +5138,13 @@ def main(runtime_config=RUNTIME_CONFIG):
                 selected_model = restored_state["selected_model"]
             if restored_state.get("camera_state"):
                 restored_camera = restored_state["camera_state"]
-                camera.set_zoom(restored_camera.get("zoom", camera.zoom))
+                restored_zoom = max(camera.min_zoom, min(camera.max_zoom, float(restored_camera.get("zoom", camera.zoom))))
+                camera.zoom = restored_zoom
+                camera.target_zoom = restored_zoom
                 camera.x = restored_camera.get("x", camera.x)
                 camera.y = restored_camera.get("y", camera.y)
                 camera.follow_mode = bool(restored_camera.get("follow_mode", True))
-                camera.clamp_camera()
+                camera.clamp_camera(WINDOW_WIDTH, WINDOW_HEIGHT)
             else:
                 center_camera_on_colony(camera, praxans, buildings)
                 camera.follow_mode = True
@@ -5957,36 +5963,36 @@ def main(runtime_config=RUNTIME_CONFIG):
             season_modifiers = season.get_resource_modifier()
             
             if num_wood_active < WOOD_MAX_ON_MAP * season_modifiers['wood']:
-                # Spawn a new wood resource with biome bonus consideration
+                # Spawn a new wood resource with biome bonus + ecology fertility
                 x = random.randint(100, camera.world_width - 100)
                 y = random.randint(100, camera.world_height - 100)
-                
-                # Get biome at spawn location and apply bonus to spawn chance
+                fertility_mult = ecology_manager.get_fertility_multiplier(x, y)
+
                 if world_map:
                     biome_type = world_map.get_biome_at(x, y)
                     biome_props = world_map.get_biome_properties(biome_type)
                     wood_bonus = biome_props.get('wood_bonus', 1.0)
-                    # Higher wood_bonus = higher spawn chance
-                    if random.random() < wood_bonus * 0.5:
+                    if random.random() < wood_bonus * 0.5 * fertility_mult:
                         resources.append(Resource(x, y, 'wood'))
                 else:
-                    resources.append(Resource(x, y, 'wood'))
-            
+                    if random.random() < fertility_mult:
+                        resources.append(Resource(x, y, 'wood'))
+
             if num_stone_active < STONE_MAX_ON_MAP:
-                # Spawn a new stone resource (rare) with biome bonus consideration
+                # Spawn a new stone resource with biome bonus + ecology fertility
                 x = random.randint(100, camera.world_width - 100)
                 y = random.randint(100, camera.world_height - 100)
-                
-                # Get biome at spawn location and apply bonus to spawn chance
+                fertility_mult = ecology_manager.get_fertility_multiplier(x, y)
+
                 if world_map:
                     biome_type = world_map.get_biome_at(x, y)
                     biome_props = world_map.get_biome_properties(biome_type)
                     stone_bonus = biome_props.get('stone_bonus', 1.0)
-                    # Higher stone_bonus = higher spawn chance
-                    if random.random() < stone_bonus * 0.5:
+                    if random.random() < stone_bonus * 0.5 * fertility_mult:
                         resources.append(Resource(x, y, 'stone'))
                 else:
-                    resources.append(Resource(x, y, 'stone'))
+                    if random.random() < fertility_mult:
+                        resources.append(Resource(x, y, 'stone'))
             
             # First pass: Sync entities and run staggered ticking
             game_state = {
@@ -6003,6 +6009,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 'settlement_state': settlement_state,
                 'policy_manager': policy_manager,
                 'storyteller': getattr(advisor, 'storyteller', None),
+                'ecology_manager': ecology_manager,
             }
             tick_manager.sync_entities(praxans, buildings)
             tick_manager.tick(delta_time, game_state)
@@ -6325,7 +6332,10 @@ def main(runtime_config=RUNTIME_CONFIG):
                                 
                                 # Gain skill XP for gathering
                                 praxan.gain_skill_xp('gathering', SKILL_XP_GATHERING)
-                                
+
+                                # Record ecological impact of harvesting
+                                ecology_manager.record_harvest(resource.x, resource.y, resource.resource_type)
+
                                 # Track bounty challenge progress
                                 for challenge in advisor.active_challenges:
                                     if challenge['type'] == 'bounty':
