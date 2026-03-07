@@ -165,7 +165,7 @@ class GraphicsRendererTests(unittest.TestCase):
             os.path.join(asset_root, "tilesets", "terrain", "plains_spring.png"),
             os.path.join(asset_root, "tilesets", "transitions", "forest_north_spring.png"),
             os.path.join(asset_root, "tilesets", "overlays", "residential_0.png"),
-            os.path.join(asset_root, "sprites", "praxans", "gatherer_walk_down_0.png"),
+            os.path.join(asset_root, "sprites", "thronglets", "gatherer_walk_down_0.png"),
             os.path.join(asset_root, "sprites", "buildings", "house.png"),
             os.path.join(asset_root, "sprites", "resources", "food.png"),
             os.path.join(asset_root, "sprites", "hazards", "predator_lair.png"),

@@ -102,7 +102,7 @@ TILE_ATLASES: dict[str, dict[str, object]] = {
 
 SPRITE_ATLASES: dict[str, dict[str, object]] = {
     "praxans": {
-        "folder": "sprites/praxans",
+        "folder": "sprites/thronglets",
         "source_size": SOURCE_PRAXAN_SIZE,
         "animations": ("idle", "walk", "gather", "build", "rest", "celebrate", "sick", "death"),
         "facings": ("down", "up", "left", "right"),

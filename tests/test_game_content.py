@@ -1,5 +1,6 @@
 import unittest
 
+from systems.def_database import DefDatabase
 from game_content import (
     BUILDING_DEFINITIONS,
     clone_abilities,
@@ -10,6 +11,14 @@ from game_content import (
 
 
 class GameContentTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        DefDatabase.clear()
+        DefDatabase.initialize("defs")
+
+    @classmethod
+    def tearDownClass(cls):
+        DefDatabase.clear()
     def test_building_costs_match_expected_definitions(self):
         self.assertEqual(get_building_cost("house"), (4, 0))
         self.assertEqual(get_building_cost("farm"), (5, 0))
