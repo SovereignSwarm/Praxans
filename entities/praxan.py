@@ -201,6 +201,11 @@ class Praxan:
         self.hauling_target_resource = None
         self.hauling_target_storage = None
 
+        # Social Interaction Engine state
+        self._interaction_cooldowns = {}
+        self._social_target = None
+        self._interaction_timer = 0.0
+
         # Autobiographical / Episodic Memory
         self.episodic_memory = EpisodicMemory(personality=self.personality)
         self.episodic_memory.record(
@@ -1663,7 +1668,7 @@ class Praxan:
                 # Transition to next priority state
                 if directives and self.needs['hunger'] > 50 and self.needs['energy'] > 50:
                     self.transition_to_state(STATE_EXECUTE_DIRECTIVE)
-                elif self.personality.get('sociability', 0) > 0.7 and len(self.bonds) < 3:
+                elif self._should_socialize():
                     self.transition_to_state(STATE_SOCIALIZE)
                 else:
                     self.transition_to_state(STATE_IDLE)
@@ -1970,33 +1975,57 @@ class Praxan:
             if self.needs['energy'] > 90:
                 self.transition_to_state(STATE_IDLE)
         
-        # Priority 3.5: Socialize state
+        # Priority 3.5: Socialize state — InteractionDef engine
         if self.state == STATE_SOCIALIZE:
-            if self.personality.get('sociability', 0) > 0.7 and len(self.bonds) < 3:
-                # Find nearby praxans to socialize with
-                if other_praxans:
-                    closest_friend = None
-                    closest_distance = float('inf')
-                    for other in other_praxans:
-                        if other != self:
-                            distance = math.sqrt((other.x - self.x)**2 + (other.y - self.y)**2)
-                            if distance < closest_distance and distance < 100:
-                                closest_distance = distance
-                                closest_friend = other
-                    
-                    if closest_friend:
-                        dx = closest_friend.x - self.x
-                        dy = closest_friend.y - self.y
-                        distance = math.sqrt(dx**2 + dy**2)
-                        if distance > 0:
-                            self.vx = (dx / distance) * PRAXAN_SPEED * 0.5
-                            self.vy = (dy / distance) * PRAXAN_SPEED * 0.5
-                            self.current_action = "socializing"
-                            return None
-                # If no friends nearby, transition to idle
+            if self._interaction_timer > 0:
+                self._interaction_timer -= delta_time
+                self.vx *= 0.1
+                self.vy *= 0.1
+                if self._interaction_timer <= 0:
+                    self._social_target = None
+                    self._interaction_timer = 0
+                    self.transition_to_state(STATE_IDLE)
+                return None
+            if self._social_target is None or not getattr(self._social_target, 'alive', False):
+                self._social_target = self._pick_social_target(other_praxans)
+            if self._social_target is None:
                 self.transition_to_state(STATE_IDLE)
+                return None
+            target = self._social_target
+            dx = target.x - self.x
+            dy = target.y - self.y
+            distance = math.sqrt(dx * dx + dy * dy)
+            if distance > 25:
+                if distance > 0:
+                    self.vx = (dx / distance) * PRAXAN_SPEED * 0.5
+                    self.vy = (dy / distance) * PRAXAN_SPEED * 0.5
+                self.current_action = f"approaching {getattr(target, 'name', 'someone')}"
+                if time.time() - self.state_entry_time > 10.0:
+                    self._social_target = None
+                    self.transition_to_state(STATE_IDLE)
+                return None
+            try:
+                from systems.social_interactions import attempt_interaction
+                result = attempt_interaction(self, target, cooldowns=self._interaction_cooldowns, event_bus=None)
+            except ImportError:
+                result = None
+            if result:
+                label = result.get('label', 'socializing')
+                self.current_action = label.lower()
+                duration = 3.0
+                try:
+                    from systems.social_interactions import _load_interactions
+                    for idef in _load_interactions():
+                        if idef.get('id') == result.get('interaction'):
+                            duration = idef.get('duration', 3.0)
+                            break
+                except Exception:
+                    pass
+                self._interaction_timer = duration
             else:
+                self._social_target = None
                 self.transition_to_state(STATE_IDLE)
+            return None
         
         # Priority 4: Idle state (wander/explore)
         if self.state == STATE_IDLE or self.state == STATE_EXPLORE:
@@ -2006,7 +2035,10 @@ class Praxan:
                     print(f"[Praxan {self.id}] Transitioning to EXECUTE_DIRECTIVE from {self.state}, {len(directives)} directives available")
                 self.transition_to_state(STATE_EXECUTE_DIRECTIVE)
                 return None
-        
+            if self._should_socialize() and self.needs['hunger'] > 50 and self.needs['energy'] > 50:
+                self.transition_to_state(STATE_SOCIALIZE)
+                return None
+
         # Default: Smart exploration or wander
         if time.time() - self.last_action_time > self.action_duration:
             # Check if explorer should claim territory
@@ -2367,6 +2399,52 @@ class Praxan:
                 self.skills[skill_type]['xp'] = 0
                 print(f"Praxan leveled up {skill_type} to level {self.skills[skill_type]['level']}!")
     
+    def _should_socialize(self):
+        """Decide whether to transition to STATE_SOCIALIZE."""
+        sociability = self.personality.get('sociability', 0.5)
+        social_need = self.needs.get('social', 50)
+        if social_need < 40:
+            return True
+        if sociability > 0.6 and social_need < 65:
+            return True
+        if sociability > 0.3 and random.random() < sociability * 0.15:
+            return True
+        return False
+
+    def _pick_social_target(self, other_praxans):
+        """Pick a nearby alive praxan to interact with."""
+        if not other_praxans:
+            return None
+        candidates = []
+        for other in other_praxans:
+            if other is self or other.id == self.id:
+                continue
+            if not getattr(other, 'alive', True):
+                continue
+            if getattr(other, 'downed', False):
+                continue
+            dx = other.x - self.x
+            dy = other.y - self.y
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist > 200:
+                continue
+            score = max(1.0, 200 - dist)
+            bond = self.bonds.get(other.id, 0)
+            score += bond * 0.5
+            if self.faction_id and self.faction_id == getattr(other, 'faction_id', None):
+                score += 30
+            candidates.append((other, score))
+        if not candidates:
+            return None
+        total = sum(s for _, s in candidates)
+        roll = random.random() * total
+        cumulative = 0.0
+        for other, s in candidates:
+            cumulative += s
+            if roll <= cumulative:
+                return other
+        return candidates[-1][0]
+
     def update_bonds(self, other_praxans, delta_time, modifiers=None):
         """Build/decay relationships"""
         # Build the alive-ID set from praxans that are actually alive.

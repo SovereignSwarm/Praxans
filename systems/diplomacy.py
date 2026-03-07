@@ -235,15 +235,28 @@ class DiplomaticRelation:
         """Whether these factions are allowed to trade."""
         return self.standing >= -20  # Neutral or better
 
-    def serialize(self) -> dict:
+    def serialize(self, current_time: float | None = None) -> dict:
+        if current_time is None:
+            current_time = time.time()
+        active_treaties = []
+        for t in self.treaties:
+            remaining = t["expires_at"] - current_time
+            if remaining > 0:
+                active_treaties.append({
+                    "type": t["type"],
+                    "remaining_seconds": round(remaining, 3),
+                })
         return {
             "faction_a_id": self.faction_a_id,
             "faction_b_id": self.faction_b_id,
             "standing": round(self.standing, 2),
             "tier": self.tier,
-            "treaties": list(self.treaties),
+            "treaties": active_treaties,
             "incident_log": list(self.incident_log[-5:]),
             "trade_count": self.trade_count,
+            "last_incident_elapsed": round(
+                max(0.0, current_time - self.last_incident_time), 3
+            ) if self.last_incident_time > 0 else 0.0,
         }
 
 
@@ -601,9 +614,11 @@ class DiplomacyManager:
 
     # ---- Serialization ------------------------------------------------------
 
-    def serialize(self) -> dict:
+    def serialize(self, current_time: float | None = None) -> dict:
+        if current_time is None:
+            current_time = time.time()
         return {
-            "relations": [rel.serialize() for rel in self.relations.values()],
+            "relations": [rel.serialize(current_time) for rel in self.relations.values()],
             "diplomatic_log": list(self.diplomatic_log[-10:]),
         }
 
@@ -611,13 +626,33 @@ class DiplomacyManager:
         """Restore diplomacy state from snapshot."""
         if not data:
             return
+        now = time.time()
         self.relations.clear()
         for rel_data in data.get("relations", []):
             fid_a = int(rel_data.get("faction_a_id", 0))
             fid_b = int(rel_data.get("faction_b_id", 0))
             rel = DiplomaticRelation(fid_a, fid_b, float(rel_data.get("standing", 0.0)))
-            rel.treaties = list(rel_data.get("treaties", []))
+            # Rebase treaty expiry timestamps to current wall clock.
+            # Old snapshots stored absolute {expires_at}; new ones store {remaining_seconds}.
+            rel.treaties = []
+            for t in rel_data.get("treaties", []):
+                if "remaining_seconds" in t:
+                    remaining = float(t["remaining_seconds"])
+                elif "expires_at" in t:
+                    remaining = float(t["expires_at"]) - now  # legacy format
+                else:
+                    remaining = 0.0
+                if remaining > 0:
+                    rel.treaties.append({
+                        "type": t["type"],
+                        "started_at": now,
+                        "expires_at": now + remaining,
+                    })
             rel.incident_log = list(rel_data.get("incident_log", []))
             rel.trade_count = int(rel_data.get("trade_count", 0))
+            # Rebase last_incident_time to prevent a burst of incidents immediately after load.
+            last_incident_elapsed = float(rel_data.get("last_incident_elapsed", 0.0))
+            if last_incident_elapsed > 0:
+                rel.last_incident_time = now - last_incident_elapsed
             self.relations[self._key(fid_a, fid_b)] = rel
         self.diplomatic_log = list(data.get("diplomatic_log", []))

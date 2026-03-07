@@ -1,0 +1,191 @@
+{
+    "InteractionDef": [
+        {
+            "id": "chat",
+            "label": "Chatting",
+            "category": "social",
+            "initiator_weights": {
+                "sociability": 1.5,
+                "curiosity": 0.3
+            },
+            "preconditions": {
+                "min_opinion": -50,
+                "life_stages": ["youth", "adult", "elder"]
+            },
+            "outcomes": {
+                "initiator": { "social_need": 12, "mood_offset": 2, "bond_change": 2 },
+                "target":    { "social_need": 10, "mood_offset": 1, "bond_change": 2 },
+                "opinion_change": [1, 3]
+            },
+            "duration": 3.0,
+            "cooldown": 15.0,
+            "narrative_chance": 0.0,
+            "memory_event": null,
+            "drama_weight": 1
+        },
+        {
+            "id": "deep_conversation",
+            "label": "Deep Conversation",
+            "category": "social",
+            "initiator_weights": {
+                "sociability": 1.0,
+                "curiosity": 1.0
+            },
+            "preconditions": {
+                "min_bond": 30,
+                "min_opinion": 10,
+                "life_stages": ["adult", "elder"]
+            },
+            "outcomes": {
+                "initiator": { "social_need": 25, "mood_offset": 5, "bond_change": 5 },
+                "target":    { "social_need": 20, "mood_offset": 4, "bond_change": 5 },
+                "opinion_change": [2, 5]
+            },
+            "duration": 6.0,
+            "cooldown": 45.0,
+            "narrative_chance": 0.15,
+            "memory_event": "friendship",
+            "drama_weight": 2
+        },
+        {
+            "id": "argument",
+            "label": "Argument",
+            "category": "hostile",
+            "initiator_weights": {
+                "sociability": -0.5
+            },
+            "preconditions": {
+                "max_opinion": -15,
+                "life_stages": ["youth", "adult", "elder"]
+            },
+            "outcomes": {
+                "initiator": { "social_need": 5, "mood_offset": -6, "bond_change": -8 },
+                "target":    { "social_need": 3, "mood_offset": -8, "bond_change": -8 },
+                "opinion_change": [-8, -3]
+            },
+            "duration": 4.0,
+            "cooldown": 30.0,
+            "narrative_chance": 0.4,
+            "memory_event": "rivalry",
+            "drama_weight": 4
+        },
+        {
+            "id": "share_meal",
+            "label": "Sharing a Meal",
+            "category": "support",
+            "initiator_weights": {
+                "sociability": 1.2,
+                "diligence": 0.5
+            },
+            "preconditions": {
+                "min_opinion": 0,
+                "initiator_has_food": true,
+                "life_stages": ["youth", "adult", "elder"]
+            },
+            "outcomes": {
+                "initiator": { "social_need": 18, "mood_offset": 4, "bond_change": 6, "hunger_change": -10 },
+                "target":    { "social_need": 18, "mood_offset": 5, "bond_change": 6, "hunger_change": 20 },
+                "opinion_change": [3, 7]
+            },
+            "duration": 5.0,
+            "cooldown": 60.0,
+            "narrative_chance": 0.1,
+            "memory_event": null,
+            "drama_weight": 2
+        },
+        {
+            "id": "teach",
+            "label": "Teaching",
+            "category": "practical",
+            "initiator_weights": {
+                "diligence": 1.5,
+                "sociability": 0.5
+            },
+            "preconditions": {
+                "min_opinion": -10,
+                "skill_gap_required": true,
+                "life_stages": ["adult", "elder"]
+            },
+            "outcomes": {
+                "initiator": { "social_need": 8, "mood_offset": 3, "bond_change": 3 },
+                "target":    { "social_need": 8, "mood_offset": 4, "bond_change": 3, "xp_gain": 15 },
+                "opinion_change": [2, 4]
+            },
+            "duration": 8.0,
+            "cooldown": 60.0,
+            "narrative_chance": 0.1,
+            "memory_event": null,
+            "drama_weight": 1
+        },
+        {
+            "id": "comfort",
+            "label": "Comforting",
+            "category": "support",
+            "initiator_weights": {
+                "sociability": 2.0
+            },
+            "preconditions": {
+                "min_bond": 10,
+                "target_low_mood": true,
+                "life_stages": ["youth", "adult", "elder"]
+            },
+            "outcomes": {
+                "initiator": { "social_need": 10, "mood_offset": 3, "bond_change": 4 },
+                "target":    { "social_need": 15, "mood_offset": 8, "bond_change": 5 },
+                "opinion_change": [3, 6]
+            },
+            "duration": 5.0,
+            "cooldown": 30.0,
+            "narrative_chance": 0.2,
+            "memory_event": "friendship",
+            "drama_weight": 3
+        },
+        {
+            "id": "play",
+            "label": "Playing",
+            "category": "social",
+            "initiator_weights": {
+                "sociability": 1.0,
+                "curiosity": 0.8
+            },
+            "preconditions": {
+                "min_opinion": -20,
+                "life_stages": ["youth", "adult"]
+            },
+            "outcomes": {
+                "initiator": { "social_need": 15, "mood_offset": 5, "bond_change": 3, "comfort_change": 5 },
+                "target":    { "social_need": 15, "mood_offset": 5, "bond_change": 3, "comfort_change": 5 },
+                "opinion_change": [2, 4]
+            },
+            "duration": 6.0,
+            "cooldown": 30.0,
+            "narrative_chance": 0.05,
+            "memory_event": null,
+            "drama_weight": 1
+        },
+        {
+            "id": "insult",
+            "label": "Insulting",
+            "category": "hostile",
+            "initiator_weights": {
+                "sociability": -1.0
+            },
+            "preconditions": {
+                "max_opinion": -30,
+                "life_stages": ["youth", "adult", "elder"],
+                "trait_boost": ["Volatile"]
+            },
+            "precondition_trait_chance": 0.3,
+            "outcomes": {
+                "initiator": { "social_need": 3, "mood_offset": -2, "bond_change": -5 },
+                "target":    { "social_need": -5, "mood_offset": -10, "bond_change": -10 },
+                "opinion_change": [-10, -5]
+            },
+            "duration": 2.0,
+            "cooldown": 20.0,
+            "narrative_chance": 0.5,
+            "memory_event": "rivalry",
+            "drama_weight": 5
+        }
+    ]
+}

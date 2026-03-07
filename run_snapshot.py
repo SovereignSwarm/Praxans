@@ -407,7 +407,7 @@ def build_run_snapshot(
         "city_planner": _serialize_city_planner(city_planner, current_time),
         "world": _serialize_world_state(world_map, current_time),
         "quests": quest_manager.to_dict() if quest_manager is not None else {},
-        "diplomacy": diplomacy_manager.serialize() if diplomacy_manager is not None else {},
+        "diplomacy": diplomacy_manager.serialize(current_time=current_time) if diplomacy_manager is not None else {},
         "praxans": [
             {
                 "id": praxan.id,

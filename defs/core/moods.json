@@ -19,6 +19,56 @@
             "id": "FoughtOffInfection",
             "mood_offset": 5,
             "duration": 120
+        },
+        {
+            "id": "HadChat",
+            "mood_offset": 2,
+            "duration": 120
+        },
+        {
+            "id": "HadDeepTalk",
+            "mood_offset": 5,
+            "duration": 240
+        },
+        {
+            "id": "HadArgument",
+            "mood_offset": -6,
+            "duration": 180
+        },
+        {
+            "id": "WasInsulted",
+            "mood_offset": -10,
+            "duration": 200
+        },
+        {
+            "id": "WasComforted",
+            "mood_offset": 8,
+            "duration": 200
+        },
+        {
+            "id": "GaveComfort",
+            "mood_offset": 3,
+            "duration": 150
+        },
+        {
+            "id": "SharedMeal",
+            "mood_offset": 5,
+            "duration": 240
+        },
+        {
+            "id": "TaughtSomeone",
+            "mood_offset": 3,
+            "duration": 180
+        },
+        {
+            "id": "LearnedFromMentor",
+            "mood_offset": 4,
+            "duration": 180
+        },
+        {
+            "id": "HadFun",
+            "mood_offset": 5,
+            "duration": 180
         }
     ]
 }

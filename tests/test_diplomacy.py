@@ -205,6 +205,59 @@ class TestDiplomacyManager(unittest.TestCase):
         self.assertEqual(rel.trade_count, 1)
         self.assertTrue(rel.has_treaty(TREATY_TRADE))
 
+    def test_treaty_survives_reload_delay(self):
+        """Treaties must be rebased on deserialize so they don't expire immediately
+        when the snapshot was written seconds/hours ago."""
+        now = time.time()
+        save_time = now - 60  # pretend save happened 60s ago
+        dm = DiplomacyManager()
+        dm.set_initial_standing(0, 1, 50.0)
+        rel = dm.get_relation(0, 1)
+        # Treaty added 60s before save_time → TREATY_TRADE duration 120s → 60s remaining at save
+        rel.add_treaty(TREATY_TRADE, save_time - 60)
+        data = dm.serialize(current_time=save_time)
+
+        # Simulate loading the snapshot 60s later (i.e., now)
+        dm2 = DiplomacyManager()
+        dm2.deserialize(data)
+        rel2 = dm2.get_relation(0, 1)
+        # Treaty should still be active: ~60s remaining, rebased to current clock
+        self.assertTrue(rel2.has_treaty(TREATY_TRADE), "Treaty must survive reload")
+        treaty = next(t for t in rel2.treaties if t["type"] == TREATY_TRADE)
+        remaining = treaty["expires_at"] - time.time()
+        self.assertGreater(remaining, 55.0, "Remaining duration should be ~60s post-rebase")
+        self.assertLess(remaining, 65.0, "Remaining duration should be ~60s post-rebase")
+
+    def test_expired_treaty_not_restored(self):
+        """Treaties that were already expired at save time must not reappear on load."""
+        now = time.time()
+        dm = DiplomacyManager()
+        dm.set_initial_standing(0, 1, 50.0)
+        rel = dm.get_relation(0, 1)
+        rel.add_treaty(TREATY_TRADE, now - 200)  # added 200s ago; TREATY_TRADE lasts 120s → expired
+        data = dm.serialize(current_time=now)
+
+        dm2 = DiplomacyManager()
+        dm2.deserialize(data)
+        self.assertFalse(dm2.get_relation(0, 1).has_treaty(TREATY_TRADE))
+
+    def test_last_incident_elapsed_rebased(self):
+        """last_incident_time should be rebased to prevent a burst of incidents after load."""
+        now = time.time()
+        dm = DiplomacyManager()
+        rel = dm.get_relation(0, 1)
+        # Simulate an incident that just happened (2s ago)
+        rel.last_incident_time = now - 2
+        data = dm.serialize(current_time=now)
+
+        dm2 = DiplomacyManager()
+        dm2.deserialize(data)
+        rel2 = dm2.get_relation(0, 1)
+        # last_incident_elapsed=2 → last_incident_time = now - 2 ≈ now
+        elapsed_since_last = time.time() - rel2.last_incident_time
+        self.assertLess(elapsed_since_last, DiplomacyManager.INCIDENT_COOLDOWN,
+                        "Incident cooldown must still be active after reload")
+
     def test_faction_relations_summary(self):
         dm = DiplomacyManager()
         dm.set_initial_standing(0, 1, 30.0)
