@@ -19,6 +19,7 @@ class UIState:
     inspect_tab: str = "overview"
     inspect_scroll: int = 0
     archive_scroll: int = 0
+    patch_notes_scroll: int = 0
     archive_filter_scenario: str = "all"
     archive_filter_end_state: str = "all"
     analytics_section: str = "population"

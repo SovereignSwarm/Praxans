@@ -446,6 +446,7 @@ def build_run_snapshot(
         "season": getattr(season, "current", "summer"),
         "weather": getattr(weather_system, "current_weather", "clear"),
         "weather_next_event_in": round(max(0.0, getattr(weather_system, "next_event_time", current_time) - current_time), 3),
+        "weather_active_event_ends_in": round(max(0.0, getattr(weather_system, "active_event_end", 0.0) - current_time), 3),
         "selected_model": selected_model,
         "population": len(praxans),
         "camera": _serialize_camera_state(camera),

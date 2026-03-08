@@ -2,6 +2,50 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+import os
+
+
+def parse_changelog(filepath: str) -> list[dict[str, Any]]:
+    """Parse a markdown changelog into a structured list of version dicts."""
+    if not os.path.exists(filepath):
+        return []
+        
+    versions = []
+    current_version = None
+    current_category = None
+    
+    with open(filepath, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        if line.startswith("## "):
+            version_name = line[3:].strip()
+            # Clean up the markdown brackets if present
+            if version_name.startswith("["):
+                version_name = version_name[1:]
+            if "] —" in version_name:
+                version_name = version_name.replace("] —", " —")
+            current_version = {
+                "version": version_name,
+                "categories": {}
+            }
+            versions.append(current_version)
+            current_category = None
+            
+        elif line.startswith("### ") and current_version is not None:
+            category_name = line[4:].strip()
+            current_category = []
+            current_version["categories"][category_name] = current_category
+            
+        elif line.startswith("- ") and current_category is not None:
+            entry = line[2:].strip()
+            current_category.append(entry)
+            
+    return versions
 
 
 @dataclass(frozen=True)

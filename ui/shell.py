@@ -10,7 +10,7 @@ from run_snapshot import resolve_snapshot_path
 from runtime_config import USER_SETTINGS
 from ui.input_router import UIState, UIRectRegistry
 from ui.layout import compute_shell_layout
-from ui.models import ArchiveCard, build_archive_card
+from ui.models import ArchiveCard, build_archive_card, parse_changelog
 from ui.theme import UITheme, build_ui_theme, draw_button, draw_divider, draw_panel, draw_slider, draw_text_input, wrap_text
 
 
@@ -87,6 +87,7 @@ def _draw_home(
         ("shell_resume", "Resume Latest", "R"),
         ("shell_nav_scenarios", "Scenarios", "S"),
         ("shell_nav_archives", "Archives", "A"),
+        ("shell_nav_patch_notes", "Patch Notes", "P"),
         ("shell_nav_settings", "Settings", ","),
         ("shell_quit", "Quit", "Esc"),
     ]
@@ -97,6 +98,7 @@ def _draw_home(
         active = ui_state.active_screen == {
             "shell_nav_scenarios": "scenario_browser",
             "shell_nav_archives": "archive_browser",
+            "shell_nav_patch_notes": "patch_notes",
             "shell_nav_settings": "settings",
         }.get(action, "command_center")
         draw_button(
@@ -263,6 +265,66 @@ def _draw_archive_browser(
                 y += 24
 
 
+def _draw_patch_notes(surface: pygame.Surface, theme: UITheme, layout, registry: UIRectRegistry, ui_state: UIState, changelog: list[dict[str, Any]]) -> None:
+    draw_panel(surface, layout.detail_panel, theme, fill=(24, 31, 33), alpha=238)
+    draw_panel(surface, layout.nav_column, theme, fill=(22, 27, 29), alpha=236)
+    
+    back_rect = pygame.Rect(layout.nav_column.x + 12, layout.nav_column.y + 16, layout.nav_column.w - 24, 42)
+    registry.register("shell_nav_home", back_rect, action="shell_nav_home", layer=4)
+    draw_button(surface, back_rect, theme, "Back to Dashboard", hotkey="Esc", accent=theme.palette.slate_soft)
+    
+    title = theme.fonts.heading.render("Patch Notes", True, theme.palette.parchment)
+    surface.blit(title, (layout.nav_column.x + 16, layout.nav_column.y + 74))
+    
+    help_text = "Scroll to read recent changes. Keep up to date with the latest additions."
+    for idx, line in enumerate(wrap_text(theme.fonts.caption, help_text, layout.nav_column.w - 32)):
+        surface.blit(theme.fonts.caption.render(line, True, theme.palette.muted_text), (layout.nav_column.x + 16, layout.nav_column.y + 110 + idx * 20))
+    
+    view_rect = pygame.Rect(layout.detail_panel.x + 20, layout.detail_panel.y + 20, layout.detail_panel.w - 40, layout.detail_panel.h - 40)
+    registry.register("patch_notes_scroll", view_rect, action="scroll", scrollable=True, layer=3)
+    
+    y = view_rect.y - ui_state.patch_notes_scroll
+    
+    old_clip = surface.get_clip()
+    surface.set_clip(view_rect.clip(old_clip))
+    
+    for version in changelog:
+        if y > view_rect.bottom:
+            break
+        
+        if y + 40 > view_rect.top:
+            v_title = theme.fonts.display.render(version["version"], True, theme.palette.frost)
+            surface.blit(v_title, (view_rect.x, y))
+        y += 40
+        
+        for cat, entries in version["categories"].items():
+            if y + 24 > view_rect.top and y < view_rect.bottom:
+                c_title = theme.fonts.label.render(cat, True, theme.palette.ochre)
+                surface.blit(c_title, (view_rect.x, y))
+            y += 24
+            
+            for entry in entries:
+                entry_lines = wrap_text(theme.fonts.body, entry, view_rect.w - 20)
+                if y + len(entry_lines) * 24 + 4 > view_rect.top and y < view_rect.bottom:
+                    bullet = theme.fonts.body.render("• ", True, theme.palette.muted_text)
+                    surface.blit(bullet, (view_rect.x, y))
+                    line_y = y
+                    for line in entry_lines:
+                        surface.blit(theme.fonts.body.render(line, True, theme.palette.bright_text), (view_rect.x + 14, line_y))
+                        line_y += 24
+                y += len(entry_lines) * 24 + 4
+            y += 12
+        y += 20
+        if y > view_rect.top and y < view_rect.bottom:
+            draw_divider(surface, theme, (view_rect.x, y), (view_rect.right, y))
+        y += 20
+        
+    total_h = y - (view_rect.y - ui_state.patch_notes_scroll)
+    ui_state.patch_notes_scroll = max(0, min(ui_state.patch_notes_scroll, max(0, total_h - view_rect.h)))
+    
+    surface.set_clip(old_clip)
+
+
 def _draw_settings(surface: pygame.Surface, theme: UITheme, layout, registry: UIRectRegistry, ui_state: UIState) -> None:
     draw_panel(surface, layout.detail_panel, theme, fill=(24, 31, 33), alpha=238)
     draw_panel(surface, layout.nav_column, theme, fill=(22, 27, 29), alpha=236)
@@ -316,6 +378,9 @@ def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime
     registry = UIRectRegistry()
     archive_cards = _load_archive_cards(runtime_config.log_dir, limit=12)
     latest_snapshot_path = resolve_snapshot_path(runtime_config.log_dir, load_latest=True)
+    import os
+    changelog_path = os.path.join(os.path.dirname(__file__), "..", "devlog", "CHANGELOG.md")
+    changelog = parse_changelog(changelog_path)
     while True:
         theme = build_ui_theme(*screen.get_size())
         layout = compute_shell_layout(*screen.get_size())
@@ -327,6 +392,8 @@ def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime
             _draw_scenario_browser(screen, theme, layout, registry, ui_state)
         elif ui_state.active_screen == "archive_browser":
             _draw_archive_browser(screen, theme, layout, registry, ui_state, archive_cards)
+        elif ui_state.active_screen == "patch_notes":
+            _draw_patch_notes(screen, theme, layout, registry, ui_state, changelog)
         else:
             _draw_settings(screen, theme, layout, registry, ui_state)
 
@@ -346,6 +413,12 @@ def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime
                 return screen, {"action": "quit"}
             if event.type == pygame.VIDEORESIZE:
                 screen = pygame.display.set_mode(event.size, pygame.SCALED | pygame.RESIZABLE)
+                continue
+            if event.type == pygame.MOUSEWHEEL:
+                hit = registry.scroll_target(pygame.mouse.get_pos())
+                if hit and hit.action == "scroll":
+                    if ui_state.active_screen == "patch_notes":
+                        ui_state.patch_notes_scroll -= event.y * 30
                 continue
             if event.type == pygame.MOUSEMOTION:
                 if pygame.mouse.get_pressed()[0] and ui_state.active_screen == "settings" and ui_state.settings_active_input == "temp":
@@ -401,6 +474,9 @@ def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime
                 elif event.key == pygame.K_s:
                     if ui_state.active_screen != "settings":
                         ui_state.active_screen = "scenario_browser"
+                elif event.key == pygame.K_p:
+                    if ui_state.active_screen != "settings":
+                        ui_state.active_screen = "patch_notes"
                 continue
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if ui_state.active_screen == "settings" and ui_state.settings_active_input:
@@ -427,6 +503,8 @@ def run_command_center(screen: pygame.Surface, clock: pygame.time.Clock, runtime
                     ui_state.active_screen = "scenario_browser"
                 elif action == "shell_nav_archives":
                     ui_state.active_screen = "archive_browser"
+                elif action == "shell_nav_patch_notes":
+                    ui_state.active_screen = "patch_notes"
                 elif action == "shell_nav_settings":
                     ui_state.active_screen = "settings"
                     ui_state.settings_model_text = USER_SETTINGS.llm_model

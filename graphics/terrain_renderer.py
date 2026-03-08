@@ -82,6 +82,7 @@ class TerrainRenderer:
     def _draw_water_features(self, surface: pygame.Surface, chunk, world_state) -> None:
         tile_size = world_state.tile_size
         import random
+        chunk_seed_x, chunk_seed_y = self._chunk_seed_coords(chunk, world_state)
         for tile_x, tile_y in getattr(chunk, "water_tiles", ()):
             local_x = tile_x * tile_size
             local_y = tile_y * tile_size
@@ -129,7 +130,8 @@ class TerrainRenderer:
     def _draw_procedural_clutter(self, surface: pygame.Surface, chunk, world_state) -> None:
         tile_size = world_state.tile_size
         import random
-        seed_base = hash((chunk.chunk_x, chunk.chunk_y))
+        chunk_seed_x, chunk_seed_y = self._chunk_seed_coords(chunk, world_state)
+        seed_base = hash((chunk_seed_x, chunk_seed_y))
         
         for (tile_x, tile_y), biome_type in getattr(chunk, "tiles", {}).items():
             if biome_type in {"mountains", "snow", "water", "desert", "tundra"}:
@@ -148,7 +150,18 @@ class TerrainRenderer:
                 elif clutter_type == "flower" and biome_type in {"plains", "forest"}:
                     pygame.draw.circle(surface, rng.choice([(250, 100, 100, 200), (200, 200, 250, 200), (250, 250, 100, 200)]), (local_x, local_y), 1)
 
-`r`n    def _chunk_seed_coords(self, chunk, world_state) -> tuple[int, int]:`r`n        chunk_x = getattr(chunk, "chunk_x", None)`r`n        chunk_y = getattr(chunk, "chunk_y", None)`r`n        if isinstance(chunk_x, int) and isinstance(chunk_y, int):`r`n            return (chunk_x, chunk_y)`r`n        chunk_size = max(1, int(getattr(world_state, "chunk_size", 1) or 1))`r`n        world_x = int(getattr(chunk, "world_x", 0) or 0)`r`n        world_y = int(getattr(chunk, "world_y", 0) or 0)`r`n        return (world_x // chunk_size, world_y // chunk_size)`r`n    def _build_chunk_surface(self, chunk, world_state) -> pygame.Surface:
+
+    def _chunk_seed_coords(self, chunk, world_state) -> tuple[int, int]:
+        chunk_x = getattr(chunk, "chunk_x", None)
+        chunk_y = getattr(chunk, "chunk_y", None)
+        if isinstance(chunk_x, int) and isinstance(chunk_y, int):
+            return (chunk_x, chunk_y)
+        chunk_size = max(1, int(getattr(world_state, "chunk_size", 1) or 1))
+        world_x = int(getattr(chunk, "world_x", 0) or 0)
+        world_y = int(getattr(chunk, "world_y", 0) or 0)
+        return (world_x // chunk_size, world_y // chunk_size)
+
+    def _build_chunk_surface(self, chunk, world_state) -> pygame.Surface:
         tile_size = world_state.tile_size
         chunk_size = world_state.chunk_size
         season_name = getattr(world_state.season, "current", "spring")
@@ -293,4 +306,3 @@ class TerrainRenderer:
             self._render_frontier_map(surface, world_state, zoom_band)
             return
         self._render_local_chunks(surface, world_state, zoom_band)
-

@@ -2505,160 +2505,7 @@ class Resource:
         return distance < RESOURCE_COLLISION_DIST
 
 
-class Season:
-    """Manages seasonal cycles"""
-    def __init__(self):
-        self.current = 'spring'  # spring, summer, autumn, winter
-        self.start_time = time.time()
-    
-    def update(self, game_time):
-        """Cycle through seasons"""
-        # Calculate season based on elapsed game time
-        elapsed = game_time % (SEASON_LENGTH * 4)  # Full cycle = 4 seasons
-        season_index = int(elapsed / SEASON_LENGTH)
-        
-        seasons = ['spring', 'summer', 'autumn', 'winter']
-        self.current = seasons[season_index]
-    
-    def get_resource_modifier(self):
-        """Return resource spawn modifiers for current season"""
-        modifiers = {
-            'spring': {'food': 1.2, 'wood': 1.0, 'stone': 1.0},
-            'summer': {'food': 1.0, 'wood': 1.0, 'stone': 1.0},
-            'autumn': {'food': 1.3, 'wood': 1.1, 'stone': 1.0},
-            'winter': {'food': 0.5, 'wood': 0.8, 'stone': 1.2}
-        }
-        return modifiers.get(self.current, modifiers['summer'])
 
-
-class TemperatureGrid:
-    def __init__(self, world_width, world_height, cell_size=200):
-        self.cell_size = cell_size
-        self.cols = int(world_width / cell_size) + 1
-        self.rows = int(world_height / cell_size) + 1
-        self.grid = [[21.0 for _ in range(self.rows)] for _ in range(self.cols)]
-        self.last_update = 0
-
-    def update(self, current_time, world_map, season, weather_system, buildings):
-        if current_time - self.last_update < 5.0:  # Update every 5 seconds
-            return
-        self.last_update = current_time
-
-        # Base offsets
-        season_offsets = {
-            'spring': 0.0,
-            'summer': 15.0,
-            'autumn': 5.0,
-            'winter': -20.0
-        }
-        season_offset = season_offsets.get(season.current, 0.0)
-
-        weather_offsets = {
-            'clear': 0.0,
-            'rain': -5.0,
-            'storm': -10.0,
-            'drought': 10.0,
-            'aurora': -15.0
-        }
-        weather_offset = weather_offsets.get(weather_system.current_weather, 0.0)
-
-        for col in range(self.cols):
-            for row in range(self.rows):
-                world_x = col * self.cell_size + self.cell_size / 2
-                world_y = row * self.cell_size + self.cell_size / 2
-
-                ambient_temp = 21.0
-                if world_map:
-                    biome = world_map.get_biome_at(world_x, world_y)
-                    biome_base = {
-                        'desert': 35.0,
-                        'tundra': -15.0,
-                        'snow': -5.0,
-                        'taiga': 5.0,
-                        'jungle': 30.0,
-                        'swamp': 25.0,
-                        'forest': 18.0,
-                        'plains': 20.0,
-                        'mountains': 10.0
-                    }.get(biome, 21.0)
-                    ambient_temp = biome_base + season_offset + weather_offset
-
-                # Check if indoors
-                nearby_buildings = sum(1 for b in buildings if math.sqrt((b.x - world_x)**2 + (b.y - world_y)**2) < 150)
-                insulation_factor = min(1.0, nearby_buildings * 0.3)  # Max 1.0 at ~3.3 buildings
-                
-                # Apply insulation (pulls towards comfortable 21.0)
-                if insulation_factor > 0:
-                    ambient_temp = ambient_temp * (1.0 - insulation_factor) + (21.0 * insulation_factor)
-                
-                # Add heat sources
-                heat_sources = sum(1 for b in buildings if getattr(b, 'building_type', '') in ['workshop', 'shrine'] and math.sqrt((b.x - world_x)**2 + (b.y - world_y)**2) < 100)
-                ambient_temp += heat_sources * 10.0
-                
-                self.grid[col][row] = ambient_temp
-
-    def get_temperature_at(self, x, y):
-        col = max(0, min(self.cols - 1, int(x / self.cell_size)))
-        row = max(0, min(self.rows - 1, int(y / self.cell_size)))
-        return self.grid[col][row]
-
-
-class WeatherSystem:
-    def __init__(self):
-        self.current_weather = 'clear'
-        self.next_event_time = time.time() + random.uniform(45, 90)  # First event in 45-90 seconds
-    
-    def check_event(self, current_time, difficulty=1.0, season_name='summer'):
-        """Check for weather events"""
-        if current_time >= self.next_event_time:
-            weights = {
-                'clear': 0.44,
-                'rain': 0.24,
-                'storm': 0.14,
-                'drought': 0.12,
-                'aurora': 0.06,
-            }
-
-            if season_name == 'winter':
-                weights['aurora'] += 0.08
-                weights['rain'] -= 0.08
-            elif season_name == 'summer':
-                weights['drought'] += 0.07
-            elif season_name == 'spring':
-                weights['rain'] += 0.10
-                weights['drought'] -= 0.04
-            elif season_name == 'autumn':
-                weights['storm'] += 0.06
-
-            if difficulty > 1.0:
-                weights['storm'] += 0.04 * difficulty
-                weights['drought'] += 0.03 * difficulty
-                weights['clear'] = max(0.18, weights['clear'] - 0.05 * difficulty)
-
-            total_weight = sum(max(0.0, weight) for weight in weights.values())
-            roll = random.random() * total_weight
-            cumulative = 0.0
-            event_type = 'clear'
-            for weather_name, weight in weights.items():
-                cumulative += max(0.0, weight)
-                if roll <= cumulative:
-                    event_type = weather_name
-                    break
-            self.current_weather = event_type
-            self.next_event_time = current_time + random.uniform(30, 60)  # Next event in 30-60 seconds
-            return {'type': event_type, 'duration': 20}  # Event lasts 20 seconds
-        return None
-    
-    def get_effects(self):
-        """Return current weather effects"""
-        effects = {
-            'clear': {},
-            'rain': {'food': 0.15, 'thirst': 0.04, 'happiness': 4},
-            'storm': {'energy': -0.05, 'happiness': -10},
-            'drought': {'thirst': -0.1, 'food': -0.5, 'happiness': -6},
-            'aurora': {'happiness': 8, 'energy': 0.02},
-        }
-        return effects.get(self.current_weather, {})
 
 
 def save_legacy_data(stats, unlocks):
@@ -2837,7 +2684,7 @@ class Camera:
 
 class MapChunk:
     """A chunk of the world map"""
-    def __init__(self, chunk_x, chunk_y, asset_manager=None, lazy_render=True, chunk_state=None):
+    def __init__(self, chunk_x, chunk_y, asset_manager=None, lazy_render=True, chunk_state=None, botany_manager=None):
         self.chunk_x = chunk_x
         self.chunk_y = chunk_y
         self.world_x = chunk_x * CHUNK_SIZE
@@ -2860,7 +2707,7 @@ class MapChunk:
             self.river_tiles = set(getattr(chunk_state, "river_tiles", ()))
             
             # Generate static flora for this chunk based on climate
-            self._generate_static_flora()
+            self._generate_static_flora(botany_manager)
         else:
             self.generate_biomes()
         self.surface = None  # Cached pre-rendered surface
@@ -2871,8 +2718,12 @@ class MapChunk:
         if not lazy_render and asset_manager:
             self.render_surface()
     
-    def _generate_static_flora(self):
+    def _generate_static_flora(self, botany_manager):
         """Generate Rimworld-style dense trees and rocks directly within the chunk's tiles."""
+        if botany_manager:
+            botany_manager.spawn_initial_flora(self, TILE_SIZE)
+            return
+            
         seed_val = int(self.world_x * 73856093 + self.world_y * 19349663)
         rng = random.Random(seed_val)
         
@@ -3055,9 +2906,10 @@ class MapChunk:
 
 class WorldMap:
     """Manages the world map with chunks"""
-    def __init__(self, asset_manager=None, scenario_profile=None, seed=None, snapshot_world=None, planet_tile=None):
+    def __init__(self, asset_manager=None, scenario_profile=None, seed=None, snapshot_world=None, planet_tile=None, botany_manager=None):
         self.chunks = {}  # {(chunk_x, chunk_y): MapChunk}
         self.asset_manager = asset_manager
+        self.botany_manager = botany_manager
         self.encounters = []  # List of special encounters
         self.hazards = []  # List of terrain hazards
         self.npcs = []  # List of NPCs
@@ -3128,7 +2980,7 @@ class WorldMap:
         """Generate initial set of chunks"""
         # Use lazy rendering for faster startup - surfaces will be created on first use
         for (cx, cy), chunk_state in self.frontier_world["chunks"].items():
-            self.chunks[(cx, cy)] = MapChunk(cx, cy, self.asset_manager, lazy_render=True, chunk_state=chunk_state)
+            self.chunks[(cx, cy)] = MapChunk(cx, cy, self.asset_manager, lazy_render=True, chunk_state=chunk_state, botany_manager=self.botany_manager)
 
     def generate_geography_entities(self):
         """Generate encounters, hazards, and NPCs from the frontier geography instead of scatter noise."""
@@ -4355,6 +4207,11 @@ def restore_session_from_snapshot(
 
     weather_system.current_weather = snapshot.get("weather", weather_system.current_weather)
     weather_system.next_event_time = now + max(5.0, float(snapshot.get("weather_next_event_in", 30.0)))
+    active_ends_in = float(snapshot.get("weather_active_event_ends_in", 0.0))
+    if weather_system.current_weather != "clear" and active_ends_in > 0.0:
+        weather_system.active_event_end = now + active_ends_in
+    else:
+        weather_system.active_event_end = 0.0
 
     if fog_of_war is not None:
         fog_data = snapshot.get("fog_of_war", {})
@@ -4947,12 +4804,16 @@ def main(runtime_config=RUNTIME_CONFIG):
     if locals().get("shell_choice") and "planet_tile" in shell_choice:
         planet_tile = shell_choice["planet_tile"]
 
+    from systems.botany import BotanyManager
+    botany_manager = BotanyManager(rng_seed=runtime_config.seed)
+
     world_map = WorldMap(
         asset_manager,
         scenario_profile=scenario_profile,
         seed=runtime_config.seed,
         snapshot_world=(snapshot_payload or {}).get("world"),
         planet_tile=planet_tile,
+        botany_manager=botany_manager,
     )
     print(f"World map created with {len(world_map.chunks)} chunks")
     
@@ -5154,6 +5015,8 @@ def main(runtime_config=RUNTIME_CONFIG):
     ritual_manager.attach_event_bus(event_bus)
     
     # Initialize season and weather systems
+    from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
+    global_climate = GlobalClimate()
     season = Season()
     weather_system = WeatherSystem()
     temperature_grid = TemperatureGrid(world_width, world_height)
@@ -6048,8 +5911,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             )
 
             advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
-            temperature_grid.update(current_time, world_map, season, weather_system, buildings)
-            weather_event = weather_system.check_event(current_time, advisor.challenge_difficulty, season.current)
+            season.update(current_time)
+            global_climate.update(current_time)
+            temperature_grid.update(current_time, world_map, season, weather_system, buildings, global_climate)
+            weather_event = weather_system.update(current_time, season.current, advisor.challenge_difficulty)
             if weather_event and weather_event['type'] != 'clear':
                 narrative_panel.add_message(f"Weather Alert: {weather_event['type']}!", 'Crisis')
                 if weather_event['type'] in ('storm', 'drought'):
