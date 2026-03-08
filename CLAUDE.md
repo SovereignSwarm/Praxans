@@ -81,6 +81,7 @@ python -m py_compile praxans_game.py runtime_config.py
 | `disease.py` | **Named disease/epidemic system.** 5 typed diseases (Gut Rot, Grey Lung, Swamp Fever, Blood Plague, Muscle Worm) with incubation→symptomatic→recovery stages, proximity-based transmission, capacity penalties, immunity buildup, quarantine at hospitals, epidemic detection. Replaces the old `diseased` boolean. Defs in `defs/core/diseases.json`. |
 | `spatial.py` | Spatial indexing |
 | `storyteller.py` | Event/crisis storytelling |
+| `tech_research.py` | **Autonomous tech research.** Factions spend accumulated research points on techs guided by doctrine priority (growth→agriculture, security→medicine, harmony→social, etc.). Evaluates every 30s, respects prerequisites and cooldowns. Publishes EventBus milestones. Serialized in snapshots. |
 
 ### LLM Subsystem (`llm/`)
 

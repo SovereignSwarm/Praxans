@@ -5132,6 +5132,10 @@ def main(runtime_config=RUNTIME_CONFIG):
     storyteller = Storyteller()
     register_all_incidents(storyteller)
 
+    # Initialize autonomous tech research
+    from systems.tech_research import TechResearchManager
+    tech_research_manager = TechResearchManager()
+
     # Initialize ecology system
     from systems.ecology import EcologyManager
     ecology_manager = EcologyManager(world_width, world_height, world_map=world_map)
@@ -5215,6 +5219,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             quest_manager.from_dict(snapshot_payload.get("quests", {}))
             # Restore diplomacy state
             diplomacy_manager.deserialize(snapshot_payload.get("diplomacy", {}))
+            # Restore tech research state
+            tech_research_data = snapshot_payload.get("tech_research", {})
+            if tech_research_data:
+                tech_research_manager.restore(tech_research_data)
             pending_resource_spawns = {}
             if restored_state.get("selected_model") and not selected_model:
                 selected_model = restored_state["selected_model"]
@@ -5978,7 +5986,16 @@ def main(runtime_config=RUNTIME_CONFIG):
                 'resource_class': Resource,
             }
             storyteller.update(current_time, game_state)
-            
+
+            # Autonomous tech research — factions spend accumulated RP based on doctrine
+            tech_research_manager.update(
+                current_time,
+                advisor,
+                factions=list(faction_manager.factions.values()),
+                event_bus=event_bus,
+                narrative_panel=narrative_panel,
+            )
+
             advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
             temperature_grid.update(current_time, world_map, season, weather_system, buildings)
             weather_event = weather_system.check_event(current_time, advisor.challenge_difficulty, season.current)
@@ -7149,6 +7166,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     focus_moments=archive_payload.get("focus_moments", []),
                     quest_manager=quest_manager if "quest_manager" in local_names else None,
                     diplomacy_manager=diplomacy_manager if "diplomacy_manager" in local_names else None,
+                    tech_research_manager=tech_research_manager if "tech_research_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

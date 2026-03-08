@@ -413,6 +413,7 @@ def build_run_snapshot(
     focus_moments: list[dict[str, Any]] | None = None,
     quest_manager=None,
     diplomacy_manager=None,
+    tech_research_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -439,6 +440,7 @@ def build_run_snapshot(
         "world": _serialize_world_state(world_map, current_time),
         "quests": quest_manager.to_dict() if quest_manager is not None else {},
         "diplomacy": diplomacy_manager.serialize(current_time=current_time) if diplomacy_manager is not None else {},
+        "tech_research": tech_research_manager.serialize() if tech_research_manager is not None else {},
         "praxans": [
             {
                 "id": praxan.id,
