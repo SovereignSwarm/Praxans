@@ -101,6 +101,12 @@
             "base_weight": 7,
             "personality_factor": null,
             "label": "Survived an Epidemic"
+        },
+        {
+            "id": "ritual_attended",
+            "base_weight": 4,
+            "personality_factor": "sociability",
+            "label": "Attended a Ritual"
         }
     ]
 }

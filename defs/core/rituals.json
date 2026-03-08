@@ -1,0 +1,144 @@
+{
+    "RitualDef": [
+        {
+            "id": "doctrine_renewal",
+            "name": "Doctrine Renewal",
+            "category": "spiritual",
+            "description": "Faction gathers at a shrine to reaffirm their shared beliefs and purpose.",
+            "trigger": "periodic",
+            "interval_seconds": 120,
+            "min_participants": 3,
+            "required_building": "shrine",
+            "duration_seconds": 12.0,
+            "effects": {
+                "morale_boost": 8,
+                "cohesion_boost": 4.0,
+                "inspiration_boost": 10,
+                "bond_change": 3,
+                "social_need": 15,
+                "doctrine_reinforcement": 0.05
+            },
+            "moodlet": "AttendedDoctrineRenewal",
+            "memory_event": "ritual_attended",
+            "drama_weight": 4,
+            "narrative_template": "Faction {faction_id} gathered at the shrine for a Doctrine Renewal — {participants} praxans reaffirmed their {doctrine} way of life."
+        },
+        {
+            "id": "harvest_thanksgiving",
+            "name": "Harvest Thanksgiving",
+            "category": "celebration",
+            "description": "A feast celebrating abundance when food stores are plentiful.",
+            "trigger": "condition",
+            "condition": "food_security_high",
+            "condition_threshold": 75.0,
+            "cooldown_seconds": 180,
+            "min_participants": 2,
+            "required_building": "shrine",
+            "duration_seconds": 15.0,
+            "effects": {
+                "morale_boost": 12,
+                "happiness_boost": 8,
+                "bond_change": 5,
+                "social_need": 20,
+                "hunger_restore": 15
+            },
+            "moodlet": "AttendedHarvestFeast",
+            "memory_event": "ritual_attended",
+            "drama_weight": 3,
+            "narrative_template": "Faction {faction_id} held a Harvest Thanksgiving — {participants} praxans feasted together, grateful for abundance."
+        },
+        {
+            "id": "mourning_ceremony",
+            "name": "Mourning Ceremony",
+            "category": "grief",
+            "description": "A solemn gathering to honor the recently dead and ease collective grief.",
+            "trigger": "condition",
+            "condition": "recent_death",
+            "cooldown_seconds": 90,
+            "min_participants": 2,
+            "required_building": null,
+            "duration_seconds": 10.0,
+            "effects": {
+                "morale_boost": 5,
+                "grief_relief": 0.4,
+                "bond_change": 4,
+                "social_need": 18,
+                "cohesion_boost": 3.0
+            },
+            "moodlet": "MournedTogether",
+            "memory_event": "ritual_attended",
+            "drama_weight": 6,
+            "narrative_template": "Faction {faction_id} held a Mourning Ceremony — {participants} praxans gathered to honor their dead."
+        },
+        {
+            "id": "naming_day",
+            "name": "Naming Day",
+            "category": "celebration",
+            "description": "A joyful ceremony welcoming newborns into the faction.",
+            "trigger": "condition",
+            "condition": "recent_birth",
+            "cooldown_seconds": 120,
+            "min_participants": 2,
+            "required_building": null,
+            "duration_seconds": 8.0,
+            "effects": {
+                "morale_boost": 10,
+                "happiness_boost": 6,
+                "bond_change": 3,
+                "social_need": 12,
+                "cohesion_boost": 2.0
+            },
+            "moodlet": "CelebratedNamingDay",
+            "memory_event": "ritual_attended",
+            "drama_weight": 3,
+            "narrative_template": "Faction {faction_id} celebrated a Naming Day — {participants} praxans welcomed the newest members."
+        },
+        {
+            "id": "seasonal_rite",
+            "name": "Seasonal Rite",
+            "category": "spiritual",
+            "description": "A ceremony marking the transition between seasons, preparing the faction for what lies ahead.",
+            "trigger": "condition",
+            "condition": "season_changed",
+            "cooldown_seconds": 80,
+            "min_participants": 3,
+            "required_building": "shrine",
+            "duration_seconds": 10.0,
+            "effects": {
+                "morale_boost": 7,
+                "inspiration_boost": 8,
+                "bond_change": 2,
+                "social_need": 14,
+                "resilience_boost": 0.05
+            },
+            "moodlet": "AttendedSeasonalRite",
+            "memory_event": "ritual_attended",
+            "drama_weight": 4,
+            "narrative_template": "Faction {faction_id} performed a Seasonal Rite — {participants} praxans marked the arrival of {season}."
+        },
+        {
+            "id": "victory_celebration",
+            "name": "Victory Celebration",
+            "category": "celebration",
+            "description": "A triumphant gathering after surviving a disaster or epidemic.",
+            "trigger": "condition",
+            "condition": "survived_crisis",
+            "cooldown_seconds": 150,
+            "min_participants": 2,
+            "required_building": null,
+            "duration_seconds": 14.0,
+            "effects": {
+                "morale_boost": 15,
+                "happiness_boost": 10,
+                "inspiration_boost": 12,
+                "bond_change": 6,
+                "social_need": 22,
+                "cohesion_boost": 5.0
+            },
+            "moodlet": "CelebratedVictory",
+            "memory_event": "ritual_attended",
+            "drama_weight": 5,
+            "narrative_template": "Faction {faction_id} erupted in a Victory Celebration — {participants} praxans rejoiced at surviving the crisis."
+        }
+    ]
+}

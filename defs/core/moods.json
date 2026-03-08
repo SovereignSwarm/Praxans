@@ -69,6 +69,36 @@
             "id": "HadFun",
             "mood_offset": 5,
             "duration": 180
+        },
+        {
+            "id": "AttendedDoctrineRenewal",
+            "mood_offset": 8,
+            "duration": 300
+        },
+        {
+            "id": "AttendedHarvestFeast",
+            "mood_offset": 12,
+            "duration": 360
+        },
+        {
+            "id": "MournedTogether",
+            "mood_offset": 5,
+            "duration": 240
+        },
+        {
+            "id": "CelebratedNamingDay",
+            "mood_offset": 10,
+            "duration": 300
+        },
+        {
+            "id": "AttendedSeasonalRite",
+            "mood_offset": 7,
+            "duration": 240
+        },
+        {
+            "id": "CelebratedVictory",
+            "mood_offset": 15,
+            "duration": 420
         }
     ]
 }

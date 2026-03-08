@@ -42,9 +42,17 @@ def _serialize_skills(praxan) -> dict[str, dict[str, float | int]]:
     for skill_name, skill_data in skills.items():
         if not isinstance(skill_data, dict):
             continue
+        try:
+            level = int(skill_data.get("level", 1))
+        except (TypeError, ValueError):
+            level = 1
+        try:
+            xp = float(skill_data.get("xp", 0.0))
+        except (TypeError, ValueError):
+            xp = 0.0
         serialized[str(skill_name)] = {
-            "level": max(1, int(skill_data.get("level", 1))),
-            "xp": round(max(0.0, float(skill_data.get("xp", 0.0))), 3),
+            "level": max(1, level),
+            "xp": round(max(0.0, xp), 3),
         }
     return serialized
 
@@ -101,20 +109,27 @@ def _serialize_celebration_state(celebration_state: dict[str, Any] | None, curre
     if not celebration_state:
         return {"active_remaining": 0.0, "cooldown_remaining": 0.0, "center": None}
 
+    def _coerce_float(value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
     center = celebration_state.get("center")
     if isinstance(center, (list, tuple)) and len(center) == 2:
-        serialized_center = {"x": round(float(center[0]), 2), "y": round(float(center[1]), 2)}
+        center_x = _coerce_float(center[0])
+        center_y = _coerce_float(center[1])
+        serialized_center = {"x": round(center_x, 2), "y": round(center_y, 2)}
     else:
         serialized_center = None
 
-    active_until = float(celebration_state.get("active_until", 0.0) or 0.0)
-    cooldown_until = float(celebration_state.get("cooldown_until", 0.0) or 0.0)
+    active_until = _coerce_float(celebration_state.get("active_until", 0.0) or 0.0)
+    cooldown_until = _coerce_float(celebration_state.get("cooldown_until", 0.0) or 0.0)
     return {
         "active_remaining": round(max(0.0, active_until - current_time), 3),
         "cooldown_remaining": round(max(0.0, cooldown_until - current_time), 3),
         "center": serialized_center,
     }
-
 
 def _serialize_camera_state(camera) -> dict[str, Any] | None:
     if camera is None:
@@ -414,6 +429,8 @@ def build_run_snapshot(
     quest_manager=None,
     diplomacy_manager=None,
     tech_research_manager=None,
+    disaster_manager=None,
+    ritual_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -441,6 +458,8 @@ def build_run_snapshot(
         "quests": quest_manager.to_dict() if quest_manager is not None else {},
         "diplomacy": diplomacy_manager.serialize(current_time=current_time) if diplomacy_manager is not None else {},
         "tech_research": tech_research_manager.serialize() if tech_research_manager is not None else {},
+        "disasters": disaster_manager.serialize() if disaster_manager is not None else {},
+        "rituals": ritual_manager.serialize() if ritual_manager is not None else {},
         "praxans": [
             {
                 "id": praxan.id,
@@ -630,3 +649,4 @@ def resolve_snapshot_path(log_dir: str, snapshot_file: str | None = None, load_l
         return os.path.abspath(latest_snapshot) if latest_snapshot else None
 
     return None
+

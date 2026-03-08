@@ -4705,6 +4705,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     from systems.spatial import FogOfWar, TerritoryManager, CityPlanner
     from systems.society import Faction, FactionManager, TradeSystem
     from systems.diplomacy import DiplomacyManager
+    from systems.disasters import DisasterManager
     from systems.advisor import CivilizationAdvisor
     from entities.praxan import Praxan
     if screen is None:
@@ -5136,6 +5137,9 @@ def main(runtime_config=RUNTIME_CONFIG):
     from systems.tech_research import TechResearchManager
     tech_research_manager = TechResearchManager()
 
+    # Initialize natural disaster system
+    disaster_manager = DisasterManager()
+
     # Initialize ecology system
     from systems.ecology import EcologyManager
     ecology_manager = EcologyManager(world_width, world_height, world_map=world_map)
@@ -5143,6 +5147,11 @@ def main(runtime_config=RUNTIME_CONFIG):
     # Initialize disease system
     from systems.disease import DiseaseManager
     disease_manager = DiseaseManager()
+
+    # Initialize ritual system
+    from systems.rituals import RitualManager
+    ritual_manager = RitualManager()
+    ritual_manager.attach_event_bus(event_bus)
     
     # Initialize season and weather systems
     season = Season()
@@ -5223,6 +5232,14 @@ def main(runtime_config=RUNTIME_CONFIG):
             tech_research_data = snapshot_payload.get("tech_research", {})
             if tech_research_data:
                 tech_research_manager.restore(tech_research_data)
+            # Restore disaster state
+            disaster_data = snapshot_payload.get("disasters", {})
+            if disaster_data:
+                disaster_manager.restore(disaster_data)
+            # Restore ritual state
+            ritual_data = snapshot_payload.get("rituals", {})
+            if ritual_data:
+                ritual_manager.restore(ritual_data)
             pending_resource_spawns = {}
             if restored_state.get("selected_model") and not selected_model:
                 selected_model = restored_state["selected_model"]
@@ -5970,7 +5987,10 @@ def main(runtime_config=RUNTIME_CONFIG):
                                          world_map.encounters, world_map.hazards, world_map.npcs, world_map)
             
             # Update season and weather
+            prev_season = season.current
             season.update(current_time - game_start_time)
+            if season.current != prev_season:
+                ritual_manager.signal_season_change(season.current, current_time)
             
             # Update Storyteller Engine (Pacing & Events)
             # Create a weak game state dict for incidents
@@ -5984,6 +6004,10 @@ def main(runtime_config=RUNTIME_CONFIG):
                 'world_height': camera.world_height,
                 'praxan_class': Praxan,
                 'resource_class': Resource,
+                'disaster_manager': disaster_manager,
+                'season': season,
+                'weather_system': weather_system,
+                'world_map': world_map,
             }
             storyteller.update(current_time, game_state)
 
@@ -5994,6 +6018,33 @@ def main(runtime_config=RUNTIME_CONFIG):
                 factions=list(faction_manager.factions.values()),
                 event_bus=event_bus,
                 narrative_panel=narrative_panel,
+            )
+
+            # Natural disaster evaluation — area-of-effect environmental events
+            disaster_manager.update(
+                current_time=current_time,
+                praxans=praxans,
+                buildings=buildings,
+                world_map=world_map,
+                season_name=season.current,
+                weather_name=weather_system.current_weather,
+                event_bus=event_bus,
+                narrative_panel=narrative_panel,
+                storyteller_phase=storyteller.current_phase,
+                colony_wealth=storyteller.colony_wealth,
+            )
+
+            # Faction rituals & gatherings — periodic ceremonies at shrines
+            ritual_manager.update(
+                faction_manager=faction_manager,
+                praxans=praxans,
+                buildings=buildings,
+                current_time=current_time,
+                event_bus=event_bus,
+                advisor=advisor,
+                narrative_panel=narrative_panel,
+                particle_system=particle_system,
+                season=season.current,
             )
 
             advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
@@ -6167,6 +6218,9 @@ def main(runtime_config=RUNTIME_CONFIG):
                             f"{dead_name} (L{getattr(praxan, 'lineage_id', praxan.id)}) has died",
                             f"Cause: {cause.replace('_', ' ')}. Stage: {getattr(praxan, 'life_stage', 'unknown')}.",
                         )
+                        # Signal death to ritual system for mourning ceremonies
+                        if getattr(praxan, 'faction_id', None) is not None:
+                            ritual_manager.signal_death(praxan.faction_id, current_time)
             
             # Update factions outside the loop for efficiency
             faction_manager.update_factions(praxans, advisor,
@@ -6796,6 +6850,10 @@ def main(runtime_config=RUNTIME_CONFIG):
                             f"Parents: {p1_name} & {p2_name}. Population now {len(praxans)}.",
                         )
                         advisor.session_stats['births_total'] = advisor.session_stats.get('births_total', 0) + 1
+                        # Signal birth to ritual system for naming day
+                        parent_faction = getattr(praxan1, 'faction_id', None)
+                        if parent_faction is not None:
+                            ritual_manager.signal_birth(parent_faction, current_time)
                         append_bounded_history(
                             advisor.session_stats.setdefault('lineage_events', []),
                             {
@@ -7167,6 +7225,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                     quest_manager=quest_manager if "quest_manager" in local_names else None,
                     diplomacy_manager=diplomacy_manager if "diplomacy_manager" in local_names else None,
                     tech_research_manager=tech_research_manager if "tech_research_manager" in local_names else None,
+                    disaster_manager=disaster_manager if "disaster_manager" in local_names else None,
+                    ritual_manager=ritual_manager if "ritual_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {
