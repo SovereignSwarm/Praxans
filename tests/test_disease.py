@@ -510,6 +510,47 @@ class TestDiseaseContraction(DiseaseDefDatabaseMixin, unittest.TestCase):
             self.assertIsNone(result)
 
 
+class TestEventBusPublishing(DiseaseDefDatabaseMixin, unittest.TestCase):
+    """Regression: EventBus.publish must receive a GameEvent, not (str, dict)."""
+
+    class _RecordingBus:
+        def __init__(self):
+            self.published = []
+
+        def publish(self, event):
+            self.published.append(event)
+
+    def test_infect_publishes_game_event(self):
+        from events.bus import GameEvent
+        bus = self._RecordingBus()
+        mgr = DiseaseManager()
+        p = _MockPraxan(1)
+        result = mgr.infect(p, "gut_rot", event_bus=bus)
+        self.assertTrue(result)
+        self.assertEqual(len(bus.published), 1)
+        self.assertIsInstance(bus.published[0], GameEvent)
+        self.assertIn("gut_rot", str(bus.published[0].metadata))
+
+    def test_epidemic_publishes_game_event(self):
+        from events.bus import GameEvent
+        bus = self._RecordingBus()
+        mgr = DiseaseManager()
+        mgr.epidemic_threshold = 2
+        praxans = []
+        for i in range(3):
+            p = _MockPraxan(i, x=100 + i * 50, y=100)
+            d = DiseaseInstance("gut_rot")
+            d.stage = STAGE_SYMPTOMATIC
+            d.contracted_at = time.time() - 20
+            d.severity = 0.3
+            p.diseases = [d]
+            p.diseased = True
+            praxans.append(p)
+        mgr.update(praxans, delta_time=1.0, event_bus=bus)
+        epidemic_events = [e for e in bus.published if isinstance(e, GameEvent) and "epidemic" in str(e.metadata)]
+        self.assertGreater(len(epidemic_events), 0)
+
+
 class TestEpidemicDetection(DiseaseDefDatabaseMixin, unittest.TestCase):
     """Test epidemic threshold detection."""
 

@@ -378,13 +378,15 @@ class DiseaseManager:
         # EventBus
         if event_bus:
             try:
-                event_bus.publish("disaster", {
-                    "type": "disease_contracted",
-                    "praxan_id": getattr(praxan, "id", None),
-                    "disease_id": disease_id,
-                    "disease_label": ddef.get("label", disease_id),
-                    "timestamp": now,
-                })
+                from events.bus import GameEvent, CATEGORY_PERSONAL
+                _label = ddef.get("label", disease_id)
+                _name = getattr(praxan, "name", f"Praxan {getattr(praxan, 'id', '?')}")
+                event_bus.publish(GameEvent(
+                    category=CATEGORY_PERSONAL,
+                    summary=f"{_name} contracted {_label}",
+                    praxan_id=getattr(praxan, "id", None),
+                    metadata={"disease_id": disease_id, "type": "disease_contracted"},
+                ))
             except Exception:
                 pass
 
@@ -583,13 +585,13 @@ def _on_recovery(
 
     if event_bus:
         try:
-            event_bus.publish("personal", {
-                "type": "disease_recovered",
-                "praxan_id": getattr(praxan, "id", None),
-                "disease_id": disease_id,
-                "disease_label": label,
-                "timestamp": now,
-            })
+            from events.bus import GameEvent, CATEGORY_PERSONAL
+            event_bus.publish(GameEvent(
+                category=CATEGORY_PERSONAL,
+                summary=f"{name} recovered from {label}",
+                praxan_id=getattr(praxan, "id", None),
+                metadata={"disease_id": disease_id, "type": "disease_recovered"},
+            ))
         except Exception:
             pass
 
@@ -620,13 +622,13 @@ def _on_disease_death(
 
     if event_bus:
         try:
-            event_bus.publish("death", {
-                "type": "disease_death",
-                "praxan_id": getattr(praxan, "id", None),
-                "disease_id": disease_id,
-                "disease_label": label,
-                "timestamp": now,
-            })
+            from events.bus import GameEvent, CATEGORY_DEATH
+            event_bus.publish(GameEvent(
+                category=CATEGORY_DEATH,
+                summary=f"{name} died of {label}",
+                praxan_id=getattr(praxan, "id", None),
+                metadata={"disease_id": disease_id, "cause": "disease"},
+            ))
         except Exception:
             pass
 
@@ -652,12 +654,11 @@ def _on_epidemic(
 
     if event_bus:
         try:
-            event_bus.publish("disaster", {
-                "type": "epidemic",
-                "disease_id": disease_id,
-                "disease_label": label,
-                "infected_count": count,
-                "timestamp": now,
-            })
+            from events.bus import GameEvent, CATEGORY_DISASTER
+            event_bus.publish(GameEvent(
+                category=CATEGORY_DISASTER,
+                summary=f"Epidemic! {label} has infected {count} praxans",
+                metadata={"disease_id": disease_id, "infected_count": count, "type": "epidemic"},
+            ))
         except Exception:
             pass
