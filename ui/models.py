@@ -70,6 +70,11 @@ class RunHudModel:
     overlay_label: str
     observer_score: int
     cue_label: str = ""
+    # Environment ribbon — season, weather, ecology at a glance
+    season_label: str = ""
+    weather_label: str = ""
+    ecology_label: str = ""
+    climate_epoch: str = ""
 
 
 @dataclass(frozen=True)

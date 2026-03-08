@@ -1,0 +1,27 @@
+...................................................................................................F..............................................................................................................[Scheduler] council failed: fake error (cooldown 1s)
+.....[Scheduler] Unknown channel: invalid_channel
+....................................................................................................................................................................................
+======================================================================
+FAIL: test_try_contract_swamp_fever_in_swamp (test_disease.TestDiseaseContraction.test_try_contract_swamp_fever_in_swamp)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Documents\PerseusXR\Thonglets\tests\test_disease.py", line 496, in test_try_contract_swamp_fever_in_swamp
+    self.assertTrue(contracted, "Expected at least one contraction in 100 tries in swamp")
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : Expected at least one contraction in 100 tries in swamp
+
+----------------------------------------------------------------------
+Ran 395 tests in 12.179s
+
+FAILED (failures=1)
+pygame 2.6.1 (SDL 2.28.4, Python 3.13.6)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Basic Medicine (doctrine=security, cost=200, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=400)
+[TechResearch] Unlocked Advanced Irrigation (doctrine=growth, cost=250, remaining=150)
+[TechResearch] Unlocked Community Building (doctrine=harmony, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=50)

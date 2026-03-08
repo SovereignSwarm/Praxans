@@ -6,6 +6,7 @@ import random
 import pygame
 
 from graphics.content import tint_for_time_of_day
+from graphics.content import get_building_recipe
 from graphics.palette import doctrine_color, mix_color, season_tint, weather_tint
 
 
@@ -284,32 +285,34 @@ class EffectsRenderer:
                 continue
 
             btype = str(marker.get("building_type", "house"))
-            size = int(28 * zoom)
-            ghost = pygame.Surface((size, size), pygame.SRCALPHA)
+            recipe = get_building_recipe(btype)
+            ghost_w = max(18, int((16 + recipe.grid_width * 12) * zoom))
+            ghost_h = max(18, int((16 + recipe.grid_height * 12 + (10 if recipe.silhouette == "tower" else 0)) * zoom))
+            ghost = pygame.Surface((ghost_w, ghost_h), pygame.SRCALPHA)
 
             # Building silhouette — translucent
             base_alpha = int(50 * pulse)
             accent = doctrine_color(str(marker.get("doctrine", "growth")))
-            pygame.draw.rect(ghost, (*accent, base_alpha), (2, size // 3, size - 4, size - size // 3 - 2))
+            pygame.draw.rect(ghost, (*accent, base_alpha), (2, ghost_h // 3, ghost_w - 4, ghost_h - ghost_h // 3 - 2))
             # Roof triangle
             pygame.draw.polygon(ghost, (*accent, int(base_alpha * 0.8)), [
-                (0, size // 3),
-                (size // 2, 1),
-                (size - 1, size // 3),
+                (0, ghost_h // 3),
+                (ghost_w // 2, 1),
+                (ghost_w - 1, ghost_h // 3),
             ])
             # Pulsing border
             border_alpha = int(120 * pulse)
-            pygame.draw.rect(ghost, (*accent, border_alpha), (1, size // 3, size - 2, size - size // 3 - 1), 1)
+            pygame.draw.rect(ghost, (*accent, border_alpha), (1, ghost_h // 3, ghost_w - 2, ghost_h - ghost_h // 3 - 1), 1)
 
             # Label
             try:
                 label_font = pygame.font.SysFont("segoeui", max(9, int(10 * zoom)))
                 label = label_font.render(btype[:8], True, (*accent, int(200 * pulse)))
-                surface.blit(label, (screen_x - label.get_width() // 2, screen_y + size // 2 + 2))
+                surface.blit(label, (screen_x - label.get_width() // 2, screen_y + ghost_h // 2 + 2))
             except Exception:
                 pass
 
-            surface.blit(ghost, (screen_x - size // 2, screen_y - size // 2))
+            surface.blit(ghost, (screen_x - ghost_w // 2, screen_y - ghost_h // 2))
 
     def render(self, surface: pygame.Surface, frame) -> None:
         if frame.particle_system is not None:
@@ -469,5 +472,4 @@ class EffectsRenderer:
                     if int(t * 3 + getattr(building, "id", 0)) % 4 == 0:
                         pygame.draw.circle(sparkle_surf, (200, 220, 100, 100), (4, 4), max(1, int(1.5 * zoom)))
                         surface.blit(sparkle_surf, (screen_x - 2, screen_y - int(8 * zoom)))
-
 

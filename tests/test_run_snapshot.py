@@ -97,8 +97,13 @@ class RunSnapshotTests(unittest.TestCase):
             x=40.0,
             y=50.0,
             level=2,
+            built_at=87.5,
             built_by=7,
             aura_strength=0.6,
+            origin_biome="forest",
+            material_style="timber",
+            wear=0.23,
+            construction_progress=0.74,
             stored_resources={"food": 1, "wood": 0, "stone": 0},
             occupants=[praxan],
         )
@@ -278,6 +283,11 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["world"]["npcs"][0]["last_interaction_elapsed"], 4.0)
         self.assertEqual(snapshot["advisor"]["council_state"]["doctrine"]["focus"], "growth")
         self.assertEqual(snapshot["advisor"]["advisory_history"][0]["doctrine"]["focus"], "growth")
+        self.assertEqual(snapshot["buildings"][0]["built_elapsed"], 12.5)
+        self.assertEqual(snapshot["buildings"][0]["origin_biome"], "forest")
+        self.assertEqual(snapshot["buildings"][0]["material_style"], "timber")
+        self.assertEqual(snapshot["buildings"][0]["wear"], 0.23)
+        self.assertEqual(snapshot["buildings"][0]["construction_progress"], 0.74)
 
         with workspace_tempdir() as temp_dir:
             snapshot_path = write_run_snapshot(temp_dir, "test_session", snapshot)
@@ -305,6 +315,11 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(loaded["advisor"]["council_state"]["doctrine"]["focus"], "growth")
         self.assertEqual(loaded["advisor"]["advisory_history"][0]["doctrine"]["focus"], "growth")
         self.assertEqual(loaded["advisor"]["group_tasks"][0]["task_type"], "build")
+        self.assertEqual(loaded["buildings"][0]["built_elapsed"], 12.5)
+        self.assertEqual(loaded["buildings"][0]["origin_biome"], "forest")
+        self.assertEqual(loaded["buildings"][0]["material_style"], "timber")
+        self.assertEqual(loaded["buildings"][0]["wear"], 0.23)
+        self.assertEqual(loaded["buildings"][0]["construction_progress"], 0.74)
         self.assertEqual(loaded["fog_of_war"]["visibility_radius"], 72)
         self.assertEqual(loaded["territory"]["tiles"][0]["center_type"], "building")
         self.assertEqual(loaded["factions"][0]["member_ids"], [7])

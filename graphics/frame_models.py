@@ -153,6 +153,17 @@ def _derive_faction_accent(entity, faction_manager) -> tuple[int, int, int] | No
     return accent
 
 
+def _derive_variant_id(entity, entity_type: str) -> int:
+    if entity_type == "building":
+        x = int(round(float(getattr(entity, "x", 0.0) or 0.0)))
+        y = int(round(float(getattr(entity, "y", 0.0) or 0.0)))
+        level = int(getattr(entity, "level", 1) or 1)
+        built_by_raw = getattr(entity, "built_by", None)
+        built_by = int(built_by_raw) if built_by_raw is not None else -1
+        return abs((x * 17) + (y * 31) + (level * 7) + (built_by * 13)) % 8
+    return int(getattr(entity, "id", 0) or 0) % 4
+
+
 def _build_entity_states(entities, entity_type: str, selected_entity, faction_manager=None) -> tuple[EntityVisualState, ...]:
     return tuple(
         EntityVisualState(
@@ -161,7 +172,7 @@ def _build_entity_states(entities, entity_type: str, selected_entity, faction_ma
             selected=entity is selected_entity,
             animation_state=_derive_animation_state(entity, entity_type),
             facing=_derive_facing(entity),
-            variant_id=int(getattr(entity, "id", 0) or 0) % 4,
+            variant_id=_derive_variant_id(entity, entity_type),
             faction_accent=_derive_faction_accent(entity, faction_manager),
             health_state=_derive_health_state(entity, entity_type),
             highlight_state="selected" if entity is selected_entity else "normal",
@@ -205,6 +216,13 @@ def build_render_frame(
     elapsed_seconds = max(0.0, current_time - game_start_time)
     focus_event = None
     cues = []
+    normalized_ghost_markers = list(ghost_markers or [])
+    if not normalized_ghost_markers and city_planner is not None:
+        for site in list(getattr(city_planner, "proposed_sites", []) or []):
+            if isinstance(site, (list, tuple)) and len(site) >= 3:
+                normalized_ghost_markers.append(
+                    {"x": float(site[0]), "y": float(site[1]), "building_type": str(site[2])}
+                )
     for cue in list(effect_cues or []):
         if not isinstance(cue, dict):
             continue
@@ -269,5 +287,5 @@ def build_render_frame(
             "prosperity_score": round(float((settlement_state or {}).get("prosperity_score", 0.0) or 0.0), 3),
         },
         title_card=dict(title_card) if title_card else None,
-        ghost_markers=tuple(dict(gm) for gm in list(ghost_markers or [])),
+        ghost_markers=tuple(dict(gm) for gm in normalized_ghost_markers),
     )

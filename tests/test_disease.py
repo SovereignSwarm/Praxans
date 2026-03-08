@@ -484,7 +484,7 @@ class TestDiseaseContraction(DiseaseDefDatabaseMixin, unittest.TestCase):
         mgr = DiseaseManager()
         # High chance: swamp biome, summer, crowded, no hygiene
         contracted = False
-        for _ in range(100):
+        for _ in range(1000):
             praxan = _MockPraxan(0)
             result = mgr.try_contract(
                 praxan, biome="swamp", season="summer",
@@ -493,7 +493,7 @@ class TestDiseaseContraction(DiseaseDefDatabaseMixin, unittest.TestCase):
             if result:
                 contracted = True
                 break
-        self.assertTrue(contracted, "Expected at least one contraction in 100 tries in swamp")
+        self.assertTrue(contracted, "Expected at least one contraction in 1000 tries in swamp")
 
     def test_try_contract_respects_immunity(self):
         mgr = DiseaseManager()

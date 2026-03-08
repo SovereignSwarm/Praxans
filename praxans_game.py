@@ -29,7 +29,7 @@ from llm.interpreters import apply_council_payload, apply_faction_intent, apply_
 from llm import CHANNEL_COUNCIL, CHANNEL_FACTION, CHANNEL_HISTORIAN, CHANNEL_MEMORY, CHANNEL_MUSE
 from game_scenarios import DEFAULT_SCENARIO_ID, get_scenario_profile
 from graphics import GraphicsConfig, SceneRenderer, build_render_frame
-from graphics.content import SNAP_ZOOM_LEVELS
+from graphics.content import ROOM_WALL_BUILDING_TYPES, SNAP_ZOOM_LEVELS, building_occupied_tiles, building_origin_to_anchor
 from map import WORLD_GENERATION_VERSION, build_frontier_world, build_world_profile
 from observer_analytics import build_observer_report
 from run_archive import build_archive_comparison, build_run_archive, build_run_summary, find_recent_archives, write_run_archive
@@ -1687,10 +1687,8 @@ def detect_room(start_x, start_y, world_width, world_height, buildings):
     # Track wall positions (tiles occupied by buildings that block passage)
     wall_tiles = set()
     for b in buildings:
-        # Most buildings block passage and act as walls
-        if b.building_type in ['house', 'workshop', 'lab', 'temple', 'school', 'storage', 'well']:
-            bx, by = int(b.x // TILE_SIZE), int(b.y // TILE_SIZE)
-            wall_tiles.add((bx, by))
+        if b.building_type in ROOM_WALL_BUILDING_TYPES:
+            wall_tiles.update(building_occupied_tiles(b.x, b.y, b.building_type, TILE_SIZE))
 
     if (tx, ty) in wall_tiles:
         return None # Can't start inside a wall
@@ -1730,8 +1728,8 @@ def detect_room(start_x, start_y, world_width, world_height, buildings):
     # Calculate beauty
     beauty = 0.0
     for b in buildings:
-        bx, by = int(b.x // TILE_SIZE), int(b.y // TILE_SIZE)
-        if (bx, by) in room_tiles:
+        occupied_tiles = set(building_occupied_tiles(b.x, b.y, b.building_type, TILE_SIZE))
+        if occupied_tiles & room_tiles:
             beauty += BUILDING_DEFINITIONS.get(b.building_type, {}).get('beauty', 0)
             
     return RoomStats(
@@ -1750,30 +1748,31 @@ def update_rooms(rooms, buildings, world_width, world_height):
     # Grid dimensions in tiles
     w_tiles = world_width // TILE_SIZE
     h_tiles = world_height // TILE_SIZE
+    wall_tiles = set()
+    for building in buildings:
+        if building.building_type in ROOM_WALL_BUILDING_TYPES:
+            wall_tiles.update(building_occupied_tiles(building.x, building.y, building.building_type, TILE_SIZE))
 
     for b in buildings:
         # Check adjacent tiles of wall-buildings for potential rooms
-        if b.building_type in ['house', 'workshop', 'lab', 'temple', 'school', 'storage', 'well']:
-            for dx, dy in [(TILE_SIZE, 0), (-TILE_SIZE, 0), (0, TILE_SIZE), (0, -TILE_SIZE)]:
-                nx, ny = b.x + dx, b.y + dy
-                # Skip if fuera de límites
-                if nx < 0 or ny < 0 or nx >= world_width or ny >= world_height: continue
-                
-                tile_coords = (int(nx // TILE_SIZE), int(ny // TILE_SIZE))
-                if tile_coords not in visited_tiles:
-                    # Check if this tile is a wall itself
-                    is_wall = False
-                    for b2 in buildings:
-                        if b2.building_type in ['house', 'workshop', 'lab', 'temple', 'school', 'storage', 'well']:
-                            if int(b2.x // TILE_SIZE) == tile_coords[0] and int(b2.y // TILE_SIZE) == tile_coords[1]:
-                                is_wall = True
-                                break
-                    
-                    if not is_wall:
-                        room = detect_room(nx, ny, world_width, world_height, buildings)
-                        if room:
-                            rooms.append(room)
-                            visited_tiles.update(room.tiles)
+        if b.building_type in ROOM_WALL_BUILDING_TYPES:
+            for wall_tx, wall_ty in building_occupied_tiles(b.x, b.y, b.building_type, TILE_SIZE):
+                for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    nx_tile = wall_tx + dx
+                    ny_tile = wall_ty + dy
+                    nx = nx_tile * TILE_SIZE
+                    ny = ny_tile * TILE_SIZE
+                    if nx < 0 or ny < 0 or nx >= world_width or ny >= world_height:
+                        continue
+
+                    tile_coords = (nx_tile, ny_tile)
+                    if tile_coords in visited_tiles or tile_coords in wall_tiles:
+                        continue
+
+                    room = detect_room(nx, ny, world_width, world_height, buildings)
+                    if room:
+                        rooms.append(room)
+                        visited_tiles.update(room.tiles)
 
 class ParticleSystem:
     """Manages particle effects for visual feedback"""
@@ -2290,17 +2289,23 @@ class Encounter:
 
 class TerrainHazard:
     """Environmental hazards that affect praxans"""
-    def __init__(self, x, y, hazard_type, radius=100):
+    def __init__(self, x, y, hazard_type, radius=100, duration=None):
         self.x = x
         self.y = y
-        self.hazard_type = hazard_type  # 'quicksand', 'avalanche_zone', 'flood_zone', 'predator_lair'
+        self.hazard_type = hazard_type  # 'quicksand', 'avalanche_zone', 'flood_zone', 'predator_lair', 'wildfire', 'flash_flood'
         self.radius = radius
+        self.duration = duration
+        self.spawn_time = time.time()
         self.active = True
         self.damage_rate = 0.5  # Health loss per second
         
     def check_affect(self, praxan):
         """Check if praxan is in range and apply effects"""
         if not self.active:
+            return
+            
+        if self.duration and (time.time() - self.spawn_time) > self.duration:
+            self.active = False
             return
         
         distance = math.sqrt((self.x - praxan.x)**2 + (self.y - praxan.y)**2)
@@ -2320,6 +2325,13 @@ class TerrainHazard:
                 # Chance of attack
                 if random.random() < 0.15:
                     praxan.take_damage(30, 'crush')
+            elif self.hazard_type == 'wildfire':
+                if random.random() < 0.1:
+                    praxan.take_damage(20, 'burn')
+            elif self.hazard_type == 'flash_flood':
+                praxan.needs['energy'] = max(0, praxan.needs['energy'] - 1.0)
+                if random.random() < 0.05:
+                    praxan.take_damage(10, 'crush')
     
     def draw(self, surface):
         """Draw hazard marker"""
@@ -2331,7 +2343,9 @@ class TerrainHazard:
                 'quicksand': (139, 90, 43),
                 'avalanche_zone': (255, 255, 255),
                 'flood_zone': (64, 164, 223),
-                'predator_lair': (255, 0, 0)
+                'predator_lair': (255, 0, 0),
+                'wildfire': (255, 100, 0),
+                'flash_flood': (40, 100, 200)
             }
             color = hazard_colors.get(self.hazard_type, (255, 0, 255))
             
@@ -2684,7 +2698,7 @@ class Camera:
 
 class MapChunk:
     """A chunk of the world map"""
-    def __init__(self, chunk_x, chunk_y, asset_manager=None, lazy_render=True, chunk_state=None, botany_manager=None):
+    def __init__(self, chunk_x, chunk_y, asset_manager=None, lazy_render=True, chunk_state=None, botany_manager=None, zoology_manager=None):
         self.chunk_x = chunk_x
         self.chunk_y = chunk_y
         self.world_x = chunk_x * CHUNK_SIZE
@@ -2906,10 +2920,11 @@ class MapChunk:
 
 class WorldMap:
     """Manages the world map with chunks"""
-    def __init__(self, asset_manager=None, scenario_profile=None, seed=None, snapshot_world=None, planet_tile=None, botany_manager=None):
+    def __init__(self, asset_manager=None, scenario_profile=None, seed=None, snapshot_world=None, planet_tile=None, botany_manager=None, zoology_manager=None):
         self.chunks = {}  # {(chunk_x, chunk_y): MapChunk}
         self.asset_manager = asset_manager
         self.botany_manager = botany_manager
+        self.zoology_manager = zoology_manager
         self.encounters = []  # List of special encounters
         self.hazards = []  # List of terrain hazards
         self.npcs = []  # List of NPCs
@@ -2980,7 +2995,7 @@ class WorldMap:
         """Generate initial set of chunks"""
         # Use lazy rendering for faster startup - surfaces will be created on first use
         for (cx, cy), chunk_state in self.frontier_world["chunks"].items():
-            self.chunks[(cx, cy)] = MapChunk(cx, cy, self.asset_manager, lazy_render=True, chunk_state=chunk_state, botany_manager=self.botany_manager)
+            self.chunks[(cx, cy)] = MapChunk(cx, cy, self.asset_manager, lazy_render=True, chunk_state=chunk_state, botany_manager=self.botany_manager, zoology_manager=self.zoology_manager)
 
     def generate_geography_entities(self):
         """Generate encounters, hazards, and NPCs from the frontier geography instead of scatter noise."""
@@ -3258,6 +3273,7 @@ class Building:
         self.x = x
         self.y = y
         self.building_type = building_type  # 'house', 'storage', 'farm', 'workshop', 'shrine', 'well'
+        self.built_at = time.time()
         self.built_by = None  # Will store praxan ID who built it
         self.occupants = []  # Praxans currently using this building
         self.last_production_time = time.time()  # For farms
@@ -3265,15 +3281,81 @@ class Building:
         self.level = 1
         self.aura_strength = 0.0
         self.bills = []  # List of string bill IDs (e.g. 'CraftWeapon')
+        self.origin_biome = None
+        self.material_style = None
+        self.wear = 0.04
+        self.construction_progress = 0.18
+
+    def _derive_material_style(self, biome_type):
+        biome = str(biome_type or "plains").lower()
+        if biome in ("forest", "taiga"):
+            return "timber"
+        if biome in ("desert",):
+            return "adobe"
+        if biome in ("mountains",):
+            return "slate"
+        if biome in ("swamp",):
+            return "reed"
+        if biome in ("snow", "tundra"):
+            return "frost"
+        return "plaster"
     
     def tick_rare(self, delta_time, game_state):
         """Update building state (production, etc.) periodically"""
         modifiers = game_state.get('advisor').game_modifiers if game_state.get('advisor') else None
         weather_effects = game_state.get('weather_effects')
+        world_map = game_state.get('world_map')
+        weather_system = game_state.get('weather_system')
+        settlement_state = game_state.get('settlement_state', {})
+        current_time = time.time()
+        biome_type = None
+        if world_map is not None and hasattr(world_map, 'get_biome_at'):
+            try:
+                biome_type = world_map.get_biome_at(self.x, self.y)
+            except Exception:
+                biome_type = None
+        if biome_type:
+            self.origin_biome = biome_type
+        elif self.origin_biome is None:
+            self.origin_biome = "plains"
+        if not self.material_style:
+            self.material_style = self._derive_material_style(self.origin_biome)
+
+        occupancy_factor = min(3, len(self.occupants))
+        build_rate = (delta_time / 18.0) * (1.0 + occupancy_factor * 0.18 + max(0, self.level - 1) * 0.08)
+        self.construction_progress = clamp(self.construction_progress + build_rate, 0.0, 1.0)
+
+        weather_name = str(getattr(weather_system, "current_weather", "clear") or "clear").lower()
+        exposure_by_type = {
+            'farm': 1.45,
+            'watchtower': 1.5,
+            'well': 1.2,
+            'market': 1.25,
+            'house': 1.0,
+            'storage': 0.95,
+            'workshop': 0.9,
+            'shrine': 0.85,
+            'hospital': 0.8,
+            'school': 0.82,
+        }
+        weather_wear = {
+            'clear': 1.0,
+            'rain': 1.2,
+            'storm': 1.55,
+            'snow': 1.25,
+            'heatwave': 1.3,
+            'drought': 1.15,
+            'aurora': 0.9,
+        }.get(weather_name, 1.0)
+        prosperity = float(settlement_state.get('prosperity_score', 0.5) or 0.5)
+        maintenance_rate = delta_time * (0.0010 + prosperity * 0.0012 + occupancy_factor * 0.0004)
+        wear_rate = delta_time * 0.0021 * exposure_by_type.get(self.building_type, 1.0) * weather_wear
+        if self.construction_progress < 1.0:
+            wear_rate *= 0.45
+        self.wear = clamp(self.wear + wear_rate - maintenance_rate, 0.0, 1.0)
 
         # Farms produce food over time
         if self.building_type == 'farm':
-            current_time = time.time()
             mod = modifiers.get_modifier('farm_production_rate') if modifiers else 1.0
             mod *= 1.0 + (self.level - 1) * 0.18
 
@@ -4049,9 +4131,16 @@ def restore_session_from_snapshot(
         x = clamp(float(building_data.get("x", world_width / 2)), 50.0, world_width - 50.0)
         y = clamp(float(building_data.get("y", world_height / 2)), 50.0, world_height - 50.0)
         building = Building(x, y, building_type)
+        built_elapsed = max(0.0, float(building_data.get("built_elapsed", 120.0)))
+        building.built_at = now - built_elapsed if built_elapsed > 0 else now
         building.level = max(1, int(building_data.get("level", 1)))
         building.built_by = building_data.get("built_by")
         building.aura_strength = clamp(float(building_data.get("aura_strength", 0.0)), 0.0, 1.0)
+        building.origin_biome = str(building_data.get("origin_biome")) if building_data.get("origin_biome") else None
+        material_style = building_data.get("material_style")
+        building.material_style = str(material_style) if material_style else None
+        building.wear = clamp(float(building_data.get("wear", 0.08)), 0.0, 1.0)
+        building.construction_progress = clamp(float(building_data.get("construction_progress", 1.0)), 0.0, 1.0)
 
         stored_resources = building_data.get("stored_resources", {})
         for resource_name in building.stored_resources:
@@ -4805,7 +4894,9 @@ def main(runtime_config=RUNTIME_CONFIG):
         planet_tile = shell_choice["planet_tile"]
 
     from systems.botany import BotanyManager
+    from systems.zoology import ZoologyManager
     botany_manager = BotanyManager(rng_seed=runtime_config.seed)
+    zoology_manager = ZoologyManager(rng_seed=runtime_config.seed)
 
     world_map = WorldMap(
         asset_manager,
@@ -4814,6 +4905,7 @@ def main(runtime_config=RUNTIME_CONFIG):
         snapshot_world=(snapshot_payload or {}).get("world"),
         planet_tile=planet_tile,
         botany_manager=botany_manager,
+        zoology_manager=zoology_manager,
     )
     print(f"World map created with {len(world_map.chunks)} chunks")
     
@@ -5103,6 +5195,21 @@ def main(runtime_config=RUNTIME_CONFIG):
             ritual_data = snapshot_payload.get("rituals", {})
             if ritual_data:
                 ritual_manager.restore(ritual_data)
+            # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
+            ecology_data = snapshot_payload.get("ecology", {})
+            if ecology_data:
+                from systems.ecology import EcologyManager as _EcoMgr
+                ecology_manager = _EcoMgr.deserialize(
+                    ecology_data, world_width, world_height, world_map=world_map,
+                )
+            # Restore global climate epoch drift (temp/moisture offsets, epoch label)
+            gc_data = snapshot_payload.get("global_climate", {})
+            if gc_data:
+                global_climate.epoch = str(gc_data.get("epoch", global_climate.epoch))
+                global_climate.global_temp_offset = float(gc_data.get("global_temp_offset", 0.0))
+                global_climate.global_moisture_offset = float(gc_data.get("global_moisture_offset", 0.0))
+                global_climate.target_temp_offset = float(gc_data.get("target_temp_offset", 0.0))
+                global_climate.target_moisture_offset = float(gc_data.get("target_moisture_offset", 0.0))
             pending_resource_spawns = {}
             if restored_state.get("selected_model") and not selected_model:
                 selected_model = restored_state["selected_model"]
@@ -5911,12 +6018,16 @@ def main(runtime_config=RUNTIME_CONFIG):
             )
 
             advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
-            season.update(current_time)
+            # NOTE: season.update() already called above (line ~5857) with elapsed time.
+            # Do NOT call season.update(current_time) again — that passes wall-clock time
+            # which maps to absurd year numbers.  Only update climate/temperature/weather here.
             global_climate.update(current_time)
             temperature_grid.update(current_time, world_map, season, weather_system, buildings, global_climate)
             weather_event = weather_system.update(current_time, season.current, advisor.challenge_difficulty)
             if weather_event and weather_event['type'] != 'clear':
                 narrative_panel.add_message(f"Weather Alert: {weather_event['type']}!", 'Crisis')
+                # Apply burst ecology damage on weather event start (storm/drought scorches the land)
+                ecology_manager.apply_weather_event(weather_event['type'], event_bus=event_bus)
                 if weather_event['type'] in ('storm', 'drought'):
                     impact = 25.0 if weather_event['type'] == 'storm' else 15.0
                     affected_count = 0
@@ -5925,6 +6036,31 @@ def main(runtime_config=RUNTIME_CONFIG):
                             _t.take_damage(impact, 'crush')
                             _t.needs['energy'] = max(0.0, _t.needs['energy'] - impact)
                             affected_count += 1
+                            
+                    # Spawn dynamic hazards (Phase 4 Phenomena)
+                    if random.random() < 0.4:
+                        if praxans:
+                            # Spawn near colony but slightly offset
+                            center_praxan = random.choice(praxans)
+                            hx = center_praxan.x + random.uniform(-600, 600)
+                            hy = center_praxan.y + random.uniform(-600, 600)
+                        else:
+                            hx = random.uniform(100, camera.world_width - 100)
+                            hy = random.uniform(100, camera.world_height - 100)
+                            
+                        hazard_type = 'wildfire' if weather_event['type'] == 'drought' or random.random() < 0.5 else 'flash_flood'
+                        radius = random.uniform(150, 400)
+                        duration = weather_event.get('duration', 30.0) * random.uniform(0.8, 1.5)
+                        
+                        world_map.hazards.append(TerrainHazard(hx, hy, hazard_type, radius=radius, duration=duration))
+                        narrative_panel.add_message(f"A massive {hazard_type.replace('_', ' ')} erupted!", 'Crisis')
+                        
+                        # Destroy flora in the hazard zone immediately
+                        if world_map.botany_manager:
+                            for p in world_map.botany_manager.plants:
+                                if not p.is_dead and math.hypot(p.x - hx, p.y - hy) < radius:
+                                    p.die()
+                                    
                     record_observer_timeline_event(
                         advisor,
                         current_time,
@@ -5932,7 +6068,22 @@ def main(runtime_config=RUNTIME_CONFIG):
                         f"A severe {weather_event['type']} struck the settlement",
                         f"{affected_count} praxans suffered immediate health and energy damage from the catastrophe."
                     )
-            
+
+            # Ecology regeneration tick — fertility recovers based on season, weather, biome.
+            # This drives the resource scarcity feedback loop: overharvested land recovers
+            # slowly, drought scorches fertility, spring rain accelerates regrowth.
+            # EventBus events fire on degradation (Barren/Degraded) and recovery.
+            ecology_manager.update(current_time, season=season, weather_system=weather_system, event_bus=event_bus)
+
+            # Sync environment context to advisor so LLM prompts include season/weather/ecology
+            advisor.environment_context = {
+                "season": season.current,
+                "year": season.year,
+                "weather": weather_system.current_weather,
+                "climate_epoch": getattr(global_climate, "epoch", "Holocene"),
+                "ecology": ecology_manager.get_world_fertility_summary(),
+            }
+
             # Get weather effects for building and praxan updates
             weather_effects = weather_system.get_effects()
             
@@ -6030,6 +6181,25 @@ def main(runtime_config=RUNTIME_CONFIG):
             tick_manager.tick(delta_time, game_state)
             # Update Quest System (Pillar 8) — must run after full game_state is built
             quest_manager.update(game_state)
+            
+            # Update biological systems (Phase 2 and 3)
+            if world_map.botany_manager:
+                world_map.botany_manager.update(current_time, temperature_grid, ecology_manager)
+            if world_map.zoology_manager:
+                dead_animals = world_map.zoology_manager.update(current_time, temperature_grid, world_map, world_map.botany_manager)
+                if dead_animals:
+                    # NOTE: do NOT use `import random` here — it shadows the
+                    # module-level import and makes `random` an unresolved local
+                    # throughout all of main() in Python 3.13+.  math and random
+                    # are already imported at the top of the file.
+                    for da in dead_animals:
+                        amount = da.def_data.get('food_value', 5)
+                        for _ in range(amount):
+                            angle = random.uniform(0, math.pi * 2)
+                            dist = random.uniform(2, 15)
+                            rx = max(20, min(camera.world_width - 20, da.x + math.cos(angle) * dist))
+                            ry = max(20, min(camera.world_height - 20, da.y + math.sin(angle) * dist))
+                            resources.append(Resource(rx, ry, 'food'))
 
             # Remove monolithic O(N) updates and extract dead praxans for cleanup
             praxans_to_remove = []
@@ -6236,18 +6406,25 @@ def main(runtime_config=RUNTIME_CONFIG):
                     
                     # Handle building from directive
                     if building_type:
-                        # Use city planner location if set, otherwise use praxan position
-                        build_x = praxan.next_build_location[0] if praxan.next_build_location else praxan.x
-                        build_y = praxan.next_build_location[1] if praxan.next_build_location else praxan.y
-                        
-                        # Snap perfectly to the grid (Rimworld style)
-                        build_x = round(build_x / TILE_SIZE) * TILE_SIZE
-                        build_y = round(build_y / TILE_SIZE) * TILE_SIZE
-                        
+                        if praxan.next_build_location:
+                            build_x = float(praxan.next_build_location[0])
+                            build_y = float(praxan.next_build_location[1])
+                        else:
+                            build_origin_x = round(praxan.x / TILE_SIZE) * TILE_SIZE
+                            build_origin_y = round(praxan.y / TILE_SIZE) * TILE_SIZE
+                            build_x, build_y = building_origin_to_anchor(build_origin_x, build_origin_y, building_type, TILE_SIZE)
                         praxan.next_build_location = None  # Clear for next build
                         
                         new_building = Building(build_x, build_y, building_type)
+                        new_building.built_at = current_time
                         new_building.built_by = praxan.id
+                        if world_map is not None and hasattr(world_map, 'get_biome_at'):
+                            try:
+                                new_building.origin_biome = world_map.get_biome_at(build_x, build_y)
+                            except Exception:
+                                new_building.origin_biome = None
+                        if not new_building.material_style:
+                            new_building.material_style = new_building._derive_material_style(new_building.origin_biome)
                         buildings.append(new_building)
                         # Create particle effect
                         particle_system.create_particles(build_x, build_y, 'build', 12)
@@ -6635,8 +6812,10 @@ def main(runtime_config=RUNTIME_CONFIG):
                     pass
             
             # Apply terrain hazards with difficulty scaling
+            active_hazards = []
             for hazard in world_map.hazards:
                 if hazard.active:
+                    active_hazards.append(hazard)
                     for praxan in praxans:
                         # Scale damage by difficulty for hazards that deal damage
                         old_health = praxan.health
@@ -6646,6 +6825,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                             damage_scale = advisor.challenge_difficulty
                             additional_damage = (old_health - praxan.health) * (damage_scale - 1.0)
                             praxan.take_damage(additional_damage, 'difficulty')
+            world_map.hazards = active_hazards
             
             # Check for reproduction opportunities
             if len(praxans) < MAX_POPULATION:
@@ -6740,6 +6920,19 @@ def main(runtime_config=RUNTIME_CONFIG):
                 
                 record_population_evolution_sample(advisor, praxans, current_time, game_start_time, force=False)
 
+                ghost_markers = [
+                    {
+                        "x": float(site[0]),
+                        "y": float(site[1]),
+                        "building_type": str(site[2]),
+                        "doctrine": str(
+                            ((getattr(advisor, "council_state", {}) or {}).get("doctrine", {}) or {}).get("focus", "growth")
+                        ),
+                    }
+                    for site in list(getattr(city_planner, "proposed_sites", []) or [])
+                    if isinstance(site, (list, tuple)) and len(site) >= 3
+                ]
+
                 render_frame = build_render_frame(
                     world_map=world_map,
                     camera=camera,
@@ -6768,6 +6961,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     effect_cues=camera_director.to_payload(),
                     active_overlay=ui_state.map_overlay,
                     camera_bookmarks=camera_director.to_payload(),
+                    ghost_markers=ghost_markers,
                 )
                 scene_renderer.render(screen, render_frame)
             
@@ -6815,6 +7009,16 @@ def main(runtime_config=RUNTIME_CONFIG):
 
             ui_registry.reset()
             run_layout = compute_run_layout(WINDOW_WIDTH, WINDOW_HEIGHT)
+            # Build ecology summary for HUD environment ribbon
+            _eco_summary = ecology_manager.get_world_fertility_summary()
+            _eco_counts = _eco_summary.get("region_counts", {})
+            _eco_parts = []
+            for _eco_status in ("Barren", "Degraded", "Stressed"):
+                _eco_n = _eco_counts.get(_eco_status, 0)
+                if _eco_n > 0:
+                    _eco_parts.append(f"{_eco_n} {_eco_status}")
+            _ecology_label = ", ".join(_eco_parts) if _eco_parts else f"Avg {_eco_summary.get('avg_fertility', 80):.0f}%"
+
             hud_model = RunHudModel(
                 scenario_name=scenario_name,
                 phase_label=phase_label,
@@ -6827,6 +7031,10 @@ def main(runtime_config=RUNTIME_CONFIG):
                 overlay_label=ui_state.map_overlay.title(),
                 observer_score=observer_score,
                 cue_label=ui_state.camera_cue or "",
+                season_label=f"{season.current.title()} Y{season.year}",
+                weather_label=weather_system.current_weather.title(),
+                ecology_label=_ecology_label,
+                climate_epoch=getattr(global_climate, 'epoch', ''),
             )
             field_notes = build_field_notes(advisor.session_stats.get("timeline_events", []), current_time, limit=6)
             minimap_context = {
@@ -7092,6 +7300,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                     tech_research_manager=tech_research_manager if "tech_research_manager" in local_names else None,
                     disaster_manager=disaster_manager if "disaster_manager" in local_names else None,
                     ritual_manager=ritual_manager if "ritual_manager" in local_names else None,
+                    ecology_manager=ecology_manager if "ecology_manager" in local_names else None,
+                    global_climate=global_climate if "global_climate" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

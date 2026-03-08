@@ -16,6 +16,8 @@ from graphics.content import (
     SOURCE_PRAXAN_SIZE,
     SOURCE_TILE_SIZE,
     TILE_ATLASES,
+    get_building_recipe,
+    get_zone_overlay_type,
     palette_for_biome_and_season,
 )
 from graphics.content import doctrine_trim
@@ -126,9 +128,169 @@ class SpriteLibrary:
             pygame.draw.circle(overlayed, (192, 148, 224, 160), (width - 5, 4), 2)
         return overlayed
 
-    def _apply_building_state_overlays(self, sprite: pygame.Surface, *, level: int, active: bool, occupancy_ratio: float) -> pygame.Surface:
+    def _district_building_palette(self, district_identity: str) -> tuple[tuple[int, int, int], str]:
+        overlay_key = get_zone_overlay_type(district_identity)
+        overlay = DISTRICT_OVERLAYS.get(overlay_key, DISTRICT_OVERLAYS["mixed"])
+        return (tuple(overlay["accent"]), str(overlay["style"]))
+
+    def _materialized_building_colors(
+        self,
+        recipe,
+        *,
+        material_style: str,
+        biome_type: str,
+        wear: float,
+    ) -> dict[str, tuple[int, int, int]]:
+        wall = recipe.wall
+        roof = recipe.roof
+        trim = recipe.trim
+        accent = recipe.accent
+        style = str(material_style or "").lower()
+        biome = str(biome_type or "").lower()
+
+        if style == "timber":
+            wall = mix_color(wall, (132, 98, 70), 0.26)
+            roof = mix_color(roof, (110, 76, 58), 0.24)
+            trim = mix_color(trim, (86, 58, 40), 0.18)
+        elif style == "adobe":
+            wall = mix_color(wall, (198, 156, 116), 0.34)
+            roof = mix_color(roof, (170, 116, 84), 0.18)
+            trim = mix_color(trim, (132, 92, 68), 0.2)
+        elif style == "slate":
+            wall = mix_color(wall, (132, 140, 154), 0.32)
+            roof = mix_color(roof, (104, 112, 126), 0.4)
+            trim = mix_color(trim, (84, 92, 110), 0.28)
+        elif style == "reed":
+            wall = mix_color(wall, (126, 140, 102), 0.22)
+            roof = mix_color(roof, (152, 136, 78), 0.32)
+            trim = mix_color(trim, (88, 94, 72), 0.14)
+        elif style == "frost":
+            wall = mix_color(wall, (204, 214, 224), 0.26)
+            roof = mix_color(roof, (142, 156, 176), 0.32)
+            trim = mix_color(trim, (94, 106, 126), 0.22)
+            accent = mix_color(accent, (230, 236, 246), 0.16)
+        elif style == "plaster":
+            wall = mix_color(wall, (214, 206, 186), 0.2)
+            roof = mix_color(roof, (160, 122, 98), 0.14)
+
+        if biome == "swamp":
+            wall = mix_color(wall, (110, 128, 106), 0.12)
+            roof = darken(roof, 0.06)
+        elif biome == "desert":
+            wall = lighten(wall, 0.06)
+            accent = mix_color(accent, (228, 188, 118), 0.18)
+        elif biome in {"snow", "tundra"}:
+            roof = mix_color(roof, (170, 182, 200), 0.18)
+        elif biome == "forest":
+            trim = mix_color(trim, (86, 96, 68), 0.08)
+
+        patina = max(0.0, min(1.0, wear))
+        if patina > 0.0:
+            wall = mix_color(wall, (102, 96, 86), patina * 0.18)
+            roof = mix_color(roof, (84, 80, 78), patina * 0.24)
+            trim = mix_color(trim, (76, 70, 66), patina * 0.16)
+            accent = mix_color(accent, (142, 134, 118), patina * 0.1)
+
+        return {"wall": wall, "roof": roof, "trim": trim, "accent": accent}
+
+    def _apply_building_state_overlays(
+        self,
+        sprite: pygame.Surface,
+        *,
+        building_type: str,
+        level: int,
+        active: bool,
+        occupancy_ratio: float,
+        variant_id: int,
+        district_identity: str,
+        prosperity_score: float,
+        material_style: str,
+        biome_type: str,
+        construction_progress: float,
+        wear: float,
+        building_age: float,
+    ) -> pygame.Surface:
         overlayed = sprite.copy()
         width, height = overlayed.get_size()
+        district_accent, district_style = self._district_building_palette(district_identity)
+        material_colors = self._materialized_building_colors(
+            get_building_recipe(building_type),
+            material_style=material_style,
+            biome_type=biome_type,
+            wear=wear,
+        )
+        tint_layer = pygame.Surface((width, height), pygame.SRCALPHA)
+        tint_layer.fill((*mix_color(material_colors["wall"], material_colors["roof"], 0.3), 32))
+        overlayed.blit(tint_layer, (0, 0))
+        trim_alpha = 74 if district_style in {"footpath", "mixed"} else 92
+        if district_style == "furrows":
+            for x in range(2 + (variant_id % 2), max(3, width - 2), max(4, width // 5)):
+                pygame.draw.line(overlayed, (*district_accent, 64), (x, height - 5), (x, height - 2), 1)
+        elif district_style == "yard":
+            pygame.draw.rect(overlayed, (*district_accent, trim_alpha), (2, height - 6, max(4, width - 4), 3), border_radius=2)
+        elif district_style == "ring":
+            pygame.draw.arc(overlayed, (*district_accent, 88), (max(1, width // 5), height - 10, max(6, width - (width // 2)), 8), 0.0, 3.14, 1)
+        else:
+            pygame.draw.rect(overlayed, (*district_accent, trim_alpha), (max(1, width // 5), height - 4, max(4, width - (width // 2)), 2), border_radius=1)
+
+        # Subtle, deterministic clutter to break up repeated silhouettes.
+        warm_lit = active or occupancy_ratio > 0.0
+        door_color = (88, 58, 44)
+        if building_type == "house":
+            door_w = max(3, width // 7)
+            door_h = max(5, height // 5)
+            door_x = max(2, (width // 2) - (door_w // 2) + ((variant_id % 3) - 1) * max(1, width // 10))
+            door_y = height - door_h - max(3, height // 8)
+            pygame.draw.rect(overlayed, darken(door_color, 0.15), (door_x, door_y, door_w, door_h))
+            if variant_id % 2 == 0:
+                pygame.draw.rect(overlayed, (94, 76, 62, 170), (max(2, width - 8), max(3, height // 6), 2, max(5, height // 5)))
+            if prosperity_score > 0.65:
+                pygame.draw.rect(overlayed, (*district_accent, 136), (max(2, width // 7), height - 8, max(3, width // 6), 3))
+        elif building_type == "storage":
+            crate_color = mix_color((118, 86, 61), district_accent, 0.12)
+            pygame.draw.rect(overlayed, (*crate_color, 180), (max(2, width - 9), height - 10, max(4, width // 5), max(3, height // 9)))
+        elif building_type == "farm":
+            hay_color = mix_color((194, 182, 96), district_accent, 0.15)
+            pygame.draw.rect(overlayed, (*hay_color, 180), (max(2, width - 8), max(3, height // 2), max(4, width // 6), max(3, height // 8)))
+        elif building_type == "workshop":
+            vent_x = max(2, width - 7 - (variant_id % 3))
+            pygame.draw.rect(overlayed, (86, 70, 58, 185), (vent_x, max(2, height // 7), 2, max(5, height // 4)))
+            if warm_lit:
+                pygame.draw.rect(overlayed, (255, 177, 104, 150), (vent_x - 1, max(1, height // 9), 4, 3))
+        elif building_type == "shrine":
+            pygame.draw.circle(overlayed, (*district_accent, 140), (width // 2, max(4, height // 3)), max(2, width // 10))
+            if prosperity_score > 0.7:
+                pygame.draw.rect(overlayed, (*lighten(district_accent, 0.12), 150), (max(2, width // 2 - 1), max(2, height // 8), 2, max(5, height // 7)))
+        elif building_type == "well":
+            pygame.draw.line(overlayed, (118, 98, 82, 180), (width // 2, max(4, height // 4)), (width // 2, max(6, height // 2)), 1)
+            pygame.draw.circle(overlayed, (190, 170, 140, 180), (max(4, width // 2 + 4), max(5, height // 2)), max(1, width // 14))
+        elif building_type == "hospital":
+            cross_color = (232, 96, 96)
+            cx, cy = width // 2, max(5, height // 2)
+            pygame.draw.rect(overlayed, cross_color, (cx - 1, cy - 4, 3, 9))
+            pygame.draw.rect(overlayed, cross_color, (cx - 4, cy - 1, 9, 3))
+        elif building_type == "school":
+            flag_x = max(2, width - 8)
+            pygame.draw.rect(overlayed, (92, 82, 74, 170), (flag_x, max(2, height // 6), 1, max(6, height // 3)))
+            pygame.draw.polygon(
+                overlayed,
+                (*mix_color((246, 214, 132), district_accent, 0.25), 180),
+                [(flag_x + 1, max(2, height // 6)), (flag_x + 7, max(4, height // 5)), (flag_x + 1, max(6, height // 4))],
+            )
+        elif building_type == "watchtower":
+            beacon = (255, 208, 122) if warm_lit else lighten(district_accent, 0.05)
+            pygame.draw.circle(overlayed, (*beacon, 190), (width // 2, max(4, height // 6)), max(2, width // 10))
+        elif building_type == "market":
+            awning = mix_color((220, 98, 88), district_accent, 0.18)
+            awning_y = max(4, height // 3)
+            stripe_w = max(3, width // 7)
+            for index in range(3):
+                pygame.draw.rect(
+                    overlayed,
+                    (*(awning if index % 2 == 0 else lighten(awning, 0.28)), 150),
+                    (max(2, width // 6) + index * stripe_w, awning_y, stripe_w, max(3, height // 10)),
+                )
+
         if active:
             glow = pygame.Surface((width, height), pygame.SRCALPHA)
             pygame.draw.rect(glow, (244, 204, 132, 34), glow.get_rect(), border_radius=4)
@@ -144,6 +306,47 @@ class SpriteLibrary:
                 pygame.draw.circle(overlayed, (244, 223, 151), (max(5, width - 7), height - 5 - index * 4), 2)
         if level > 1:
             pygame.draw.rect(overlayed, (255, 230, 165), (width - 7, 3, 3, 3))
+            if level > 2:
+                pygame.draw.rect(overlayed, (255, 230, 165), (width - 12, 3, 3, 3))
+        if prosperity_score > 0.82:
+            pennant = pygame.Surface((max(4, width // 4), max(4, height // 5)), pygame.SRCALPHA)
+            pygame.draw.polygon(
+                pennant,
+                (*lighten(district_accent, 0.12), 150),
+                [(0, 0), (pennant.get_width() - 1, pennant.get_height() // 2), (0, pennant.get_height() - 1)],
+            )
+            overlayed.blit(pennant, (max(1, width // 2 - 1), max(2, height // 5)))
+        if wear > 0.18:
+            crack_color = darken(material_colors["trim"], 0.28)
+            for index in range(max(1, min(4, int(wear * 5)))):
+                start_x = max(2, int(width * (0.22 + ((variant_id + index) % 5) * 0.13)))
+                start_y = max(2, int(height * (0.28 + index * 0.12)))
+                pygame.draw.line(
+                    overlayed,
+                    (*crack_color, 160),
+                    (start_x, start_y),
+                    (max(1, start_x - 2 + (index % 3)), min(height - 2, start_y + 3 + index)),
+                    1,
+                )
+        if building_age > 180.0 and prosperity_score > 0.58 and building_type in {"house", "shrine", "school"}:
+            vine = mix_color(district_accent, (102, 142, 94), 0.38)
+            for index in range(1 + (variant_id % 2)):
+                vine_x = max(2, width // 5 + index * max(3, width // 6))
+                pygame.draw.line(overlayed, (*vine, 120), (vine_x, max(3, height // 4)), (vine_x - 1, height - 4), 1)
+                pygame.draw.circle(overlayed, (*vine, 132), (vine_x, min(height - 5, height // 2 + index * 5)), 2)
+        progress = max(0.0, min(1.0, construction_progress))
+        if progress < 0.995:
+            coverage_top = max(0, int(height * (1.0 - progress)))
+            unfinished = pygame.Surface((width, max(1, coverage_top + 2)), pygame.SRCALPHA)
+            unfinished.fill((82, 66, 54, 118))
+            overlayed.blit(unfinished, (0, 0))
+            scaffold = mix_color(material_colors["trim"], (170, 132, 88), 0.28)
+            scaffold_y = max(4, height // 3)
+            for x in (max(3, width // 4), max(6, width // 2), max(8, width - width // 4)):
+                pygame.draw.line(overlayed, (*scaffold, 190), (x, scaffold_y), (x, height - 2), 1)
+            pygame.draw.line(overlayed, (*scaffold, 190), (2, scaffold_y), (width - 2, scaffold_y), 1)
+            for plank_y in range(scaffold_y + 4, height - 2, max(5, height // 6)):
+                pygame.draw.line(overlayed, (*scaffold, 120), (3, plank_y), (width - 3, plank_y), 1)
         return overlayed
 
     def _apply_resource_state_overlays(self, sprite: pygame.Surface, *, depleted: bool) -> pygame.Surface:
@@ -287,15 +490,16 @@ class SpriteLibrary:
         cache_key = ("district", zone_type, tile_size, variant)
         if cache_key in self._cache:
             return self._cache[cache_key]
+        overlay_type = get_zone_overlay_type(zone_type)
         file_surface = self._load_file_surface(
-            os.path.join("tilesets", "overlays", f"{str(zone_type)}_{variant % 3}.png"),
+            os.path.join("tilesets", "overlays", f"{overlay_type}_{variant % 3}.png"),
             (tile_size, tile_size),
         )
         if file_surface is not None:
             self._cache[cache_key] = file_surface
             return file_surface
         source = _surface((SOURCE_TILE_SIZE, SOURCE_TILE_SIZE))
-        overlay = DISTRICT_OVERLAYS.get(str(zone_type), DISTRICT_OVERLAYS["residential"])
+        overlay = DISTRICT_OVERLAYS.get(overlay_type, DISTRICT_OVERLAYS["mixed"])
         accent = overlay["accent"]
         style = overlay["style"]
         if style == "footpath":
@@ -448,54 +652,99 @@ class SpriteLibrary:
         self._cache[cache_key] = _scale(shadowed, target_size)
         return self._cache[cache_key]
 
-    def _building_source(self, building_type: str, level: int, active: bool, occupancy_ratio: float) -> pygame.Surface:
-        recipe = BUILDING_FOOTPRINT_ART.get(building_type, BUILDING_FOOTPRINT_ART["house"])
+    def _building_source(
+        self,
+        building_type: str,
+        level: int,
+        active: bool,
+        occupancy_ratio: float,
+        material_style: str,
+        biome_type: str,
+        wear: float,
+    ) -> pygame.Surface:
+        recipe = get_building_recipe(building_type)
+        material_colors = self._materialized_building_colors(
+            recipe,
+            material_style=material_style,
+            biome_type=biome_type,
+            wear=wear,
+        )
+        wall = material_colors["wall"]
+        roof = material_colors["roof"]
+        trim = material_colors["trim"]
+        accent = material_colors["accent"]
         source = _surface(recipe.source_size)
         width, height = recipe.source_size
         base_y = height - 10
         if building_type == "house":
-            pygame.draw.polygon(source, recipe.roof, [(3, 16), (width // 2, 2), (width - 4, 16)])
-            pygame.draw.polygon(source, lighten(recipe.roof, 0.16), [(4, 16), (width // 2, 4), (width // 2, 16)])
-            _px(source, recipe.wall, 6, 16, width - 12, 14)
-            _px(source, recipe.trim, 13, 22, 6, 8)
-            window = recipe.accent if active or occupancy_ratio > 0 else darken(recipe.wall, 0.12)
+            pygame.draw.polygon(source, roof, [(3, 16), (width // 2, 2), (width - 4, 16)])
+            pygame.draw.polygon(source, lighten(roof, 0.16), [(4, 16), (width // 2, 4), (width // 2, 16)])
+            _px(source, wall, 6, 16, width - 12, 14)
+            _px(source, trim, 13, 22, 6, 8)
+            window = accent if active or occupancy_ratio > 0 else darken(wall, 0.12)
             _px(source, window, 9, 20, 4, 4)
             _px(source, window, 19, 20, 4, 4)
         elif building_type == "storage":
-            _px(source, recipe.roof, 4, 9, width - 8, 6)
-            _px(source, recipe.wall, 5, 15, width - 10, 13)
-            _px(source, recipe.trim, 8, 18, width - 16, 8)
-            _px(source, recipe.accent, 8, 28, 5, 3)
-            _px(source, recipe.accent, 19, 26, 6, 5)
+            _px(source, roof, 4, 9, width - 8, 6)
+            _px(source, wall, 5, 15, width - 10, 13)
+            _px(source, trim, 8, 18, width - 16, 8)
+            _px(source, accent, 8, 28, 5, 3)
+            _px(source, accent, 19, 26, 6, 5)
         elif building_type == "farm":
-            _px(source, darken(recipe.wall, 0.14), 2, 18, width - 4, 12)
+            _px(source, darken(wall, 0.14), 2, 18, width - 4, 12)
             for x in (5, 10, 15, 20, 25):
-                _px(source, recipe.accent, x, 20, 1, 8)
-            _px(source, recipe.trim, 23, 9, 5, 9)
-            _px(source, lighten(recipe.roof, 0.1), 21, 7, 9, 4)
+                _px(source, accent, x, 20, 1, 8)
+            _px(source, trim, 23, 9, 5, 9)
+            _px(source, lighten(roof, 0.1), 21, 7, 9, 4)
         elif building_type == "workshop":
-            pygame.draw.polygon(source, recipe.roof, [(4, 15), (13, 6), (width - 5, 15), (width - 5, 17), (4, 17)])
-            _px(source, recipe.wall, 5, 17, width - 10, 12)
-            _px(source, recipe.trim, 8, 20, 7, 9)
-            _px(source, darken(recipe.trim, 0.2), width - 11, 8, 3, 9)
+            pygame.draw.polygon(source, roof, [(4, 15), (13, 6), (width - 5, 15), (width - 5, 17), (4, 17)])
+            _px(source, wall, 5, 17, width - 10, 12)
+            _px(source, trim, 8, 20, 7, 9)
+            _px(source, darken(trim, 0.2), width - 11, 8, 3, 9)
             if active:
-                _px(source, recipe.accent, width - 11, 6, 3, 2)
-                _px(source, _alpha(lighten(recipe.accent, 0.2), 140), width - 10, 3, 2, 3)
+                _px(source, accent, width - 11, 6, 3, 2)
+                _px(source, _alpha(lighten(accent, 0.2), 140), width - 10, 3, 2, 3)
         elif building_type == "shrine":
-            _px(source, recipe.trim, 8, 11, width - 16, 18)
-            _px(source, recipe.wall, 12, 6, width - 24, 7)
-            pygame.draw.arc(source, recipe.accent, (8, 6, width - 16, 18), 3.14, 6.28, 2)
-            _px(source, recipe.accent if active else lighten(recipe.accent, 0.12), width // 2 - 2, 17, 4, 6)
+            _px(source, trim, 8, 11, width - 16, 18)
+            _px(source, wall, 12, 6, width - 24, 7)
+            pygame.draw.arc(source, accent, (8, 6, width - 16, 18), 3.14, 6.28, 2)
+            _px(source, accent if active else lighten(accent, 0.12), width // 2 - 2, 17, 4, 6)
         elif building_type == "well":
-            pygame.draw.ellipse(source, recipe.trim, (6, 13, width - 12, 9))
-            pygame.draw.ellipse(source, recipe.accent, (8, 15, width - 16, 5))
-            _px(source, recipe.roof, 11, 4, 2, 10)
-            _px(source, recipe.roof, width - 13, 4, 2, 10)
-            _px(source, recipe.roof, 10, 5, width - 20, 2)
+            pygame.draw.ellipse(source, trim, (6, 13, width - 12, 9))
+            pygame.draw.ellipse(source, accent, (8, 15, width - 16, 5))
+            _px(source, roof, 11, 4, 2, 10)
+            _px(source, roof, width - 13, 4, 2, 10)
+            _px(source, roof, 10, 5, width - 20, 2)
+        elif building_type == "hospital":
+            _px(source, wall, 5, 12, width - 10, height - 18)
+            _px(source, lighten(wall, 0.12), 8, 16, width - 16, height - 26)
+            _px(source, trim, width // 2 - 2, 8, 4, height - 18)
+            _px(source, trim, width // 2 - 8, 14, 16, 4)
+            _px(source, accent, width // 2 - 1, 10, 2, height - 22)
+            _px(source, accent, width // 2 - 6, 15, 12, 2)
+        elif building_type == "school":
+            pygame.draw.polygon(source, roof, [(6, 15), (width // 2, 6), (width - 6, 15)])
+            _px(source, wall, 6, 15, width - 12, height - 20)
+            for x in (10, width // 2 - 2, width - 14):
+                _px(source, lighten(wall, 0.18), x, 20, 4, 6)
+            _px(source, accent, width // 2 - 1, 10, 2, 8)
+        elif building_type == "watchtower":
+            _px(source, trim, width // 2 - 6, 14, 2, height - 18)
+            _px(source, trim, width // 2 + 4, 14, 2, height - 18)
+            _px(source, wall, width // 2 - 8, 10, 16, 8)
+            _px(source, roof, width // 2 - 10, 8, 20, 3)
+            _px(source, accent if active else lighten(accent, 0.08), width // 2 - 1, 5, 2, 3)
+        elif building_type == "market":
+            _px(source, wall, 5, 16, width - 10, height - 14)
+            stripe_w = max(4, (width - 12) // 3)
+            for index in range(3):
+                stripe_color = roof if index % 2 == 0 else lighten(roof, 0.22)
+                _px(source, stripe_color, 6 + index * stripe_w, 10, stripe_w - 1, 7)
+            _px(source, trim, 8, 24, width - 16, 4)
         if level > 1:
-            _px(source, lighten(recipe.accent, 0.18), width - 8, 3, 3, 3)
+            _px(source, lighten(accent, 0.18), width - 8, 3, 3, 3)
         if active and building_type in {"house", "shrine", "workshop"}:
-            _px(source, _alpha(lighten(recipe.accent, 0.15), 120), 3, base_y - 7, width - 6, 2)
+            _px(source, _alpha(lighten(accent, 0.15), 120), 3, base_y - 7, width - 6, 2)
         return source
 
     def get_building_sprite(
@@ -505,22 +754,64 @@ class SpriteLibrary:
         level: int,
         active: bool,
         occupancy_ratio: float,
+        variant_id: int,
+        district_identity: str,
+        prosperity_score: float,
+        material_style: str,
+        biome_type: str,
+        construction_progress: float,
+        wear: float,
+        building_age: float,
         target_size: tuple[int, int],
     ) -> pygame.Surface:
-        cache_key = ("building", building_type, level, active, round(occupancy_ratio, 2), target_size)
+        progress_bucket = int(round(max(0.0, min(1.0, construction_progress)) * 20))
+        wear_bucket = int(round(max(0.0, min(1.0, wear)) * 10))
+        age_bucket = 1 if building_age >= 180.0 else 0
+        cache_key = (
+            "building",
+            building_type,
+            level,
+            active,
+            round(occupancy_ratio, 2),
+            variant_id,
+            district_identity,
+            round(prosperity_score, 2),
+            str(material_style or ""),
+            str(biome_type or ""),
+            progress_bucket,
+            wear_bucket,
+            age_bucket,
+            target_size,
+        )
         if cache_key in self._cache:
             return self._cache[cache_key]
         file_surface = self._load_file_surface(os.path.join("sprites", "buildings", f"{building_type}.png"), target_size)
-        if file_surface is not None:
-            self._cache[cache_key] = self._apply_building_state_overlays(
-                file_surface,
-                level=level,
-                active=active,
-                occupancy_ratio=occupancy_ratio,
+        if file_surface is None:
+            source = self._building_source(
+                building_type,
+                level,
+                active,
+                occupancy_ratio,
+                material_style,
+                biome_type,
+                wear,
             )
-            return self._cache[cache_key]
-        source = self._building_source(building_type, level, active, occupancy_ratio)
-        self._cache[cache_key] = _scale(self._add_shadow(source, skew=0.5, alpha=110), target_size)
+            file_surface = _scale(self._add_shadow(source, skew=0.5, alpha=110), target_size)
+        self._cache[cache_key] = self._apply_building_state_overlays(
+            file_surface,
+            building_type=building_type,
+            level=level,
+            active=active,
+            occupancy_ratio=occupancy_ratio,
+            variant_id=variant_id,
+            district_identity=district_identity,
+            prosperity_score=prosperity_score,
+            material_style=material_style,
+            biome_type=biome_type,
+            construction_progress=construction_progress,
+            wear=wear,
+            building_age=building_age,
+        )
         return self._cache[cache_key]
 
     def _resource_source(self, resource_type: str, depleted: bool) -> pygame.Surface:

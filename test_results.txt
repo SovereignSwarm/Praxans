@@ -1,0 +1,27 @@
+...........................................................................................................................................................F......................................................[Scheduler] council failed: fake error (cooldown 1s)
+.....[Scheduler] Unknown channel: invalid_channel
+....................................................................................................................................................................................
+======================================================================
+FAIL: test_game_exits_cleanly_in_headless_smoke_mode (test_headless_smoke.HeadlessSmokeTests.test_game_exits_cleanly_in_headless_smoke_mode)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\Documents\PerseusXR\Thonglets\tests\test_headless_smoke.py", line 36, in test_game_exits_cleanly_in_headless_smoke_mode
+    self.assertIn("SESSION ENDED", result.stdout)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'SESSION ENDED' not found in "Display window created\n[LLM] Disabled via CLI\n\n[LOGGING] Log files will be saved to: D:\\Documents\\PerseusXR\\Thonglets\\logs\n[LOGGING] Session log: D:\\Documents\\PerseusXR\\Thonglets\\logs\\session_20260309_011645_345456_2930156.log\n\n[Scenario] Standard Basin (standard)\nStarting Praxans...\nLoading Praxans... Assets\nAsset manager created\nLoading Praxans... World\n\n================================================================================\nCRITICAL ERROR: Game crashed before logging was initialized\n================================================================================\nError: WorldMap.__init__() got an unexpected keyword argument 'botany_manager'\n\n================================================================================\nIf logging was initialized, check logs/ directory for detailed crash reports.\nExpected location: D:\\Documents\\PerseusXR\\Thonglets\\logs\n================================================================================\n"
+
+----------------------------------------------------------------------
+Ran 395 tests in 13.868s
+
+FAILED (failures=1)
+pygame 2.6.1 (SDL 2.28.4, Python 3.13.6)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Basic Medicine (doctrine=security, cost=200, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=400)
+[TechResearch] Unlocked Advanced Irrigation (doctrine=growth, cost=250, remaining=150)
+[TechResearch] Unlocked Community Building (doctrine=harmony, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=50)

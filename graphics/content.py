@@ -110,7 +110,7 @@ SPRITE_ATLASES: dict[str, dict[str, object]] = {
     "buildings": {
         "folder": "sprites/buildings",
         "source_size": (32, 40),
-        "variants": ("house", "storage", "farm", "workshop", "shrine", "well"),
+        "variants": ("house", "storage", "farm", "workshop", "shrine", "well", "hospital", "school", "watchtower", "market"),
     },
     "resources": {"folder": "sprites/resources", "source_size": SOURCE_RESOURCE_SIZE},
     "hazards": {"folder": "sprites/hazards", "source_size": (24, 24)},
@@ -149,12 +149,16 @@ ROLE_PALETTES: dict[str, ActorPalette] = {
 
 BUILDING_FOOTPRINT_ART: dict[str, BuildingRecipe] = {
     # format: ..., (width_pixels, height_pixels), grid_width_tiles, grid_height_tiles, ...
-    "house": BuildingRecipe("house", (128, 128), 2, 2, "cottage", (150, 116, 84), (132, 70, 56), (82, 56, 46), (242, 197, 136)),
-    "storage": BuildingRecipe("storage", (128, 128), 2, 2, "storehouse", (120, 112, 96), (118, 86, 61), (74, 60, 51), (183, 162, 110)),
-    "farm": BuildingRecipe("farm", (64, 64), 1, 1, "field", (130, 96, 68), (118, 86, 48), (81, 55, 34), (150, 172, 89)),
-    "workshop": BuildingRecipe("workshop", (192, 128), 3, 2, "forge", (110, 100, 112), (92, 76, 62), (58, 52, 64), (214, 168, 111)),
-    "shrine": BuildingRecipe("shrine", (192, 192), 3, 3, "sanctum", (165, 155, 173), (112, 88, 124), (80, 64, 88), (246, 216, 142)),
-    "well": BuildingRecipe("well", (64, 64), 1, 1, "well", (116, 112, 106), (88, 76, 68), (58, 54, 48), (110, 175, 204)),
+    "house": BuildingRecipe("house", (32, 40), 2, 2, "cottage", (150, 116, 84), (132, 70, 56), (82, 56, 46), (242, 197, 136)),
+    "storage": BuildingRecipe("storage", (32, 38), 2, 2, "storehouse", (120, 112, 96), (118, 86, 61), (74, 60, 51), (183, 162, 110)),
+    "farm": BuildingRecipe("farm", (32, 32), 1, 1, "field", (130, 96, 68), (118, 86, 48), (81, 55, 34), (150, 172, 89)),
+    "workshop": BuildingRecipe("workshop", (42, 40), 3, 2, "forge", (110, 100, 112), (92, 76, 62), (58, 52, 64), (214, 168, 111)),
+    "shrine": BuildingRecipe("shrine", (40, 46), 3, 3, "sanctum", (165, 155, 173), (112, 88, 124), (80, 64, 88), (246, 216, 142)),
+    "well": BuildingRecipe("well", (28, 32), 1, 1, "well", (116, 112, 106), (88, 76, 68), (58, 54, 48), (110, 175, 204)),
+    "hospital": BuildingRecipe("hospital", (44, 40), 3, 2, "infirmary", (202, 200, 196), (170, 112, 102), (114, 110, 108), (226, 92, 92)),
+    "school": BuildingRecipe("school", (42, 40), 3, 2, "academy", (152, 168, 192), (90, 126, 182), (64, 84, 112), (246, 214, 132)),
+    "watchtower": BuildingRecipe("watchtower", (28, 52), 1, 1, "tower", (136, 108, 82), (100, 74, 56), (72, 50, 38), (244, 196, 124)),
+    "market": BuildingRecipe("market", (48, 36), 3, 2, "bazaar", (214, 176, 98), (188, 88, 82), (112, 78, 54), (244, 216, 134)),
 }
 
 RESOURCE_ART: dict[str, ResourceRecipe] = {
@@ -182,7 +186,51 @@ DISTRICT_OVERLAYS: dict[str, dict[str, object]] = {
     "agricultural": {"style": "furrows", "accent": (148, 167, 91)},
     "industrial": {"style": "yard", "accent": (186, 122, 92)},
     "spiritual": {"style": "ring", "accent": (171, 149, 204)},
+    "production": {"style": "yard", "accent": (182, 126, 92)},
+    "storage": {"style": "yard", "accent": (168, 152, 116)},
+    "civic": {"style": "ring", "accent": (148, 174, 208)},
+    "mixed": {"style": "footpath", "accent": (202, 188, 142)},
 }
+
+ZONE_OVERLAY_ALIASES: dict[str, str] = {
+    "homestead": "residential",
+    "hydration": "civic",
+    "agrarian": "agricultural",
+    "industrial": "industrial",
+    "spiritual": "spiritual",
+    "production": "production",
+    "storage": "storage",
+    "civic": "civic",
+    "mixed": "mixed",
+    "residential": "residential",
+    "agricultural": "agricultural",
+}
+
+ROOM_WALL_BUILDING_TYPES = frozenset(
+    {
+        "house",
+        "storage",
+        "workshop",
+        "shrine",
+        "well",
+        "hospital",
+        "school",
+        "watchtower",
+        "market",
+    }
+)
+
+VISION_BLOCKING_BUILDING_TYPES = frozenset(
+    {
+        "house",
+        "storage",
+        "workshop",
+        "shrine",
+        "hospital",
+        "school",
+        "market",
+    }
+)
 
 FALLBACK_PLACEHOLDERS: dict[str, str] = {
     "terrain": "tilesets/placeholders/terrain_placeholder.png",
@@ -192,6 +240,60 @@ FALLBACK_PLACEHOLDERS: dict[str, str] = {
     "hazard": "sprites/placeholders/hazard_placeholder.png",
     "npc": "sprites/placeholders/npc_placeholder.png",
 }
+
+
+def get_building_recipe(building_type: str) -> BuildingRecipe:
+    return BUILDING_FOOTPRINT_ART.get(str(building_type), BUILDING_FOOTPRINT_ART["house"])
+
+
+def get_zone_overlay_type(zone_type: str) -> str:
+    normalized = str(zone_type or "mixed").lower()
+    mapped = ZONE_OVERLAY_ALIASES.get(normalized, normalized)
+    return mapped if mapped in DISTRICT_OVERLAYS else "mixed"
+
+
+def building_footprint_tiles(building_type: str) -> tuple[int, int]:
+    recipe = get_building_recipe(building_type)
+    return (recipe.grid_width, recipe.grid_height)
+
+
+def building_origin_to_anchor(origin_x: float, origin_y: float, building_type: str, tile_size: int) -> tuple[float, float]:
+    grid_width, grid_height = building_footprint_tiles(building_type)
+    return (
+        float(origin_x) + (grid_width * float(tile_size)) / 2.0,
+        float(origin_y) + (grid_height * float(tile_size)) / 2.0,
+    )
+
+
+def building_anchor_to_origin(anchor_x: float, anchor_y: float, building_type: str, tile_size: int) -> tuple[float, float]:
+    grid_width, grid_height = building_footprint_tiles(building_type)
+    return (
+        float(anchor_x) - (grid_width * float(tile_size)) / 2.0,
+        float(anchor_y) - (grid_height * float(tile_size)) / 2.0,
+    )
+
+
+def building_world_rect(anchor_x: float, anchor_y: float, building_type: str, tile_size: int) -> tuple[float, float, float, float]:
+    origin_x, origin_y = building_anchor_to_origin(anchor_x, anchor_y, building_type, tile_size)
+    grid_width, grid_height = building_footprint_tiles(building_type)
+    return (
+        origin_x,
+        origin_y,
+        origin_x + grid_width * float(tile_size),
+        origin_y + grid_height * float(tile_size),
+    )
+
+
+def building_occupied_tiles(anchor_x: float, anchor_y: float, building_type: str, tile_size: int) -> tuple[tuple[int, int], ...]:
+    origin_x, origin_y = building_anchor_to_origin(anchor_x, anchor_y, building_type, tile_size)
+    start_tile_x = int(round(origin_x / max(1, tile_size)))
+    start_tile_y = int(round(origin_y / max(1, tile_size)))
+    grid_width, grid_height = building_footprint_tiles(building_type)
+    return tuple(
+        (start_tile_x + dx, start_tile_y + dy)
+        for dx in range(grid_width)
+        for dy in range(grid_height)
+    )
 
 
 def snap_zoom_level(zoom: float, levels: tuple[float, ...] = SNAP_ZOOM_LEVELS) -> float:

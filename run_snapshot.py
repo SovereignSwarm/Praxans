@@ -403,6 +403,19 @@ def _serialize_temporary_modifiers(advisor, current_time: float) -> dict[str, di
     return serialized
 
 
+def _serialize_global_climate(global_climate) -> dict[str, Any]:
+    """Serialize GlobalClimate epoch drift state for snapshot persistence."""
+    if global_climate is None:
+        return {}
+    return {
+        "epoch": getattr(global_climate, "epoch", "Holocene"),
+        "global_temp_offset": round(float(getattr(global_climate, "global_temp_offset", 0.0)), 4),
+        "global_moisture_offset": round(float(getattr(global_climate, "global_moisture_offset", 0.0)), 4),
+        "target_temp_offset": round(float(getattr(global_climate, "target_temp_offset", 0.0)), 4),
+        "target_moisture_offset": round(float(getattr(global_climate, "target_moisture_offset", 0.0)), 4),
+    }
+
+
 def build_run_snapshot(
     praxans,
     buildings,
@@ -431,6 +444,8 @@ def build_run_snapshot(
     tech_research_manager=None,
     disaster_manager=None,
     ritual_manager=None,
+    ecology_manager=None,
+    global_climate=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -461,6 +476,8 @@ def build_run_snapshot(
         "tech_research": tech_research_manager.serialize() if tech_research_manager is not None else {},
         "disasters": disaster_manager.serialize() if disaster_manager is not None else {},
         "rituals": ritual_manager.serialize() if ritual_manager is not None else {},
+        "ecology": ecology_manager.serialize() if ecology_manager is not None and hasattr(ecology_manager, "serialize") else {},
+        "global_climate": _serialize_global_climate(global_climate),
         "praxans": [
             {
                 "id": praxan.id,
@@ -532,8 +549,16 @@ def build_run_snapshot(
                 "x": round(building.x, 2),
                 "y": round(building.y, 2),
                 "level": getattr(building, "level", 1),
+                "built_elapsed": round(
+                    max(0.0, current_time - float(getattr(building, "built_at", current_time) or current_time)),
+                    3,
+                ),
                 "built_by": getattr(building, "built_by", None),
                 "aura_strength": round(getattr(building, "aura_strength", 0.0), 3),
+                "origin_biome": getattr(building, "origin_biome", None),
+                "material_style": getattr(building, "material_style", None),
+                "wear": round(float(getattr(building, "wear", 0.0) or 0.0), 3),
+                "construction_progress": round(float(getattr(building, "construction_progress", 1.0) or 1.0), 3),
                 "stored_resources": dict(building.stored_resources),
                 "occupant_ids": [
                     int(occupant.id)

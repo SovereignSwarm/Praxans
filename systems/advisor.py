@@ -1155,6 +1155,34 @@ Directives:"""
                                 p.inspiration = min(100.0, p.inspiration + 10)
                                 break
 
+    def _format_environment_context(self) -> str:
+        """Build a compact environment string for LLM prompts.
+
+        Reads from ``self.environment_context`` which is synced each frame from
+        the game loop.  Returns a short multi-line block like::
+
+            - Season: Winter Y3 | Weather: Drought | Epoch: Ice Age
+            - Land: avg fertility 52%, 2 Barren, 3 Stressed regions
+        """
+        env = getattr(self, "environment_context", None) or {}
+        season = env.get("season", "unknown")
+        year = env.get("year", "?")
+        weather = env.get("weather", "clear")
+        epoch = env.get("climate_epoch", "Holocene")
+        eco = env.get("ecology", {})
+        avg_f = eco.get("avg_fertility", 80)
+        counts = eco.get("region_counts", {})
+        distress_parts = []
+        for status in ("Barren", "Degraded", "Stressed"):
+            n = counts.get(status, 0)
+            if n > 0:
+                distress_parts.append(f"{n} {status}")
+        land_detail = ", ".join(distress_parts) if distress_parts else "all healthy"
+        return (
+            f"- Season: {season.title()} Y{year} | Weather: {weather} | Epoch: {epoch}\n"
+            f"- Land: avg fertility {avg_f:.0f}%, {land_detail}"
+        )
+
     def _build_compact_strategy_request(
         self,
         praxans,
@@ -1233,6 +1261,9 @@ Colony:
 - Culture: {int(settlement.get('culture_score', 0.0) * 100)}%
 - Festival readiness: {int(settlement.get('festival_readiness', 0.0) * 100)}%
 - Factions: {faction_count}
+
+Environment:
+{self._format_environment_context()}
 
 Faction snapshot:
 {faction_text}

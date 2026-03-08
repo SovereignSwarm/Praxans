@@ -1,0 +1,37 @@
+pygame 2.6.1 (SDL 2.28.4, Python 3.13.6)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Display window created
+[LLM] Disabled via CLI
+Traceback (most recent call last):
+  File "D:\Documents\PerseusXR\Thonglets\praxans_game.py", line 7251, in <module>
+    main(RUNTIME_CONFIG)
+    ~~~~^^^^^^^^^^^^^^^^
+  File "D:\Documents\PerseusXR\Thonglets\praxans_game.py", line 4887, in main
+    angle = random.uniform(0, 2 * math.pi)
+            ^^^^^^
+UnboundLocalError: cannot access local variable 'random' where it is not associated with a value
+
+[LOGGING] Log files will be saved to: D:\Documents\PerseusXR\Thonglets\logs
+[LOGGING] Session log: D:\Documents\PerseusXR\Thonglets\logs\session_20260309_013832_409660_2987936.log
+
+[Scenario] Standard Basin (standard)
+Starting Praxans...
+Loading Praxans... Assets
+Asset manager created
+Loading Praxans... World
+World map created with 192 chunks
+Loading Praxans... Camera
+Camera initialized at (3136.0, 2532.0)
+Spawn center: (6656.0, 1536.0) - Biome: forest
+Camera positioned at (5696, 996) with zoom 1.5
+Loading Praxans... Spawning
+
+================================================================================
+CRITICAL ERROR: Game crashed before logging was initialized
+================================================================================
+Error: cannot access local variable 'random' where it is not associated with a value
+
+================================================================================
+If logging was initialized, check logs/ directory for detailed crash reports.
+Expected location: D:\Documents\PerseusXR\Thonglets\logs
+================================================================================

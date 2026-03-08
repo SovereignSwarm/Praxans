@@ -1,114 +1,162 @@
-test_parse_advisory_payload_falls_back_to_defaults_on_invalid_json (test_advisor_contract.AdvisorContractTests.test_parse_advisory_payload_falls_back_to_defaults_on_invalid_json) ... ok
-test_parse_advisory_payload_returns_none_for_no_change_reply (test_advisor_contract.AdvisorContractTests.test_parse_advisory_payload_returns_none_for_no_change_reply) ... ok
-test_parse_advisory_payload_strips_think_and_sanitizes_values (test_advisor_contract.AdvisorContractTests.test_parse_advisory_payload_strips_think_and_sanitizes_values) ... ok
-test_building_costs_match_expected_definitions (test_game_content.GameContentTests.test_building_costs_match_expected_definitions) ... ok
-test_content_clones_are_independent (test_game_content.GameContentTests.test_content_clones_are_independent) ... ok
-test_prompt_lines_cover_all_buildings (test_game_content.GameContentTests.test_prompt_lines_cover_all_buildings) ... ok
-test_default_scenario_exists_in_registry (test_game_scenarios.GameScenarioTests.test_default_scenario_exists_in_registry) ... ok
-test_format_scenario_help_lists_named_presets (test_game_scenarios.GameScenarioTests.test_format_scenario_help_lists_named_presets) ... ok
-test_get_scenario_profile_returns_independent_copy (test_game_scenarios.GameScenarioTests.test_get_scenario_profile_returns_independent_copy) ... ok
-test_scenarios_include_world_generation_profiles (test_game_scenarios.GameScenarioTests.test_scenarios_include_world_generation_profiles) ... ok
-test_unknown_scenario_raises_key_error (test_game_scenarios.GameScenarioTests.test_unknown_scenario_raises_key_error) ... ok
-test_generated_asset_pack_contains_representative_files (test_graphics_renderer.GraphicsRendererTests.test_generated_asset_pack_contains_representative_files) ... ok
-test_scene_renderer_macro_zoom_smoke (test_graphics_renderer.GraphicsRendererTests.test_scene_renderer_macro_zoom_smoke) ... ok
-test_scene_renderer_smoke_and_cache_reuse (test_graphics_renderer.GraphicsRendererTests.test_scene_renderer_smoke_and_cache_reuse) ... ok
-test_sprite_library_fallback_tile_surface (test_graphics_renderer.GraphicsRendererTests.test_sprite_library_fallback_tile_surface) ... ok
-test_game_exits_cleanly_in_headless_smoke_mode (test_headless_smoke.HeadlessSmokeTests.test_game_exits_cleanly_in_headless_smoke_mode) ... FAIL
-test_empty_returns_defaults (test_llm_contracts.CouncilContractTests.test_empty_returns_defaults) ... ok
-test_individual_capped_at_2 (test_llm_contracts.CouncilContractTests.test_individual_capped_at_2) ... ok
-test_invalid_enums_clamped (test_llm_contracts.CouncilContractTests.test_invalid_enums_clamped) ... ok
-test_malformed_json_returns_defaults (test_llm_contracts.CouncilContractTests.test_malformed_json_returns_defaults) ... ok
-test_no_change_returns_none (test_llm_contracts.CouncilContractTests.test_no_change_returns_none) ... ok
-test_oversized_strings_truncated (test_llm_contracts.CouncilContractTests.test_oversized_strings_truncated) ... ok
-test_priority_weight_clamped (test_llm_contracts.CouncilContractTests.test_priority_weight_clamped) ... ok
-test_strips_markdown_fences (test_llm_contracts.CouncilContractTests.test_strips_markdown_fences) ... ok
-test_strips_think_tags (test_llm_contracts.CouncilContractTests.test_strips_think_tags) ... ok
-test_team_task_count_clamped (test_llm_contracts.CouncilContractTests.test_team_task_count_clamped) ... ok
-test_valid_json_parses_doctrine (test_llm_contracts.CouncilContractTests.test_valid_json_parses_doctrine) ... ok
-test_delta_clamped (test_llm_contracts.DiplomacyContractTests.test_delta_clamped) ... ok
-test_empty_returns_defaults (test_llm_contracts.DiplomacyContractTests.test_empty_returns_defaults) ... ok
-test_frontier_policy_enum_validated (test_llm_contracts.DiplomacyContractTests.test_frontier_policy_enum_validated) ... ok
-test_no_change_returns_none (test_llm_contracts.DiplomacyContractTests.test_no_change_returns_none) ... ok
-test_valid_stance_changes (test_llm_contracts.DiplomacyContractTests.test_valid_stance_changes) ... ok
-test_empty_returns_defaults (test_llm_contracts.FactionIntentContractTests.test_empty_returns_defaults) ... ok
-test_invalid_intent_defaults (test_llm_contracts.FactionIntentContractTests.test_invalid_intent_defaults) ... ok
-test_no_change_returns_none (test_llm_contracts.FactionIntentContractTests.test_no_change_returns_none) ... ok
-test_valid_json (test_llm_contracts.FactionIntentContractTests.test_valid_json) ... ok
-test_invalid_moment_type_defaults (test_llm_contracts.HistorianContractTests.test_invalid_moment_type_defaults) ... ok
-test_no_change_returns_none (test_llm_contracts.HistorianContractTests.test_no_change_returns_none) ... ok
-test_oversized_summary_truncated (test_llm_contracts.HistorianContractTests.test_oversized_summary_truncated) ... ok
-test_valid_json (test_llm_contracts.HistorianContractTests.test_valid_json) ... ok
-test_no_change_returns_none (test_llm_contracts.MemorySummaryContractTests.test_no_change_returns_none) ... ok
-test_oversized_digests_truncated (test_llm_contracts.MemorySummaryContractTests.test_oversized_digests_truncated) ... ok
-test_valid_json (test_llm_contracts.MemorySummaryContractTests.test_valid_json) ... ok
-test_applies_doctrine_and_focus (test_llm_interpreters.CouncilInterpreterTests.test_applies_doctrine_and_focus) ... ok
-test_applies_faction_goals (test_llm_interpreters.CouncilInterpreterTests.test_applies_faction_goals) ... ok
-test_applies_individual_directives (test_llm_interpreters.CouncilInterpreterTests.test_applies_individual_directives) ... ok
-test_no_intervention_on_empty_payload (test_llm_interpreters.CouncilInterpreterTests.test_no_intervention_on_empty_payload) ... ok
-test_cooperative_removes_rivals (test_llm_interpreters.DiplomacyInterpreterTests.test_cooperative_removes_rivals) ... ok
-test_hostile_adds_rivals (test_llm_interpreters.DiplomacyInterpreterTests.test_hostile_adds_rivals) ... ok
-test_no_goal_no_assignment (test_llm_interpreters.FactionIntentInterpreterTests.test_no_goal_no_assignment) ... ok
-test_sets_shared_goal (test_llm_interpreters.FactionIntentInterpreterTests.test_sets_shared_goal) ... ok
-test_adds_to_narrative (test_llm_interpreters.HistorianInterpreterTests.test_adds_to_narrative) ... ok
-test_empty_summary_no_side_effects (test_llm_interpreters.HistorianInterpreterTests.test_empty_summary_no_side_effects) ... ok
-test_applies_digests (test_llm_interpreters.MemorySummaryInterpreterTests.test_applies_digests) ... ok
-test_bounded_entries (test_llm_memory.CivilizationMemoryTests.test_bounded_entries) ... ok
-test_digest (test_llm_memory.CivilizationMemoryTests.test_digest) ... ok
-test_record_and_recent_text (test_llm_memory.CivilizationMemoryTests.test_record_and_recent_text) ... ok
-test_serialize_roundtrip (test_llm_memory.CivilizationMemoryTests.test_serialize_roundtrip) ... ok
-test_all_faction_ids (test_llm_memory.FactionMemoryTests.test_all_faction_ids) ... ok
-test_bounded_per_faction (test_llm_memory.FactionMemoryTests.test_bounded_per_faction) ... ok
-test_record_per_faction (test_llm_memory.FactionMemoryTests.test_record_per_faction) ... ok
-test_serialize_roundtrip (test_llm_memory.FactionMemoryTests.test_serialize_roundtrip) ... ok
-test_aggregate_serialize_roundtrip (test_llm_memory.LLMMemoryTests.test_aggregate_serialize_roundtrip) ... ok
-test_from_dict_with_empty (test_llm_memory.LLMMemoryTests.test_from_dict_with_empty) ... ok
-test_from_dict_with_none (test_llm_memory.LLMMemoryTests.test_from_dict_with_none) ... ok
-test_record_and_text (test_llm_memory.MapMemoryTests.test_record_and_text) ... ok
-test_serialize_roundtrip (test_llm_memory.MapMemoryTests.test_serialize_roundtrip) ... ok
-test_channel_status_tracking (test_llm_scheduler.SchedulerBasicTests.test_channel_status_tracking) ... ok
-test_get_stats (test_llm_scheduler.SchedulerBasicTests.test_get_stats) ... ok
-test_max_concurrent_enforced (test_llm_scheduler.SchedulerBasicTests.test_max_concurrent_enforced) ... ok
-test_per_channel_cooldown_on_failure (test_llm_scheduler.SchedulerBasicTests.test_per_channel_cooldown_on_failure) ... [Scheduler] council failed: fake error (cooldown 1s)
-ok
-test_priority_ordering (test_llm_scheduler.SchedulerBasicTests.test_priority_ordering) ... ok
-test_stale_collapse (test_llm_scheduler.SchedulerBasicTests.test_stale_collapse) ... ok
-test_submit_and_poll_success (test_llm_scheduler.SchedulerBasicTests.test_submit_and_poll_success) ... ok
-test_submit_unavailable_client (test_llm_scheduler.SchedulerBasicTests.test_submit_unavailable_client) ... ok
-test_unknown_channel_rejected (test_llm_scheduler.SchedulerBasicTests.test_unknown_channel_rejected) ... [Scheduler] Unknown channel: invalid_channel
-ok
-test_frontier_world_generation_changes_with_seed (test_map_generation.MapGenerationTests.test_frontier_world_generation_changes_with_seed) ... ok
-test_frontier_world_generation_is_deterministic_for_same_seed (test_map_generation.MapGenerationTests.test_frontier_world_generation_is_deterministic_for_same_seed) ... ok
-test_build_observer_report_falls_back_to_existing_events_when_timeline_is_missing (test_observer_analytics.ObserverAnalyticsTests.test_build_observer_report_falls_back_to_existing_events_when_timeline_is_missing) ... ok
-test_build_observer_report_summarizes_lineages_mortality_and_factions (test_observer_analytics.ObserverAnalyticsTests.test_build_observer_report_summarizes_lineages_mortality_and_factions) ... ok
-test_build_and_compare_archives (test_run_archive.RunArchiveTests.test_build_and_compare_archives) ... ok
-test_classify_run_phase_and_end_state (test_run_archive.RunArchiveTests.test_classify_run_phase_and_end_state) ... ok
-test_build_write_and_load_snapshot_round_trip (test_run_snapshot.RunSnapshotTests.test_build_write_and_load_snapshot_round_trip) ... ok
-test_find_latest_snapshot_returns_newest_file (test_run_snapshot.RunSnapshotTests.test_find_latest_snapshot_returns_newest_file) ... ok
-test_load_run_snapshot_rejects_newer_snapshot_version (test_run_snapshot.RunSnapshotTests.test_load_run_snapshot_rejects_newer_snapshot_version) ... ok
-test_resolve_snapshot_path_uses_log_dir_for_relative_names (test_run_snapshot.RunSnapshotTests.test_resolve_snapshot_path_uses_log_dir_for_relative_names) ... ok
-test_console_printer_suppresses_noisy_debug_lines_by_default (test_runtime_config.RuntimeConfigTests.test_console_printer_suppresses_noisy_debug_lines_by_default) ... ok
-test_parse_runtime_config_overrides_defaults (test_runtime_config.RuntimeConfigTests.test_parse_runtime_config_overrides_defaults) ... ok
-test_parse_runtime_config_supports_latest_snapshot_flag (test_runtime_config.RuntimeConfigTests.test_parse_runtime_config_supports_latest_snapshot_flag) ... ok
-test_parse_runtime_config_uses_qwen35_default_model (test_runtime_config.RuntimeConfigTests.test_parse_runtime_config_uses_qwen35_default_model) ... ok
-test_choose_migration_target_prefers_known_frontier_resources (test_society_dynamics.SocietyDynamicsTests.test_choose_migration_target_prefers_known_frontier_resources) ... ok
-test_choose_migration_target_prefers_route_targets_when_available (test_society_dynamics.SocietyDynamicsTests.test_choose_migration_target_prefers_route_targets_when_available) ... ok
-test_choose_schism_members_selects_dissenters (test_society_dynamics.SocietyDynamicsTests.test_choose_schism_members_selects_dissenters) ... ok
-test_compute_faction_metrics_derives_pressures_and_doctrine (test_society_dynamics.SocietyDynamicsTests.test_compute_faction_metrics_derives_pressures_and_doctrine) ... ok
-test_handle_escape_closes_layers_before_quit (test_ui_input_router.UIInputRouterTests.test_handle_escape_closes_layers_before_quit) ... ok
-test_pick_world_entity_is_zoom_invariant_for_hover_thresholds (test_ui_input_router.UIInputRouterTests.test_pick_world_entity_is_zoom_invariant_for_hover_thresholds) ... ok
-test_living_atlas_layers_render_to_surface (test_ui_render_smoke.UIRenderSmokeTests.test_living_atlas_layers_render_to_surface) ... ok
+D:\Documents\PerseusXR\Thonglets\praxans_game.py:7280: SyntaxWarning: 'return' in a 'finally' block
+  return main(next_runtime_config)
+...E.............................................................................................................................EEF......................................................[Scheduler] council failed: fake error (cooldown 1s)
+.....[Scheduler] Unknown channel: invalid_channel
+........E..............................................................E..........................................
+======================================================================
+ERROR: test_crafting (unittest.loader._FailedTest.test_crafting)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_crafting
+Traceback (most recent call last):
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 426, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 367, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "D:\Documents\PerseusXR\Thonglets\tests\test_crafting.py", line 33, in <module>
+    from praxans_game import Building, JOB_DEFS
+  File "D:\Documents\PerseusXR\Thonglets\praxans_game.py", line 31, in <module>
+    from graphics import GraphicsConfig, SceneRenderer, build_render_frame
+  File "D:\Documents\PerseusXR\Thonglets\graphics\__init__.py", line 9, in <module>
+    from graphics.scene_renderer import SceneRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\scene_renderer.py", line 10, in <module>
+    from graphics.terrain_renderer import TerrainRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\terrain_renderer.py", line 151
+    `r`n    def _chunk_seed_coords(self, chunk, world_state) -> tuple[int, int]:`r`n        chunk_x = getattr(chunk, "chunk_x", None)`r`n        chunk_y = getattr(chunk, "chunk_y", None)`r`n        if isinstance(chunk_x, int) and isinstance(chunk_y, int):`r`n            return (chunk_x, chunk_y)`r`n        chunk_size = max(1, int(getattr(world_state, "chunk_size", 1) or 1))`r`n        world_x = int(getattr(chunk, "world_x", 0) or 0)`r`n        world_y = int(getattr(chunk, "world_y", 0) or 0)`r`n        return (world_x // chunk_size, world_y // chunk_size)`r`n    def _build_chunk_surface(self, chunk, world_state) -> pygame.Surface:
+    ^
+SyntaxError: invalid syntax
+
+
+======================================================================
+ERROR: test_graphics_renderer (unittest.loader._FailedTest.test_graphics_renderer)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_graphics_renderer
+Traceback (most recent call last):
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 426, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 367, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "D:\Documents\PerseusXR\Thonglets\tests\test_graphics_renderer.py", line 9, in <module>
+    from graphics import GraphicsConfig, SceneRenderer, build_render_frame
+  File "D:\Documents\PerseusXR\Thonglets\graphics\__init__.py", line 9, in <module>
+    from graphics.scene_renderer import SceneRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\scene_renderer.py", line 10, in <module>
+    from graphics.terrain_renderer import TerrainRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\terrain_renderer.py", line 151
+    `r`n    def _chunk_seed_coords(self, chunk, world_state) -> tuple[int, int]:`r`n        chunk_x = getattr(chunk, "chunk_x", None)`r`n        chunk_y = getattr(chunk, "chunk_y", None)`r`n        if isinstance(chunk_x, int) and isinstance(chunk_y, int):`r`n            return (chunk_x, chunk_y)`r`n        chunk_size = max(1, int(getattr(world_state, "chunk_size", 1) or 1))`r`n        world_x = int(getattr(chunk, "world_x", 0) or 0)`r`n        world_y = int(getattr(chunk, "world_y", 0) or 0)`r`n        return (world_x // chunk_size, world_y // chunk_size)`r`n    def _build_chunk_surface(self, chunk, world_state) -> pygame.Surface:
+    ^
+SyntaxError: invalid syntax
+
+
+======================================================================
+ERROR: test_grief_system (unittest.loader._FailedTest.test_grief_system)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_grief_system
+Traceback (most recent call last):
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 426, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 367, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "D:\Documents\PerseusXR\Thonglets\tests\test_grief_system.py", line 18, in <module>
+    import praxans_game  # noqa: F401  ù must precede entities.praxan (wildcard import dep)
+    ^^^^^^^^^^^^^^^^^^^
+  File "D:\Documents\PerseusXR\Thonglets\praxans_game.py", line 31, in <module>
+    from graphics import GraphicsConfig, SceneRenderer, build_render_frame
+  File "D:\Documents\PerseusXR\Thonglets\graphics\__init__.py", line 9, in <module>
+    from graphics.scene_renderer import SceneRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\scene_renderer.py", line 10, in <module>
+    from graphics.terrain_renderer import TerrainRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\terrain_renderer.py", line 151
+    `r`n    def _chunk_seed_coords(self, chunk, world_state) -> tuple[int, int]:`r`n        chunk_x = getattr(chunk, "chunk_x", None)`r`n        chunk_y = getattr(chunk, "chunk_y", None)`r`n        if isinstance(chunk_x, int) and isinstance(chunk_y, int):`r`n            return (chunk_x, chunk_y)`r`n        chunk_size = max(1, int(getattr(world_state, "chunk_size", 1) or 1))`r`n        world_x = int(getattr(chunk, "world_x", 0) or 0)`r`n        world_y = int(getattr(chunk, "world_y", 0) or 0)`r`n        return (world_x // chunk_size, world_y // chunk_size)`r`n    def _build_chunk_surface(self, chunk, world_state) -> pygame.Surface:
+    ^
+SyntaxError: invalid syntax
+
+
+======================================================================
+ERROR: test_praxan_memory (unittest.loader._FailedTest.test_praxan_memory)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_praxan_memory
+Traceback (most recent call last):
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 426, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 367, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "D:\Documents\PerseusXR\Thonglets\tests\test_praxan_memory.py", line 10, in <module>
+    import praxans_game  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^
+  File "D:\Documents\PerseusXR\Thonglets\praxans_game.py", line 31, in <module>
+    from graphics import GraphicsConfig, SceneRenderer, build_render_frame
+  File "D:\Documents\PerseusXR\Thonglets\graphics\__init__.py", line 9, in <module>
+    from graphics.scene_renderer import SceneRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\scene_renderer.py", line 10, in <module>
+    from graphics.terrain_renderer import TerrainRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\terrain_renderer.py", line 151
+    `r`n    def _chunk_seed_coords(self, chunk, world_state) -> tuple[int, int]:`r`n        chunk_x = getattr(chunk, "chunk_x", None)`r`n        chunk_y = getattr(chunk, "chunk_y", None)`r`n        if isinstance(chunk_x, int) and isinstance(chunk_y, int):`r`n            return (chunk_x, chunk_y)`r`n        chunk_size = max(1, int(getattr(world_state, "chunk_size", 1) or 1))`r`n        world_x = int(getattr(chunk, "world_x", 0) or 0)`r`n        world_y = int(getattr(chunk, "world_y", 0) or 0)`r`n        return (world_x // chunk_size, world_y // chunk_size)`r`n    def _build_chunk_surface(self, chunk, world_state) -> pygame.Surface:
+    ^
+SyntaxError: invalid syntax
+
+
+======================================================================
+ERROR: test_social_interactions (unittest.loader._FailedTest.test_social_interactions)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_social_interactions
+Traceback (most recent call last):
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 426, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\jorqu\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 367, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "D:\Documents\PerseusXR\Thonglets\tests\test_social_interactions.py", line 33, in <module>
+    import praxans_game  # noqa: F401 ù needed so wildcard import in praxan.py works
+    ^^^^^^^^^^^^^^^^^^^
+  File "D:\Documents\PerseusXR\Thonglets\praxans_game.py", line 31, in <module>
+    from graphics import GraphicsConfig, SceneRenderer, build_render_frame
+  File "D:\Documents\PerseusXR\Thonglets\graphics\__init__.py", line 9, in <module>
+    from graphics.scene_renderer import SceneRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\scene_renderer.py", line 10, in <module>
+    from graphics.terrain_renderer import TerrainRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\terrain_renderer.py", line 151
+    `r`n    def _chunk_seed_coords(self, chunk, world_state) -> tuple[int, int]:`r`n        chunk_x = getattr(chunk, "chunk_x", None)`r`n        chunk_y = getattr(chunk, "chunk_y", None)`r`n        if isinstance(chunk_x, int) and isinstance(chunk_y, int):`r`n            return (chunk_x, chunk_y)`r`n        chunk_size = max(1, int(getattr(world_state, "chunk_size", 1) or 1))`r`n        world_x = int(getattr(chunk, "world_x", 0) or 0)`r`n        world_y = int(getattr(chunk, "world_y", 0) or 0)`r`n        return (world_x // chunk_size, world_y // chunk_size)`r`n    def _build_chunk_surface(self, chunk, world_state) -> pygame.Surface:
+    ^
+SyntaxError: invalid syntax
+
 
 ======================================================================
 FAIL: test_game_exits_cleanly_in_headless_smoke_mode (test_headless_smoke.HeadlessSmokeTests.test_game_exits_cleanly_in_headless_smoke_mode)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "D:\Documents\PerseusXR\Praxans\tests\test_headless_smoke.py", line 36, in test_game_exits_cleanly_in_headless_smoke_mode
-    self.assertIn("SESSION ENDED", result.stdout)
-    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: 'SESSION ENDED' not found in "\n================================================================================\nCRITICAL ERROR: Game crashed before logging was initialized\n================================================================================\nError: cannot import name 'log_timeline_event' from 'observer_analytics' (D:\\Documents\\PerseusXR\\Praxans\\observer_analytics.py)\n\n================================================================================\nIf logging was initialized, check logs/ directory for detailed crash reports.\nExpected location: D:\\Documents\\PerseusXR\\Praxans\\logs\n================================================================================\n"
+  File "D:\Documents\PerseusXR\Thonglets\tests\test_headless_smoke.py", line 35, in test_game_exits_cleanly_in_headless_smoke_mode
+    self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : D:\Documents\PerseusXR\Thonglets\praxans_game.py:7280: SyntaxWarning: 'return' in a 'finally' block
+  return main(next_runtime_config)
+Traceback (most recent call last):
+  File "D:\Documents\PerseusXR\Thonglets\praxans_game.py", line 31, in <module>
+    from graphics import GraphicsConfig, SceneRenderer, build_render_frame
+  File "D:\Documents\PerseusXR\Thonglets\graphics\__init__.py", line 9, in <module>
+    from graphics.scene_renderer import SceneRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\scene_renderer.py", line 10, in <module>
+    from graphics.terrain_renderer import TerrainRenderer
+  File "D:\Documents\PerseusXR\Thonglets\graphics\terrain_renderer.py", line 151
+    `r`n    def _chunk_seed_coords(self, chunk, world_state) -> tuple[int, int]:`r`n        chunk_x = getattr(chunk, "chunk_x", None)`r`n        chunk_y = getattr(chunk, "chunk_y", None)`r`n        if isinstance(chunk_x, int) and isinstance(chunk_y, int):`r`n            return (chunk_x, chunk_y)`r`n        chunk_size = max(1, int(getattr(world_state, "chunk_size", 1) or 1))`r`n        world_x = int(getattr(chunk, "world_x", 0) or 0)`r`n        world_y = int(getattr(chunk, "world_y", 0) or 0)`r`n        return (world_x // chunk_size, world_y // chunk_size)`r`n    def _build_chunk_surface(self, chunk, world_state) -> pygame.Surface:
+    ^
+SyntaxError: invalid syntax
+
 
 ----------------------------------------------------------------------
-Ran 97 tests in 10.988s
+Ran 305 tests in 9.592s
 
-FAILED (failures=1)
+FAILED (failures=1, errors=5)
 pygame-ce 2.5.6 (SDL 2.32.10, Python 3.14.0)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Basic Medicine (doctrine=security, cost=200, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=400)
+[TechResearch] Unlocked Advanced Irrigation (doctrine=growth, cost=250, remaining=150)
+[TechResearch] Unlocked Community Building (doctrine=harmony, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=100)
+[TechResearch] Unlocked Efficient Farming (doctrine=growth, cost=100, remaining=50)

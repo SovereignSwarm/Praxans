@@ -4,6 +4,13 @@ import math
 import random
 from datetime import datetime
 from praxans_game import *
+from graphics.content import (
+    ROOM_WALL_BUILDING_TYPES,
+    VISION_BLOCKING_BUILDING_TYPES,
+    building_occupied_tiles,
+    building_origin_to_anchor,
+    building_world_rect,
+)
 
 class FogOfWar:
     """Manages fog of war - areas not yet explored are hidden"""
@@ -19,10 +26,10 @@ class FogOfWar:
         blocking_tiles = set()
         if buildings:
             for b in buildings:
-                if getattr(b, 'building_type', '') not in ['watchtower', 'well', 'farm']:
-                    tx = int(b.x // TILE_SIZE)
-                    ty = int(b.y // TILE_SIZE)
-                    blocking_tiles.add((tx, ty))
+                if getattr(b, 'building_type', '') in VISION_BLOCKING_BUILDING_TYPES:
+                    blocking_tiles.update(
+                        building_occupied_tiles(b.x, b.y, getattr(b, 'building_type', 'house'), TILE_SIZE)
+                    )
 
         def _blocks_vision(tx, ty):
             if (tx, ty) in blocking_tiles:
@@ -507,20 +514,11 @@ class CityPlanner:
     def score_building_location(self, x, y, building_type, buildings, hazards, world_map, praxans=None):
         """Score a building location 0-100, checking strict grid footprints for collision."""
         score = 50  # Base score
-        
-        # Pull footprint sizes
-        from graphics.content import BUILDING_FOOTPRINT_ART
-        from praxans_game import TILE_SIZE
-        # Default to 1x1 if unknown
-        recipe = BUILDING_FOOTPRINT_ART.get(building_type)
-        gw = recipe.grid_width if recipe else 1
-        gh = recipe.grid_height if recipe else 1
-        
-        # Define the proposed bounding box in world pixels
-        prop_rect = (x, y, x + gw * TILE_SIZE, y + gh * TILE_SIZE)
+        prop_anchor_x, prop_anchor_y = building_origin_to_anchor(x, y, building_type, TILE_SIZE)
+        prop_rect = building_world_rect(prop_anchor_x, prop_anchor_y, building_type, TILE_SIZE)
         
         # Territory bonus
-        if self.territory_manager.is_claimed(x, y, threshold=40):
+        if self.territory_manager.is_claimed(prop_anchor_x, prop_anchor_y, threshold=40):
             score += 30
         else:
             score -= 15  # Soft penalty
@@ -530,7 +528,7 @@ class CityPlanner:
             nearby_praxan_count = 0
             density_radius = 150  # Check within 150px
             for praxan in praxans:
-                distance = math.sqrt((praxan.x - x)**2 + (praxan.y - y)**2)
+                distance = math.sqrt((praxan.x - prop_anchor_x)**2 + (praxan.y - prop_anchor_y)**2)
                 if distance < density_radius:
                     nearby_praxan_count += 1
             
@@ -546,24 +544,15 @@ class CityPlanner:
         
         # Proximity and COLLISION bonuses/penalties
         for building in buildings:
-            b_recipe = BUILDING_FOOTPRINT_ART.get(getattr(building, "building_type", "house"))
-            b_gw = b_recipe.grid_width if b_recipe else 1
-            b_gh = b_recipe.grid_height if b_recipe else 1
-            
-            # Existing building bounding box
             bx, by = building.x, building.y
-            b_rect = (bx, by, bx + b_gw * TILE_SIZE, by + b_gh * TILE_SIZE)
+            b_rect = building_world_rect(bx, by, getattr(building, "building_type", "house"), TILE_SIZE)
             
             # Strict AABB overlap check - NEVER allow overlapping buildings!
             if not (prop_rect[2] <= b_rect[0] or prop_rect[0] >= b_rect[2] or prop_rect[3] <= b_rect[1] or prop_rect[1] >= b_rect[3]):
                 return 0  # Fatal collision! Location invalid.
             
             # Center-to-center distance for adjacency calculations
-            prop_cx = x + (gw * TILE_SIZE) / 2
-            prop_cy = y + (gh * TILE_SIZE) / 2
-            b_cx = bx + (b_gw * TILE_SIZE) / 2
-            b_cy = by + (b_gh * TILE_SIZE) / 2
-            distance = math.sqrt((b_cx - prop_cx)**2 + (b_cy - prop_cy)**2)
+            distance = math.sqrt((bx - prop_anchor_x)**2 + (by - prop_anchor_y)**2)
             
             # Clustering rules
             btype = str(getattr(building, "building_type", ""))
@@ -582,6 +571,18 @@ class CityPlanner:
             elif building_type == 'workshop' and btype == 'house':
                 if distance < 150:
                     score += 10
+            elif building_type in ['hospital', 'school'] and btype == 'house':
+                if distance < 180:
+                    score += 12
+            elif building_type == 'market' and btype in ['house', 'storage']:
+                if distance < 180:
+                    score += 14
+            elif building_type == 'shrine' and btype == 'house':
+                if distance < 160:
+                    score += 8
+            elif building_type == 'watchtower' and btype == 'house':
+                if distance < 120:
+                    score -= 8
             
             # Avoid placing directly touching (provide a small 1 tile buffer if possible)
             if distance < TILE_SIZE * 1.5:
@@ -589,13 +590,12 @@ class CityPlanner:
         
         # Hazard avoidance
         for hazard in hazards:
-            distance = math.sqrt((hazard.x - x)**2 + (hazard.y - y)**2)
+            distance = math.sqrt((hazard.x - prop_anchor_x)**2 + (hazard.y - prop_anchor_y)**2)
             if distance < hazard.radius:
                 score -= 50
         
         # Biome suitability
-        biome_type = world_map.get_biome_at(x, y)
-        biome_props = world_map.get_biome_properties(biome_type)
+        biome_type = world_map.get_biome_at(prop_anchor_x, prop_anchor_y)
         
         if building_type == 'farm':
             # Farms prefer plains and forests
@@ -607,15 +607,27 @@ class CityPlanner:
             # Houses avoid difficult terrain
             if biome_type in ['swamp', 'desert', 'mountains']:
                 score -= 15
+        elif building_type in ['hospital', 'school', 'market']:
+            if biome_type in ['swamp', 'mountains']:
+                score -= 18
+        elif building_type == 'watchtower':
+            if biome_type == 'mountains':
+                score += 12
         
         # Zone compatibility
-        zone_type = self.get_zone_type(x, y)
+        zone_type = self.get_zone_type(prop_anchor_x, prop_anchor_y)
         if building_type == 'house' and zone_type in ['residential', 'mixed']:
             score += 10
         elif building_type in ['farm', 'workshop'] and zone_type in ['production', 'mixed']:
             score += 10
         elif building_type == 'storage' and zone_type in ['storage', 'mixed']:
             score += 10
+        elif building_type in ['shrine', 'hospital', 'school'] and zone_type in ['civic', 'mixed']:
+            score += 12
+        elif building_type == 'market' and zone_type in ['mixed', 'civic', 'storage']:
+            score += 12
+        elif building_type == 'watchtower' and zone_type in ['civic', 'mixed', 'production']:
+            score += 8
         
         # LLM building priority bonus — council-recommended buildings score higher
         if self.building_priority:
@@ -653,8 +665,8 @@ class CityPlanner:
             if score > best_score:
                 best_score = score
                 best_x, best_y = candidate_x, candidate_y
-        
-        return best_x, best_y, best_score
+        best_anchor_x, best_anchor_y = building_origin_to_anchor(best_x, best_y, building_type, TILE_SIZE)
+        return best_anchor_x, best_anchor_y, best_score
     
     def _request_city_plan_from_llm(self, praxans, buildings, advisor):
         """Read the LLM council's building_priority and compute proposed sites."""

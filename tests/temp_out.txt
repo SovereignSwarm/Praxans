@@ -1,0 +1,49 @@
+pygame 2.6.1 (SDL 2.28.4, Python 3.13.6)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Display window created
+[LLM] Disabled via CLI
+
+[LOGGING] Log files will be saved to: D:\Documents\PerseusXR\Thonglets\logs
+[LOGGING] Session log: D:\Documents\PerseusXR\Thonglets\logs\session_20260309_011952_294042_2939600.log
+
+[Scenario] Standard Basin (standard)
+Starting Praxans...
+Loading Praxans... Assets
+Asset manager created
+Loading Praxans... World
+World map created with 192 chunks
+Loading Praxans... Camera
+Camera initialized at (3136.0, 2532.0)
+Spawn center: (512.0, 1536.0) - Biome: forest
+Camera positioned at (0, 996) with zoom 1.5
+Loading Praxans... Spawning
+Loading Praxans... Resources
+Loading Praxans... Resources
+Loading Praxans... Resources
+[Legacy] Loaded: Runs=4, Best Pop=8
+[Legacy] Unlocked bonuses: ['prepared']
+Praxans game started! Observer mode is active - the colony evolves without player commands.
+[Storyteller] Firing incident: resource_pod (Cost: 0.0)
+[Mental Break] Praxan 1 suffered a minor break: binge
+New praxan born! Population: 3
+
+================================================================================
+SESSION REPORT
+================================================================================
+Duration: 0:00:00.499203 (0.5s)
+Total Events: 1
+Errors/Crashes: 0
+================================================================================
+
+================================================================================
+SESSION ENDED
+================================================================================
+Log directory: D:\Documents\PerseusXR\Thonglets\logs
+Session Log: D:\Documents\PerseusXR\Thonglets\logs\session_20260309_011952_294042_2939600.log
+Session Report: D:\Documents\PerseusXR\Thonglets\logs\report_20260309_011952_294042_2939600.json
+Session Snapshot: D:\Documents\PerseusXR\Thonglets\logs\snapshot_20260309_011952_294042_2939600.json
+Run Archive: D:\Documents\PerseusXR\Thonglets\logs\archive_20260309_011952_294042_2939600.json
+
+Note: If run from batch file, check logs\batch_*.log for complete output
+================================================================================
+Game ended. Thanks for playing!

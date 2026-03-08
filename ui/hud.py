@@ -53,19 +53,30 @@ def _draw_top_ribbon(surface: pygame.Surface, theme: UITheme, layout, registry, 
     draw_panel(surface, layout.top_ribbon, theme, fill=(20, 25, 27), alpha=236, radius=theme.radius_large)
     title = theme.fonts.heading.render(model.scenario_name.upper(), True, theme.palette.parchment)
     surface.blit(title, (layout.top_ribbon.x + 18, layout.top_ribbon.y + 14))
+    # Build subtitle with environment context when available
+    _subtitle_parts = [model.phase_label, model.doctrine_label, f"Score {model.observer_score}"]
+    if model.season_label:
+        _subtitle_parts.append(model.season_label)
+    if model.climate_epoch:
+        _subtitle_parts.append(model.climate_epoch)
     subtitle = theme.fonts.caption.render(
-        f"{model.phase_label}  |  {model.doctrine_label}  |  Score {model.observer_score}",
+        "  |  ".join(_subtitle_parts),
         True,
         theme.palette.parchment_soft,
     )
     surface.blit(subtitle, (layout.top_ribbon.x + 18, layout.top_ribbon.y + 42))
     chip_x = layout.top_ribbon.right - 94
+    # Build chip labels — include weather and ecology when available
     labels = [
         (model.crisis_label, theme.palette.copper),
         (model.follow_label, theme.palette.moss),
         (model.speed_label, theme.palette.ochre),
         (model.llm_status, theme.palette.frost),
     ]
+    if model.weather_label and model.weather_label.lower() != "clear":
+        labels.insert(0, (model.weather_label, theme.palette.note_disaster))
+    if model.ecology_label and ("Barren" in model.ecology_label or "Degraded" in model.ecology_label):
+        labels.insert(0, (model.ecology_label, theme.palette.note_crisis))
     for label, color in labels:
         chip_w = max(88, theme.fonts.caption.size(label)[0] + 22)
         rect = pygame.Rect(chip_x - chip_w, layout.top_ribbon.y + 18, chip_w, 24)

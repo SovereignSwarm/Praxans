@@ -22,6 +22,11 @@ class SceneRenderer:
     def render(self, surface, frame) -> None:
         surface.fill((24, 28, 33))
         self.terrain_renderer.render(surface, frame)
+        
+        # Draw animals between terrain and entities
+        if hasattr(frame.world, 'world_map') and frame.world.world_map and getattr(frame.world.world_map, 'zoology_manager', None):
+            frame.world.world_map.zoology_manager.draw(surface, frame.world.camera)
+            
         self.entity_renderer.render(surface, frame)
         self.effects_renderer.render(surface, frame)
         if self.config.enable_scene_thumbnails:

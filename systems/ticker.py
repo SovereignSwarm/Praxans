@@ -91,7 +91,7 @@ class TickManager:
                 
         # Add new buildings
         for b in buildings:
-            if hasattr(b, 'tick_rare') and getattr(b, 'building_type', None) == 'farm' and b not in self._rare_assignment:
+            if hasattr(b, 'tick_rare') and b not in self._rare_assignment:
                 self.register(b, needs_normal=False, needs_rare=True, needs_long=False)
 
     def tick(self, delta_time, game_state=None):

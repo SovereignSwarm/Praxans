@@ -7,6 +7,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import pygame
 
 from graphics import GraphicsConfig, SceneRenderer, build_render_frame
+from graphics.content import building_origin_to_anchor, building_world_rect
 from graphics.sprites import SpriteLibrary
 
 
@@ -62,6 +63,14 @@ class _DummyEntity:
 
 
 class _DummyBuilding(_DummyEntity):
+    def __init__(self, x, y, building_type="house", *, level=1, occupants=None, aura_strength=0.0, built_by=0):
+        super().__init__(x, y)
+        self.building_type = building_type
+        self.level = level
+        self.occupants = list(occupants or [])
+        self.aura_strength = aura_strength
+        self.built_by = built_by
+
     def draw(self, surface):
         pygame.draw.rect(surface, (180, 120, 80), (int(self.x - 6), int(self.y - 6), 12, 12))
 
@@ -205,7 +214,11 @@ class GraphicsRendererTests(unittest.TestCase):
             chunk_size=32,
             tile_size=8,
             world_size=(320, 240),
-            buildings=[_DummyBuilding(60, 70)],
+            buildings=[
+                _DummyBuilding(60, 70, "house", occupants=[object()], built_by=1),
+                _DummyBuilding(110, 72, "hospital", level=2, built_by=4),
+                _DummyBuilding(168, 88, "market", aura_strength=0.2, built_by=8),
+            ],
             resources=[_DummyResource(100, 90)],
             praxans=[praxan],
             encounters=[_DummyEncounter(130, 120)],
@@ -214,6 +227,7 @@ class GraphicsRendererTests(unittest.TestCase):
             selected_entity=praxan,
             particle_system=particles,
             effect_cues=[{"label": "Birth", "category": "growth", "x": 40.0, "y": 50.0, "time": 38.0}],
+            ghost_markers=[{"x": 140.0, "y": 96.0, "building_type": "watchtower", "doctrine": "growth"}],
         )
         renderer.render(surface, frame)
         first_chunk_cache = len(renderer.terrain_renderer._chunk_cache)
@@ -269,6 +283,31 @@ class GraphicsRendererTests(unittest.TestCase):
         renderer.render(surface, frame)
 
         self.assertNotEqual(surface.get_at((10, 10)), pygame.Color(0, 0, 0, 0))
+
+    def test_building_sprite_supports_extended_building_defs(self):
+        library = SpriteLibrary(os.path.join(os.path.dirname(__file__), "..", "assets"))
+        for building_type in ("hospital", "school", "watchtower", "market"):
+            sprite = library.get_building_sprite(
+                building_type=building_type,
+                level=2,
+                active=True,
+                occupancy_ratio=0.5,
+                variant_id=3,
+                district_identity="civic",
+                prosperity_score=0.85,
+                material_style="timber",
+                biome_type="forest",
+                construction_progress=0.72,
+                wear=0.24,
+                building_age=420.0,
+                target_size=(48, 48),
+            )
+            self.assertEqual(sprite.get_size(), (48, 48))
+
+    def test_building_geometry_helpers_align_rect_with_anchor(self):
+        anchor_x, anchor_y = building_origin_to_anchor(64.0, 128.0, "workshop", 32)
+        self.assertEqual((anchor_x, anchor_y), (112.0, 160.0))
+        self.assertEqual(building_world_rect(anchor_x, anchor_y, "workshop", 32), (64.0, 128.0, 160.0, 192.0))
 
 
 if __name__ == "__main__":

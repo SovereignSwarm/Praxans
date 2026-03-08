@@ -5,6 +5,7 @@ import math
 import pygame
 
 from graphics.content import ANIMATION_TIMINGS, snap_zoom_level
+from graphics.content import get_building_recipe
 from graphics.palette import HAZARD_COLORS, NPC_COLORS, doctrine_color, lighten
 
 
@@ -50,10 +51,19 @@ class EntityRenderer:
             if not self._is_visible(frame, entity_state):
                 continue
             building = entity_state.entity
+            recipe = get_building_recipe(str(getattr(building, "building_type", "house")))
             active = entity_state.animation_state == "active"
+            biome_type = None
+            if hasattr(frame.world.world_map, "get_biome_at"):
+                try:
+                    biome_type = frame.world.world_map.get_biome_at(building.x, building.y)
+                except Exception:
+                    biome_type = None
+            if biome_type is None:
+                biome_type = getattr(building, "origin_biome", None)
             target_size = (
-                max(28, int(34 * zoom)),
-                max(28, int(40 * zoom)),
+                max(28, int((22 + recipe.grid_width * 10) * zoom)),
+                max(28, int((22 + recipe.grid_height * 10 + (10 if recipe.silhouette == "tower" else 0)) * zoom)),
             )
             occupancy = len(getattr(building, "occupants", []) or []) / max(1, 2 + max(0, int(getattr(building, "level", 1)) - 1))
             sprite = self.sprite_library.get_building_sprite(
@@ -61,6 +71,14 @@ class EntityRenderer:
                 level=int(getattr(building, "level", 1) or 1),
                 active=active,
                 occupancy_ratio=occupancy,
+                variant_id=entity_state.variant_id,
+                district_identity=str(frame.world.settlement_state.get("district_identity", "homestead")),
+                prosperity_score=float(frame.world.settlement_state.get("prosperity_score", 0.0) or 0.0),
+                material_style=str(getattr(building, "material_style", "") or ""),
+                biome_type=str(biome_type or ""),
+                construction_progress=float(getattr(building, "construction_progress", 1.0) or 1.0),
+                wear=float(getattr(building, "wear", 0.0) or 0.0),
+                building_age=max(0.0, frame.world.current_time - float(getattr(building, "built_at", frame.world.current_time) or frame.world.current_time)),
                 target_size=target_size,
             )
             screen_x, screen_y = self._screen_point(frame, building.x, building.y)
