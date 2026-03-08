@@ -139,6 +139,8 @@ class TerrainRenderer:
         for (tile_x, tile_y), biome_type in getattr(chunk, "tiles", {}).items():
             if biome_type in {"mountains", "snow", "water", "desert", "tundra"}:
                 continue
+            local_x = tile_x * tile_size
+            local_y = tile_y * tile_size
             variant = (chunk_seed_x * 19 + chunk_seed_y * 23 + tile_x * 7 + tile_y * 11) % 16
             overlay = self.sprite_library.get_clutter_overlay(biome_type, tile_size, variant)
             surface.blit(overlay, (local_x, local_y))

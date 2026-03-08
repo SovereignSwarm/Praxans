@@ -49,6 +49,32 @@ def _alpha(color: tuple[int, int, int], value: int) -> tuple[int, int, int, int]
     return (color[0], color[1], color[2], value)
 
 
+PIXEL_ART_ALPHA_LEVELS = (0, 48, 72, 96, 128, 160, 192, 224, 255)
+
+
+def _quantize_channel(value: int, step: int = 12) -> int:
+    value = max(0, min(255, int(value)))
+    if value >= 250:
+        return 255
+    return max(0, min(255, int(round(value / float(step)) * step)))
+
+
+def _quantize_alpha(value: int) -> int:
+    value = max(0, min(255, int(value)))
+    return min(PIXEL_ART_ALPHA_LEVELS, key=lambda candidate: abs(candidate - value))
+
+
+def _stable_seed(*parts: object) -> int:
+    seed = 2166136261
+    for index, part in enumerate(parts):
+        for byte in str(part).encode("utf-8"):
+            seed ^= byte
+            seed = (seed * 16777619) & 0xFFFFFFFF
+        seed ^= index & 0xFF
+        seed = (seed * 16777619) & 0xFFFFFFFF
+    return seed
+
+
 class SpriteLibrary:
     def __init__(self, asset_root: str, config=None):
         self.asset_root = asset_root
@@ -90,6 +116,45 @@ class SpriteLibrary:
         # Blit main sprite centered
         composite.blit(surface, (skew_offset, 0))
         return composite
+
+    def _pixel_art_postprocess(
+        self,
+        surface: pygame.Surface,
+        *,
+        block_size: int = 2,
+        color_step: int = 12,
+    ) -> pygame.Surface:
+        if block_size <= 1:
+            return surface.copy()
+        width, height = surface.get_size()
+        posterized = _surface((width, height))
+        for block_y in range(0, height, block_size):
+            for block_x in range(0, width, block_size):
+                chosen = None
+                for y in range(block_y, min(height, block_y + block_size)):
+                    for x in range(block_x, min(width, block_x + block_size)):
+                        color = surface.get_at((x, y))
+                        if color.a <= 0:
+                            continue
+                        if chosen is None or color.a > chosen.a:
+                            chosen = color
+                if chosen is None:
+                    continue
+                quantized = (
+                    _quantize_channel(chosen.r, color_step),
+                    _quantize_channel(chosen.g, color_step),
+                    _quantize_channel(chosen.b, color_step),
+                    _quantize_alpha(chosen.a),
+                )
+                _px(
+                    posterized,
+                    quantized,
+                    block_x,
+                    block_y,
+                    min(block_size, width - block_x),
+                    min(block_size, height - block_y),
+                )
+        return posterized
 
     def _load_file_surface(self, relative_path: str, size: tuple[int, int]) -> pygame.Surface | None:
         surface_path = os.path.join(self.asset_root, relative_path)
@@ -636,7 +701,7 @@ class SpriteLibrary:
             for offset in (0, max(6, width // 6)):
                 pile_x = max(4, width // 2 - width // 8 + offset - max(6, width // 8))
                 pygame.draw.ellipse(source, (*mix_color(accent, trim, 0.22), 180), (pile_x, height - 8, max(6, width // 8), 4))
-        return source
+        return self._pixel_art_postprocess(source, block_size=2, color_step=12)
 
     def get_building_lot_sprite(
         self,
@@ -698,7 +763,7 @@ class SpriteLibrary:
         source.fill(recipe.base)
         
         import random
-        rng = random.Random(hash(biome_type + str(season_name)) + variant * 37)
+        rng = random.Random(_stable_seed("tile", biome_type, season_name, variant * 37))
         
         for _ in range(12):
             x, y = rng.randint(0, SOURCE_TILE_SIZE - 2), rng.randint(0, SOURCE_TILE_SIZE - 2)
@@ -793,7 +858,7 @@ class SpriteLibrary:
         source = _surface((SOURCE_TILE_SIZE, SOURCE_TILE_SIZE))
         target_recipe = palette_for_biome_and_season(target_biome, season_name)
         import random
-        rng = random.Random(hash(source_biome + target_biome + edge))
+        rng = random.Random(_stable_seed("transition", source_biome, target_biome, edge))
         
         for i in range(SOURCE_TILE_SIZE):
             depth = rng.randint(2, 5)
@@ -856,7 +921,7 @@ class SpriteLibrary:
     def _water_tile_surface(self, variant: int, is_river: bool) -> pygame.Surface:
         source = _surface((SOURCE_TILE_SIZE, SOURCE_TILE_SIZE))
         import random
-        rng = random.Random(hash("water" + str(variant) + str(is_river)))
+        rng = random.Random(_stable_seed("water", variant, is_river))
         
         if is_river:
             _px(source, (106, 178, 220, 160), rng.randint(2, 6), 0, rng.randint(3, 6), SOURCE_TILE_SIZE)
@@ -882,7 +947,7 @@ class SpriteLibrary:
     def _clutter_tile_surface(self, biome_type: str, variant: int) -> pygame.Surface:
         source = _surface((SOURCE_TILE_SIZE, SOURCE_TILE_SIZE))
         import random
-        rng = random.Random(hash("clutter" + biome_type + str(variant)))
+        rng = random.Random(_stable_seed("clutter", biome_type, variant))
         
         if rng.random() < 0.4:
             clutter_type = rng.choice(["grass", "pebble", "flower"])

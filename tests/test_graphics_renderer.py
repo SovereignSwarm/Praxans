@@ -2,6 +2,7 @@ import builtins
 import os
 import sys
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -328,12 +329,24 @@ class GraphicsRendererTests(unittest.TestCase):
         )
         self.assertEqual(sprite.get_size(), (56, 40))
         self.assertGreater(sprite.get_bounding_rect().width, 0)
+        alpha_values = {
+            sprite.get_at((x, y)).a
+            for x in range(sprite.get_width())
+            for y in range(sprite.get_height())
+            if sprite.get_at((x, y)).a > 0
+        }
+        self.assertTrue(alpha_values.issubset({48, 72, 96, 128, 160, 192, 224, 255}))
 
     def test_building_geometry_helpers_align_rect_with_anchor(self):
         anchor_x, anchor_y = building_origin_to_anchor(64.0, 128.0, "workshop", 32)
         self.assertEqual((anchor_x, anchor_y), (112.0, 160.0))
         self.assertEqual(building_world_rect(anchor_x, anchor_y, "workshop", 32), (64.0, 128.0, 160.0, 192.0))
         self.assertEqual(building_lot_world_rect(anchor_x, anchor_y, "workshop", 32), (32.0, 96.0, 192.0, 224.0))
+
+    def test_graphics_pipeline_avoids_smoothscale(self):
+        graphics_root = Path(os.path.dirname(__file__)).parent / "graphics"
+        for path in graphics_root.rglob("*.py"):
+            self.assertNotIn("smoothscale", path.read_text(encoding="utf-8"), str(path))
 
 
     def test_scene_renderer_tiny_tiles_with_water_do_not_crash(self):

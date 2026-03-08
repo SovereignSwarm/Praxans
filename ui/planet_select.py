@@ -15,8 +15,10 @@ class PlanetSelectUI:
         self.camera_y = 0
         self.selected_tile = None
         self.running = True
-        self.result = {"action": "quit", "planet_tile": None}
+        self.result = {"action": "quit", "planet_tile": None, "ai_world_seed": None}
         self._land_button_rect = None  # Stores the "LAND HERE" button rect for click detection
+        self._ai_button_rect = None
+        self.generating_ai = False
 
     def _get_biome_color(self, biome: str) -> tuple[int, int, int]:
         colors = {
@@ -71,12 +73,45 @@ class PlanetSelectUI:
 
             # Draw UI Overlay
             self._draw_overlay(hovered_tile)
+            
+            if self.generating_ai:
+                dim_overlay = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+                dim_overlay.fill((0, 0, 0, 180))
+                self.screen.blit(dim_overlay, (0, 0))
+                text = self.theme.fonts.display.render("Dreaming up local world mechanics...", True, self.theme.palette.parchment)
+                self.screen.blit(text, (self.screen.get_width()//2 - text.get_width()//2, self.screen.get_height()//2 - text.get_height()//2))
 
             pygame.display.flip()
+            
+            if self.generating_ai:
+                self._generate_ai_world()
+                
             self._handle_events(hovered_tile)
             self.clock.tick(30)
             
         return self.result
+        
+    def _generate_ai_world(self):
+        try:
+            from llm.client import get_global_ollama_client
+            from llm.prompts import build_world_seed_prompt
+            from llm.contracts import parse_world_seed_payload
+            client = get_global_ollama_client()
+            if client and client.available():
+                prompt = build_world_seed_prompt()
+                raw, _ = client.generate(prompt=prompt, channel="council")
+                parsed = parse_world_seed_payload(raw)
+                print(f"[LLM] World Seed Parsed: {parsed}")
+                self.result = {"action": "start", "planet_tile": self.selected_tile, "ai_world_seed": parsed}
+            else:
+                print("[LLM] Ollama unavailable. Falling back to normal landing.")
+                self.result = {"action": "start", "planet_tile": self.selected_tile, "ai_world_seed": None}
+        except Exception as e:
+            print(f"[LLM] Error generating world seed: {e}")
+            self.result = {"action": "start", "planet_tile": self.selected_tile, "ai_world_seed": None}
+        
+        self.generating_ai = False
+        self.running = False
 
     def _draw_overlay(self, hovered_tile):
         panel_rect = pygame.Rect(20, 20, 300, 400)
@@ -107,13 +142,21 @@ class PlanetSelectUI:
             
             if self.selected_tile and self.selected_tile.is_land:
                 y += 50
-                btn = pygame.Rect(40, y, 220, 40)
+                btn = pygame.Rect(40, y, 220, 36)
                 self._land_button_rect = btn
                 pygame.draw.rect(self.screen, self.theme.palette.ochre, btn, border_radius=4)
                 text = self.theme.fonts.label.render("LAND HERE (Enter)", True, (20, 20, 20))
                 self.screen.blit(text, (btn.centerx - text.get_width()//2, btn.centery - text.get_height()//2))
+                
+                y += 46
+                aibtn = pygame.Rect(40, y, 220, 36)
+                self._ai_button_rect = aibtn
+                pygame.draw.rect(self.screen, self.theme.palette.moss, aibtn, border_radius=4)
+                aitext = self.theme.fonts.label.render("DREAM LOCAL WORLD (AI)", True, (20, 20, 20))
+                self.screen.blit(aitext, (aibtn.centerx - aitext.get_width()//2, aibtn.centery - aitext.get_height()//2))
             else:
                 self._land_button_rect = None
+                self._ai_button_rect = None
 
     def _handle_events(self, hovered_tile):
         for event in pygame.event.get():
@@ -134,8 +177,11 @@ class PlanetSelectUI:
                 if event.button == 1:
                     # Check if clicking the Land button
                     if self._land_button_rect and self._land_button_rect.collidepoint(event.pos):
-                            self.result = {"action": "start", "planet_tile": self.selected_tile}
-                            self.running = False
-                            return
+                        self.result = {"action": "start", "planet_tile": self.selected_tile}
+                        self.running = False
+                        return
+                    if self._ai_button_rect and self._ai_button_rect.collidepoint(event.pos):
+                        self.generating_ai = True
+                        return
                     if hovered_tile:
                         self.selected_tile = hovered_tile

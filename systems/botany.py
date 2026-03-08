@@ -32,10 +32,12 @@ def blend_color(c1, c2, factor):
 
 class Plant:
     """A living, breathing plant that Praxans can harvest as a Resource."""
-    def __init__(self, x, y, species='oak_tree', starting_age=0.0):
+    def __init__(self, x, y, species='oak_tree', starting_age=0.0, custom_name=None, color_override=None):
         self.x = x
         self.y = y
         self.species = species  # e.g., 'oak_tree', 'berry_bush'
+        self.custom_name = custom_name
+        self.color_override = color_override
         self.resource_type = 'wood' if 'tree' in species else 'food'
         
         # Resource Duck-typing
@@ -143,10 +145,10 @@ class Plant:
             return
 
         if self.resource_type == 'food':
-            color = RED
+            color = self.color_override or RED
             base_radius = RESOURCE_RADIUS_FOOD * self.size
         else:
-            color = BROWN
+            color = self.color_override or BROWN
             base_radius = RESOURCE_RADIUS_WOOD * self.size
         
         nearby = False
@@ -201,6 +203,25 @@ class BotanyManager:
         seed_val = int(chunk.world_x * 73856093 + chunk.world_y * 19349663)
         rng = random.Random(seed_val)
         
+        # Parse AI traits if present
+        ai_ideas = getattr(self, 'ai_botany_ideas', [])
+        ai_trees = [i for i in ai_ideas if 'tree' in str(i.get('description', '')).lower() or 'wood' in str(i.get('description', '')).lower()]
+        ai_bushes = [i for i in ai_ideas if i not in ai_trees]
+        
+        def dict_to_color(hint: str) -> tuple[int, int, int] | None:
+            if not hint: return None
+            h = hint.lower()
+            if 'red' in h: return (220, 50, 50)
+            if 'blue' in h: return (50, 50, 220)
+            if 'purple' in h: return (180, 50, 180)
+            if 'yellow' in h: return (220, 220, 50)
+            if 'white' in h: return (240, 240, 240)
+            if 'cyan' in h: return (50, 220, 220)
+            if 'orange' in h: return (220, 140, 50)
+            if 'black' in h: return (30, 30, 30)
+            if 'pink' in h: return (255, 105, 180)
+            return None
+        
         # Determine base density based on dominant biomes in the chunk
         densities = {
             'forest': {'wood': 0.65, 'food': 0.15},
@@ -228,7 +249,14 @@ class BotanyManager:
                     py = chunk.world_y + (ty * tile_size) + rng.uniform(4, tile_size - 4)
                     # Start with random age so the forest isn't uniformly young
                     age = rng.uniform(500, 3000)
-                    p = Plant(px, py, species='oak_tree' if biome != 'taiga' else 'pine_tree', starting_age=age)
+                    custom_name = None
+                    color_override = None
+                    if ai_trees:
+                        idea = rng.choice(ai_trees)
+                        custom_name = idea.get('name')
+                        color_override = dict_to_color(idea.get('color_hint'))
+                        
+                    p = Plant(px, py, species='oak_tree' if biome != 'taiga' else 'pine_tree', starting_age=age, custom_name=custom_name, color_override=color_override)
                     tile_plants.append(p)
                     self.plants.append(p)
                     
@@ -237,7 +265,15 @@ class BotanyManager:
                 px = chunk.world_x + (tx * tile_size) + rng.uniform(4, tile_size - 4)
                 py = chunk.world_y + (ty * tile_size) + rng.uniform(4, tile_size - 4)
                 age = rng.uniform(100, 1000)
-                p = Plant(px, py, species='berry_bush', starting_age=age)
+                
+                custom_name = None
+                color_override = None
+                if ai_bushes:
+                    idea = rng.choice(ai_bushes)
+                    custom_name = idea.get('name')
+                    color_override = dict_to_color(idea.get('color_hint'))
+                    
+                p = Plant(px, py, species='berry_bush', starting_age=age, custom_name=custom_name, color_override=color_override)
                 tile_plants.append(p)
                 self.plants.append(p)
                 

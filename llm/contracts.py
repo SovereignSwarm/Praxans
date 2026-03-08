@@ -541,3 +541,61 @@ def parse_muse_payload(response_text: str | None) -> dict[str, Any] | None:
 
 advisory_payload_defaults = council_payload_defaults
 parse_advisory_payload = parse_council_payload
+
+
+# =====================================================================
+# 7. World Seed Payload (Planet Generation)
+# =====================================================================
+
+_VALID_CLIMATE_BIAS = {
+    "forest", "plains", "mountains", "desert", "snow", "swamp", "taiga", "tundra",
+}
+
+def world_seed_payload_defaults() -> dict[str, Any]:
+    return {
+        "planet_name": "Unknown Frontier",
+        "climate_bias": "plains",
+        "temperature_bias": 0.5,
+        "moisture_bias": 0.5,
+        "ruggedness": 0.5,
+        "water_abundance": 0.5,
+        "hazard_density": 0.5,
+        "mutation_pressure": 0.5,
+        "botany_ideas": [],
+        "lore": "A mysterious, uncharted world.",
+    }
+
+def parse_world_seed_payload(response_text: str | None) -> dict[str, Any] | None:
+    cleaned = _clean_response_text(response_text)
+    if not cleaned:
+        return world_seed_payload_defaults()
+    if _is_no_change(cleaned):
+        return None
+
+    parsed = _try_parse_json(cleaned)
+    if parsed is None:
+        return world_seed_payload_defaults()
+
+    botany_ideas = []
+    raw_ideas = parsed.get("botany_ideas")
+    if isinstance(raw_ideas, list):
+        for item in raw_ideas[:4]:
+            if isinstance(item, dict):
+                botany_ideas.append({
+                    "name": _safe_str(item.get("name"), 40),
+                    "color_hint": _safe_str(item.get("color_hint"), 30).lower(),
+                    "description": _safe_str(item.get("description"), 80),
+                })
+
+    return {
+        "planet_name": _safe_str(parsed.get("planet_name", "Unknown Frontier"), 60),
+        "climate_bias": _validate_enum(parsed.get("climate_bias"), _VALID_CLIMATE_BIAS, "plains"),
+        "temperature_bias": _clamp_float(parsed.get("temperature_bias", 0.5)),
+        "moisture_bias": _clamp_float(parsed.get("moisture_bias", 0.5)),
+        "ruggedness": _clamp_float(parsed.get("ruggedness", 0.5)),
+        "water_abundance": _clamp_float(parsed.get("water_abundance", 0.5)),
+        "hazard_density": _clamp_float(parsed.get("hazard_density", 0.5)),
+        "mutation_pressure": _clamp_float(parsed.get("mutation_pressure", 0.5)),
+        "botany_ideas": botany_ideas,
+        "lore": _safe_str(parsed.get("lore", ""), 200),
+    }

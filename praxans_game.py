@@ -2953,6 +2953,26 @@ class WorldMap:
             # If the planet is ocean, we spawn an island map
             if not planet_tile.is_land:
                 profile_source["worldgen"]["water_abundance"] = 0.9
+                
+        # [Phase 4: LLM Generation] If an AI world seed was provided, let it override the basic planet parameters
+        ai_seed = snapshot_world.get("ai_world_seed")
+        if ai_seed:
+            print(f"[Planet Local Gen] Overriding local traits with AI Dream: {ai_seed.get('planet_name')} - {ai_seed.get('lore')}")
+            if "worldgen" not in profile_source:
+                profile_source["worldgen"] = {}
+            profile_source["worldgen"]["climate_bias"] = ai_seed.get("climate_bias", "plains")
+            profile_source["worldgen"]["temperature_bias"] = ai_seed.get("temperature_bias", 0.5)
+            profile_source["worldgen"]["moisture_bias"] = ai_seed.get("moisture_bias", 0.5)
+            profile_source["worldgen"]["ruggedness"] = ai_seed.get("ruggedness", 0.5)
+            profile_source["worldgen"]["water_abundance"] = ai_seed.get("water_abundance", 0.5)
+            profile_source["worldgen"]["hazard_density"] = ai_seed.get("hazard_density", 0.5)
+            profile_source["worldgen"]["mutation_pressure"] = ai_seed.get("mutation_pressure", 0.5)
+            # Store the lore and botany ideas to pass to other managers later if needed
+            self.ai_botany_ideas = ai_seed.get("botany_ideas", [])
+            if self.botany_manager:
+                self.botany_manager.ai_botany_ideas = self.ai_botany_ideas
+            self.planet_name = ai_seed.get("planet_name", "Unknown")
+            self.planet_lore = ai_seed.get("lore", "")
 
         self.world_profile = build_world_profile(profile_source, chunk_size=CHUNK_SIZE, tile_size=TILE_SIZE)
         self.chunk_cols = int(self.world_profile.chunk_cols)
