@@ -33,8 +33,8 @@ class HeadlessSmokeTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
-        self.assertIn("SESSION ENDED", result.stdout)
-        self.assertNotIn("FATAL ERROR", result.stdout)
+        self.assertIn("SESSION ENDED", result.stdout, msg=result.stderr)
+        self.assertNotIn("FATAL ERROR", result.stdout, msg=result.stderr)
 
 
 if __name__ == "__main__":

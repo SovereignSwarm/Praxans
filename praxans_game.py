@@ -306,7 +306,6 @@ LLM_BACKOFF_SECONDS = 45.0
 VERBOSE_LOGGING = RUNTIME_CONFIG.verbose_console
 SHOW_ENTITY_TAGS = False  # Show entity name tags above entities
 DEBUG_SHOW_INVENTORY_TEXT = False  # Set to True to show debug inventory overlays (F0W0S0 format)
-
 # ===================================================================
 # COHESIVE COLOR PALETTE (24 colors for consistent pixel art style)
 # ===================================================================
