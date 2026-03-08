@@ -95,31 +95,20 @@ class TerrainRenderer:
 
     def _draw_water_features(self, surface: pygame.Surface, chunk, world_state) -> None:
         tile_size = world_state.tile_size
-        import random
         chunk_seed_x, chunk_seed_y = self._chunk_seed_coords(chunk, world_state)
         for tile_x, tile_y in getattr(chunk, "water_tiles", ()):
             local_x = tile_x * tile_size
             local_y = tile_y * tile_size
-            rng = random.Random(self._stable_seed(chunk_seed_x, chunk_seed_y, tile_x, tile_y))
-            for _ in range(4):
-                cx = local_x + self._bounded_randint(rng, 3, tile_size - 3, max(0, tile_size // 2))
-                cy = local_y + self._bounded_randint(rng, 3, tile_size - 3, max(0, tile_size // 2))
-                min_radius = max(1, tile_size // 4)
-                max_radius = max(min_radius, int(tile_size // 1.5))
-                cr = rng.randint(min_radius, max_radius)
-                pygame.draw.circle(surface, (62, 108, 156, 180), (cx, cy), cr)
-                pygame.draw.circle(surface, (130, 186, 220, 100), (cx, cy), cr, max(1, cr // 4))
+            variant = (chunk_seed_x * 7 + chunk_seed_y * 11 + tile_x * 3 + tile_y * 5) % 8
+            overlay = self.sprite_library.get_water_overlay(tile_size, variant, is_river=False)
+            surface.blit(overlay, (local_x, local_y))
                 
         for tile_x, tile_y in getattr(chunk, "river_tiles", ()):
             local_x = tile_x * tile_size
             local_y = tile_y * tile_size
-            rng = random.Random(self._stable_seed(chunk_seed_x, chunk_seed_y, tile_x, tile_y, 1))
-            pts = [
-                (local_x + self._bounded_randint(rng, 4, tile_size - 4, max(0, tile_size // 2)), local_y - 2),
-                (local_x + self._bounded_randint(rng, 4, tile_size - 4, max(0, tile_size // 2)), local_y + tile_size // 2),
-                (local_x + self._bounded_randint(rng, 4, tile_size - 4, max(0, tile_size // 2)), local_y + tile_size + 2)
-            ]
-            pygame.draw.lines(surface, (106, 178, 220, 160), False, pts, max(3, tile_size // 4))
+            variant = (chunk_seed_x * 13 + chunk_seed_y * 17 + tile_x * 5 + tile_y * 7) % 8
+            overlay = self.sprite_library.get_water_overlay(tile_size, variant, is_river=True)
+            surface.blit(overlay, (local_x, local_y))
 
     def _draw_weather_patina(self, surface: pygame.Surface, world_state) -> None:
         weather_name = str(getattr(world_state.weather_system, "current_weather", "clear"))
@@ -145,26 +134,14 @@ class TerrainRenderer:
 
     def _draw_procedural_clutter(self, surface: pygame.Surface, chunk, world_state) -> None:
         tile_size = world_state.tile_size
-        import random
         chunk_seed_x, chunk_seed_y = self._chunk_seed_coords(chunk, world_state)
-        seed_base = self._stable_seed(chunk_seed_x, chunk_seed_y)
         
         for (tile_x, tile_y), biome_type in getattr(chunk, "tiles", {}).items():
             if biome_type in {"mountains", "snow", "water", "desert", "tundra"}:
                 continue
-            rng = random.Random(seed_base + tile_x * 73 + tile_y * 191)
-            if rng.random() < 0.4:
-                clutter_type = rng.choice(["grass", "pebble", "flower"])
-                local_x = tile_x * tile_size + self._bounded_randint(rng, 2, tile_size - 6, max(0, tile_size // 2))
-                local_y = tile_y * tile_size + self._bounded_randint(rng, 2, tile_size - 6, max(0, tile_size // 2))
-                
-                if clutter_type == "grass":
-                    pygame.draw.line(surface, (110, 150, 80, 180), (local_x, local_y + 4), (local_x - 1, local_y), 1)
-                    pygame.draw.line(surface, (120, 160, 90, 180), (local_x, local_y + 4), (local_x + 1, local_y), 1)
-                elif clutter_type == "pebble":
-                    pygame.draw.circle(surface, (140, 140, 140, 180), (local_x, local_y), 1)
-                elif clutter_type == "flower" and biome_type in {"plains", "forest"}:
-                    pygame.draw.circle(surface, rng.choice([(250, 100, 100, 200), (200, 200, 250, 200), (250, 250, 100, 200)]), (local_x, local_y), 1)
+            variant = (chunk_seed_x * 19 + chunk_seed_y * 23 + tile_x * 7 + tile_y * 11) % 16
+            overlay = self.sprite_library.get_clutter_overlay(biome_type, tile_size, variant)
+            surface.blit(overlay, (local_x, local_y))
 
 
     def _chunk_seed_coords(self, chunk, world_state) -> tuple[int, int]:
@@ -189,7 +166,8 @@ class TerrainRenderer:
             tile_surface = self.sprite_library.get_tile_surface(biome_type, season_name, tile_size, variant)
             
             slope = self._get_slope(chunk, tile_x, tile_y)
-            shade_alpha = max(0, min(140, int(abs(slope) * 2000)))
+            shade_raw = max(0, min(140, int(abs(slope) * 2000)))
+            shade_alpha = (shade_raw // 35) * 35
             if shade_alpha > 0:
                 shade = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
                 if slope > 0:

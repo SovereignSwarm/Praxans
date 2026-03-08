@@ -853,6 +853,62 @@ class SpriteLibrary:
         self._cache[cache_key] = _scale(source, (tile_size, tile_size))
         return self._cache[cache_key]
 
+    def _water_tile_surface(self, variant: int, is_river: bool) -> pygame.Surface:
+        source = _surface((SOURCE_TILE_SIZE, SOURCE_TILE_SIZE))
+        import random
+        rng = random.Random(hash("water" + str(variant) + str(is_river)))
+        
+        if is_river:
+            _px(source, (106, 178, 220, 160), rng.randint(2, 6), 0, rng.randint(3, 6), SOURCE_TILE_SIZE)
+            _px(source, (130, 196, 230, 140), rng.randint(3, 7), 0, rng.randint(2, 4), SOURCE_TILE_SIZE)
+        else:
+            for _ in range(2):
+                cx = rng.randint(1, SOURCE_TILE_SIZE - 5)
+                cy = rng.randint(1, SOURCE_TILE_SIZE - 5)
+                cw = rng.randint(4, 9)
+                ch = rng.randint(4, 9)
+                _px(source, (62, 108, 156, 180), cx, cy, cw, ch)
+                _px(source, (130, 186, 220, 100), cx + 1, cy + 1, max(1, cw - 2), max(1, ch - 2))
+        return source
+
+    def get_water_overlay(self, tile_size: int, variant: int, is_river: bool = False) -> pygame.Surface:
+        cache_key = ("water_overlay", tile_size, variant, is_river)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        source = self._water_tile_surface(variant, is_river)
+        self._cache[cache_key] = _scale(source, (tile_size, tile_size))
+        return self._cache[cache_key]
+
+    def _clutter_tile_surface(self, biome_type: str, variant: int) -> pygame.Surface:
+        source = _surface((SOURCE_TILE_SIZE, SOURCE_TILE_SIZE))
+        import random
+        rng = random.Random(hash("clutter" + biome_type + str(variant)))
+        
+        if rng.random() < 0.4:
+            clutter_type = rng.choice(["grass", "pebble", "flower"])
+            x = rng.randint(2, SOURCE_TILE_SIZE - 4)
+            y = rng.randint(2, SOURCE_TILE_SIZE - 4)
+            
+            if clutter_type == "grass":
+                _px(source, (110, 150, 80, 180), x, y + 1, 1, 2)
+                _px(source, (110, 150, 80, 180), x + 2, y + 1, 1, 2)
+                _px(source, (120, 160, 90, 180), x + 1, y, 1, 3)
+            elif clutter_type == "pebble":
+                _px(source, (140, 140, 140, 180), x, y, rng.randint(1, 2), rng.randint(1, 2))
+            elif clutter_type == "flower" and biome_type in {"plains", "forest"}:
+                color = rng.choice([(250, 100, 100, 200), (200, 200, 250, 200), (250, 250, 100, 200)])
+                _px(source, (110, 150, 80, 180), x + 1, y + 1, 1, 2)
+                _px(source, color, x, y, 2, 2)
+        return source
+
+    def get_clutter_overlay(self, biome_type: str, tile_size: int, variant: int) -> pygame.Surface:
+        cache_key = ("clutter_overlay", biome_type, tile_size, variant)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        source = self._clutter_tile_surface(biome_type, variant)
+        self._cache[cache_key] = _scale(source, (tile_size, tile_size))
+        return self._cache[cache_key]
+
     def _praxan_source(self, role: str | None, animation_state: str, facing: str, doctrine, frame_index: int, health_state: str, mutated: bool) -> pygame.Surface:
         palette = ROLE_PALETTES.get(str(role or "").lower(), ROLE_PALETTES["default"])
         accent, accent_shadow = doctrine_trim(doctrine)
