@@ -1,7 +1,8 @@
 import os
-import tempfile
 import unittest
 from types import SimpleNamespace
+
+from test_tempdir import workspace_tempdir
 
 from run_archive import (
     build_archive_comparison,
@@ -29,6 +30,7 @@ class RunArchiveTests(unittest.TestCase):
                     "lineage_counts": {1: 4, 2: 2},
                     "avg_traits": {"adaptability": 1.08, "social_cohesion": 1.12},
                 },
+                "evolution_history": [{"elapsed_seconds": 30.0, "population": 6, "avg_generation": 1.5}],
                 "timeline_events": [{"time": 100.0, "category": "birth", "summary": "Birth surge"}],
                 "lineage_events": [{"time": 90.0, "label": "Lineage 1 dominates"}],
                 "faction_history": [{"time": 95.0, "action": "formed", "faction_id": 0, "members": 4}],
@@ -106,6 +108,8 @@ class RunArchiveTests(unittest.TestCase):
         self.assertIn("key_moments", summary)
         self.assertIn("phase_history", summary)
         self.assertIn("population_curve", summary)
+        self.assertEqual(summary["population_curve"][0]["elapsed_seconds"], 30.0)
+        self.assertEqual(summary["population_curve"][0]["avg_generation"], 1.5)
         self.assertIn("death_cause_breakdown", summary)
         self.assertIn("lineage_highlights", summary)
         self.assertIn("faction_highlights", summary)
@@ -133,7 +137,7 @@ class RunArchiveTests(unittest.TestCase):
         self.assertEqual(archive["session_id"], "session_a")
         self.assertEqual(archive["scene_thumbnail_key"], "thumb_session_a.png")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with workspace_tempdir() as temp_dir:
             older_path = write_run_archive(temp_dir, "older", {**archive, "session_id": "older"})
             newer_path = write_run_archive(
                 temp_dir,
@@ -159,5 +163,42 @@ class RunArchiveTests(unittest.TestCase):
         self.assertIn("score_delta", comparison[0])
 
 
+
+    def test_numeric_fields_with_malformed_values_do_not_crash(self):
+        end_state = classify_end_state(
+            population=2,
+            settlement_state={"prosperity_score": "bad", "culture_score": "bad"},
+            observer_report={
+                "mortality": [{"cause_id": "health_failure", "count": "n/a"}],
+                "deaths_total": "unknown",
+                "births_total": "unknown",
+                "peak_factions": "unknown",
+                "factions_dissolved": "unknown",
+            },
+            current_phase="founding",
+            extinction=False,
+        )
+        self.assertEqual(end_state, "brittle_survival")
+
+        with workspace_tempdir() as temp_dir:
+            bad_archive_path = os.path.join(temp_dir, "archive_bad.json")
+            with open(bad_archive_path, "w", encoding="utf-8") as archive_file:
+                archive_file.write(
+                    '{"session_id":"bad","scenario":{"name":"Malformed"},"current_phase":{"label":"Unknown"},'
+                    '"end_state":{"label":"Broken","score":"NaN"},"summary_card":{"score":"NaN","population_peak":"bad"}}'
+                )
+
+            comparison = build_archive_comparison(
+                current_summary={"end_state": {"score": "broken"}},
+                archive_paths=[bad_archive_path],
+            )
+
+        self.assertEqual(len(comparison), 1)
+        self.assertEqual(comparison[0]["score"], 0)
+        self.assertEqual(comparison[0]["population_peak"], 0)
+        self.assertEqual(comparison[0]["score_delta"], 0)
 if __name__ == "__main__":
     unittest.main()
+
+
+

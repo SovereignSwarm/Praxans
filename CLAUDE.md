@@ -79,6 +79,7 @@ python -m py_compile praxans_game.py runtime_config.py
 | `diplomacy.py` | **Inter-faction diplomacy**: standings (-100..+100), relation tiers (Allied/Friendly/Neutral/Tense/Hostile), treaties (Trade/NAP/Alliance), diplomatic incidents, autonomous actions. Replaces hardcoded rivalries. |
 | `social_interactions.py` | **InteractionDef execution engine.** 8 data-driven social interactions (chat, deep conversation, argument, share meal, teach, comfort, play, insult) with precondition checking, personality-weighted selection, outcome application (moodlets, bonds, opinions, social need, XP, memory), cooldowns, and EventBus publishing. Defs in `defs/core/interactions.json`. |
 | `disease.py` | **Named disease/epidemic system.** 5 typed diseases (Gut Rot, Grey Lung, Swamp Fever, Blood Plague, Muscle Worm) with incubation→symptomatic→recovery stages, proximity-based transmission, capacity penalties, immunity buildup, quarantine at hospitals, epidemic detection. Replaces the old `diseased` boolean. Defs in `defs/core/diseases.json`. |
+| `rituals.py` | **Rituals & Gatherings.** 6 data-driven faction rituals (Doctrine Renewal, Harvest Thanksgiving, Mourning Ceremony, Naming Day, Seasonal Rite, Victory Celebration) at shrines with moodlets, bond changes, episodic memories, cohesion boosts. Periodic and condition-triggered. Defs in `defs/core/rituals.json`. |
 | `spatial.py` | Spatial indexing |
 | `storyteller.py` | Event/crisis storytelling |
 | `tech_research.py` | **Autonomous tech research.** Factions spend accumulated research points on techs guided by doctrine priority (growth→agriculture, security→medicine, harmony→social, etc.). Evaluates every 30s, respects prerequisites and cooldowns. Publishes EventBus milestones. Serialized in snapshots. |
@@ -101,9 +102,10 @@ Four async channels processed by `LLMScheduler`:
 | `technologies.json` | `TechDef` |
 | `items.json` | `ArmorDef`, `WeaponDef` |
 | `jobs.json` | `JobDef` — CookMeal, SmithArmor, CraftWeapon |
-| `moods.json` | `MoodDef` — AteRawFood, AteFineFood, Catharsis, FoughtOffInfection, + 7 social moodlets (HadChat, HadDeepTalk, HadArgument, WasInsulted, WasComforted, SharedMeal, HadFun, etc.) |
+| `moods.json` | `MoodDef` — AteRawFood, AteFineFood, Catharsis, FoughtOffInfection, + 7 social moodlets + 6 ritual moodlets (AttendedDoctrineRenewal, AttendedHarvestFeast, MournedTogether, CelebratedNamingDay, AttendedSeasonalRite, CelebratedVictory) |
 | `interactions.json` | `InteractionDef` — 8 social interaction types with preconditions, outcomes, drama weights, memory events |
 | `diseases.json` | `DiseaseDef` — 5 named diseases with severity rates, incubation periods, transmission vectors, biome/season weights, capacity penalties, lethality |
+| `rituals.json` | `RitualDef` — 6 faction ritual types with triggers (periodic/condition), effects, moodlets, gathering requirements |
 
 `game_content.py` exposes `BUILDING_DEFINITIONS` as a lazy proxy dict that always reads from `DefDatabase` — never hardcode building data, always go through `DefDatabase`.
 

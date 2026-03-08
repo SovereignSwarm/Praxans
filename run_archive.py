@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from typing import Any
 
@@ -10,7 +11,23 @@ from society_content import END_STATE_DEFINITIONS, RUN_PHASE_DEFINITIONS
 
 ARCHIVE_VERSION = 3
 
+def _try_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    parsed = _try_float(value)
+    if parsed is None or not math.isfinite(parsed):
+        return default
+    return parsed
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    parsed = _try_float(value)
+    if parsed is None or not math.isfinite(parsed):
+        return default
+    return int(parsed)
 def _phase_label(phase_id: str) -> str:
     return RUN_PHASE_DEFINITIONS.get(phase_id, RUN_PHASE_DEFINITIONS["founding"])["label"]
 
@@ -38,17 +55,17 @@ def classify_end_state(
     extinction: bool = False,
 ) -> str:
     deaths_by_cause = {
-        item.get("cause_id", ""): int(item.get("count", 0))
+        item.get("cause_id", ""): _safe_int(item.get("count", 0))
         for item in observer_report.get("mortality", [])
         if isinstance(item, dict)
     }
-    total_deaths = max(0, int(observer_report.get("deaths_total", 0)))
+    total_deaths = max(0, _safe_int(observer_report.get("deaths_total", 0)))
     plague_share = deaths_by_cause.get("health_failure", 0) / max(1, total_deaths)
-    prosperity = float(settlement_state.get("prosperity_score", 0.0) or 0.0)
-    culture = float(settlement_state.get("culture_score", 0.0) or 0.0)
-    births_total = int(observer_report.get("births_total", 0))
-    peak_factions = int(observer_report.get("peak_factions", 0))
-    faction_loss = int(observer_report.get("factions_dissolved", 0))
+    prosperity = _safe_float(settlement_state.get("prosperity_score", 0.0) or 0.0)
+    culture = _safe_float(settlement_state.get("culture_score", 0.0) or 0.0)
+    births_total = _safe_int(observer_report.get("births_total", 0))
+    peak_factions = _safe_int(observer_report.get("peak_factions", 0))
+    faction_loss = _safe_int(observer_report.get("factions_dissolved", 0))
 
     if extinction:
         if plague_share >= 0.45:
@@ -71,14 +88,14 @@ def classify_end_state(
 
 
 def calculate_run_score(observer_report: dict[str, Any], settlement_state: dict[str, Any], end_state_id: str) -> int:
-    prosperity = float(settlement_state.get("prosperity_score", 0.0) or 0.0)
-    culture = float(settlement_state.get("culture_score", 0.0) or 0.0)
-    population = int(observer_report.get("population", 0))
-    max_population = int(observer_report.get("max_population", population))
-    births_total = int(observer_report.get("births_total", 0))
-    deaths_total = int(observer_report.get("deaths_total", 0))
-    peak_factions = int(observer_report.get("peak_factions", 0))
-    top_lineage_size = int(observer_report.get("top_lineages", [{}])[0].get("count", 0)) if observer_report.get("top_lineages") else 0
+    prosperity = _safe_float(settlement_state.get("prosperity_score", 0.0) or 0.0)
+    culture = _safe_float(settlement_state.get("culture_score", 0.0) or 0.0)
+    population = _safe_int(observer_report.get("population", 0))
+    max_population = _safe_int(observer_report.get("max_population", population), default=population)
+    births_total = _safe_int(observer_report.get("births_total", 0))
+    deaths_total = _safe_int(observer_report.get("deaths_total", 0))
+    peak_factions = _safe_int(observer_report.get("peak_factions", 0))
+    top_lineage_size = _safe_int(observer_report.get("top_lineages", [{}])[0].get("count", 0)) if observer_report.get("top_lineages") else 0
 
     score = 0.0
     score += min(25.0, max_population * 1.8)
@@ -126,12 +143,18 @@ def _phase_history(phase_id: str, elapsed_seconds: float) -> list[dict[str, Any]
 
 def _population_curve(session_stats: dict[str, Any], observer_report: dict[str, Any]) -> list[dict[str, Any]]:
     curve = []
-    for sample in list(session_stats.get("generation_history", []))[-12:]:
+    history_samples = (
+        session_stats.get("generation_history")
+        or session_stats.get("evolution_history")
+        or observer_report.get("generation_history")
+        or []
+    )
+    for sample in list(history_samples)[-12:]:
         curve.append(
             {
-                "elapsed_seconds": round(float(sample.get("elapsed_seconds", 0.0) or 0.0), 3),
-                "population": int(sample.get("population", 0) or 0),
-                "avg_generation": round(float(sample.get("avg_generation", 0.0) or 0.0), 3),
+                "elapsed_seconds": round(_safe_float(sample.get("elapsed_seconds", 0.0) or 0.0), 3),
+                "population": _safe_int(sample.get("population", 0) or 0),
+                "avg_generation": round(_safe_float(sample.get("avg_generation", 0.0) or 0.0), 3),
             }
         )
     if curve:
@@ -139,7 +162,7 @@ def _population_curve(session_stats: dict[str, Any], observer_report: dict[str, 
     return [
         {
             "elapsed_seconds": 0.0,
-            "population": int(observer_report.get("population", 0) or 0),
+            "population": _safe_int(observer_report.get("population", 0) or 0),
             "avg_generation": 0.0,
         }
     ]
@@ -154,8 +177,8 @@ def _death_cause_breakdown(observer_report: dict[str, Any]) -> list[dict[str, An
             {
                 "cause_id": str(cause.get("cause_id", "unknown")),
                 "label": str(cause.get("label", "Unknown")),
-                "count": int(cause.get("count", 0) or 0),
-                "share": round(float(cause.get("share", 0.0) or 0.0), 3),
+                "count": _safe_int(cause.get("count", 0) or 0),
+                "share": round(_safe_float(cause.get("share", 0.0) or 0.0), 3),
             }
         )
     return breakdown
@@ -166,16 +189,16 @@ def _lineage_highlights(observer_report: dict[str, Any], session_stats: dict[str
     for lineage in observer_report.get("top_lineages", [])[:4]:
         highlights.append(
             {
-                "lineage_id": int(lineage.get("lineage_id", 0) or 0),
-                "count": int(lineage.get("count", 0) or 0),
-                "share": round(float(lineage.get("share", 0.0) or 0.0), 3),
+                "lineage_id": _safe_int(lineage.get("lineage_id", 0) or 0),
+                "count": _safe_int(lineage.get("count", 0) or 0),
+                "share": round(_safe_float(lineage.get("share", 0.0) or 0.0), 3),
             }
         )
     for event in list(session_stats.get("lineage_events", []))[-4:]:
         highlights.append(
             {
                 "event": str(event.get("summary") or event.get("label") or "lineage_event"),
-                "time": round(float(event.get("time", 0.0) or 0.0), 3),
+                "time": round(_safe_float(event.get("time", 0.0) or 0.0), 3),
             }
         )
     return highlights
@@ -186,19 +209,19 @@ def _faction_highlights(observer_report: dict[str, Any], session_stats: dict[str
     for faction in observer_report.get("active_factions", [])[:4]:
         highlights.append(
             {
-                "id": int(faction.get("id", 0) or 0),
-                "members": int(faction.get("members", 0) or 0),
+                "id": _safe_int(faction.get("id", 0) or 0),
+                "members": _safe_int(faction.get("members", 0) or 0),
                 "doctrine": str(faction.get("doctrine", "survival")),
-                "cohesion": round(float(faction.get("cohesion", 0.0) or 0.0), 3),
+                "cohesion": round(_safe_float(faction.get("cohesion", 0.0) or 0.0), 3),
             }
         )
     for event in list(session_stats.get("faction_history", []))[-4:]:
         highlights.append(
             {
-                "faction_id": int(event.get("faction_id", 0) or 0),
+                "faction_id": _safe_int(event.get("faction_id", 0) or 0),
                 "action": str(event.get("action", "shift")),
-                "members": int(event.get("members", 0) or 0),
-                "time": round(float(event.get("time", 0.0) or 0.0), 3),
+                "members": _safe_int(event.get("members", 0) or 0),
+                "time": round(_safe_float(event.get("time", 0.0) or 0.0), 3),
             }
         )
     return highlights
@@ -211,9 +234,9 @@ def _focus_moments(key_moments: list[dict[str, Any]], camera_bookmarks: list[dic
             {
                 "label": str(bookmark.get("label", "Moment")),
                 "category": str(bookmark.get("category", "event")),
-                "x": round(float(bookmark.get("x", 0.0) or 0.0), 2),
-                "y": round(float(bookmark.get("y", 0.0) or 0.0), 2),
-                "time": round(float(bookmark.get("time", 0.0) or 0.0), 3),
+                "x": round(_safe_float(bookmark.get("x", 0.0) or 0.0), 2),
+                "y": round(_safe_float(bookmark.get("y", 0.0) or 0.0), 2),
+                "time": round(_safe_float(bookmark.get("time", 0.0) or 0.0), 3),
             }
         )
     for event in key_moments:
@@ -223,7 +246,7 @@ def _focus_moments(key_moments: list[dict[str, Any]], camera_bookmarks: list[dic
             {
                 "label": str(event.get("summary") or event.get("label") or event.get("category") or "moment"),
                 "category": str(event.get("category", "event")),
-                "time": round(float(event.get("time", 0.0) or 0.0), 3),
+                "time": round(_safe_float(event.get("time", 0.0) or 0.0), 3),
             }
         )
     return focus_moments
@@ -295,9 +318,9 @@ def build_run_summary(
         },
         "settlement": {
             "district_identity": settlement_state.get("district_identity", "homestead"),
-            "prosperity_score": round(float(settlement_state.get("prosperity_score", 0.0) or 0.0), 3),
-            "culture_score": round(float(settlement_state.get("culture_score", 0.0) or 0.0), 3),
-            "festival_readiness": round(float(settlement_state.get("festival_readiness", 0.0) or 0.0), 3),
+            "prosperity_score": round(_safe_float(settlement_state.get("prosperity_score", 0.0) or 0.0), 3),
+            "culture_score": round(_safe_float(settlement_state.get("culture_score", 0.0) or 0.0), 3),
+            "festival_readiness": round(_safe_float(settlement_state.get("festival_readiness", 0.0) or 0.0), 3),
         },
         "dominant_lineage": observer_report.get("top_lineages", [{}])[0] if observer_report.get("top_lineages") else {},
         "dominant_faction": dominant_faction,
@@ -428,12 +451,16 @@ def build_archive_comparison(current_summary: dict[str, Any], archive_paths: lis
                 "scenario_name": archive.get("scenario", {}).get("name", "Unknown"),
                 "phase_label": archive.get("current_phase", {}).get("label", "Unknown"),
                 "end_state_label": archive.get("end_state", {}).get("label", "Unknown"),
-                "score": int(summary_card.get("score", archive.get("end_state", {}).get("score", 0)) or 0),
-                "population_peak": int(summary_card.get("population_peak", 0) or 0),
+                "score": _safe_int(summary_card.get("score", archive.get("end_state", {}).get("score", 0)) or 0),
+                "population_peak": _safe_int(summary_card.get("population_peak", 0) or 0),
             }
         )
 
-    current_score = int(current_summary.get("end_state", {}).get("score", 0) or 0)
+    current_score = _safe_int(current_summary.get("end_state", {}).get("score", 0) or 0)
     for comparison in comparisons:
         comparison["score_delta"] = current_score - comparison["score"]
     return comparisons
+
+
+
+

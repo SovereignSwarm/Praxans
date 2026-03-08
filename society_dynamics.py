@@ -12,7 +12,11 @@ def _avg(values: list[float], default: float = 0.0) -> float:
     return (sum(values) / len(values)) if values else default
 
 
-def compute_faction_metrics(member_snapshots: list[dict[str, Any]], avg_bond: float) -> dict[str, Any]:
+def compute_faction_metrics(
+    member_snapshots: list[dict[str, Any]],
+    avg_bond: float,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if not member_snapshots:
         return {
             "ideology": {axis: 0.0 for axis in ("growth", "security", "industry", "exploration", "harmony")},
@@ -22,6 +26,10 @@ def compute_faction_metrics(member_snapshots: list[dict[str, Any]], avg_bond: fl
             "schism_pressure": 0.0,
             "migration_pressure": 0.0,
             "preferred_biome": "plains",
+            "resource_stress": 0.0,
+            "food_security": 52.0,
+            "material_security": 48.0,
+            "ecology_fertility": 70.0,
         }
 
     count = len(member_snapshots)
@@ -46,12 +54,60 @@ def compute_faction_metrics(member_snapshots: list[dict[str, Any]], avg_bond: fl
     role_diversity = len([role for role in role_counts if role != "unassigned"]) / 3.0
     biome_diversity = len(biome_counts) / max(1, count)
 
+    context = dict(context or {})
+    food_security = _clamp(float(context.get("food_security", 52.0)), 0.0, 100.0)
+    material_security = _clamp(float(context.get("material_security", 48.0)), 0.0, 100.0)
+    ecology_fertility = _clamp(float(context.get("ecology_fertility", 70.0)), 0.0, 100.0)
+    inferred_stress = _clamp(
+        max(0.0, 55.0 - food_security) * 0.9
+        + max(0.0, 50.0 - material_security) * 0.55
+        + max(0.0, 60.0 - ecology_fertility) * 0.42
+        - min(20.0, avg_known_resources * 1.8),
+        0.0,
+        100.0,
+    )
+    resource_stress = _clamp(float(context.get("resource_stress", inferred_stress)), 0.0, 100.0)
+    scarcity = resource_stress / 100.0
+
     ideology = {
-        "growth": round(avg_fertility + (avg_morale / 100.0) + max(0.0, (count - 2) * 0.08), 3),
-        "security": round(avg_immunity + avg_adaptability + (avg_health / 100.0) - (diseased_members * 0.08), 3),
-        "industry": round(avg_learning + builder_share + (gatherer_share * 0.45), 3),
-        "exploration": round(avg_curiosity + explorer_share + (avg_adaptability * 0.35) + min(0.45, avg_known_resources * 0.03), 3),
-        "harmony": round(avg_cohesion_trait + avg_sociability + (avg_bond / 100.0), 3),
+        "growth": round(
+            avg_fertility
+            + (avg_morale / 100.0)
+            + max(0.0, (count - 2) * 0.08)
+            + (food_security / 100.0) * 0.28,
+            3,
+        ),
+        "security": round(
+            avg_immunity
+            + avg_adaptability
+            + (avg_health / 100.0)
+            - (diseased_members * 0.08)
+            + max(0.0, 58.0 - food_security) * 0.012
+            + max(0.0, 54.0 - ecology_fertility) * 0.01,
+            3,
+        ),
+        "industry": round(
+            avg_learning
+            + builder_share
+            + (gatherer_share * 0.45)
+            + max(0.0, 62.0 - material_security) * 0.012,
+            3,
+        ),
+        "exploration": round(
+            avg_curiosity
+            + explorer_share
+            + (avg_adaptability * 0.35)
+            + min(0.45, avg_known_resources * 0.03)
+            + max(0.0, 58.0 - ecology_fertility) * 0.009,
+            3,
+        ),
+        "harmony": round(
+            avg_cohesion_trait
+            + avg_sociability
+            + (avg_bond / 100.0)
+            - scarcity * 0.24,
+            3,
+        ),
     }
     primary_doctrine = max(ideology.items(), key=lambda item: item[1])[0]
 
@@ -60,18 +116,27 @@ def compute_faction_metrics(member_snapshots: list[dict[str, Any]], avg_bond: fl
         + (avg_happiness * 0.18)
         + (avg_cohesion_trait * 18.0)
         - (diseased_members * 4.5)
-        - (biome_diversity * 8.0),
+        - (biome_diversity * 8.0)
+        - (resource_stress * 0.18),
         0.0,
         100.0,
     )
-    stability = _clamp((cohesion * 0.68) + (avg_morale * 0.32) - (role_diversity * 8.0), 0.0, 100.0)
+    stability = _clamp(
+        (cohesion * 0.68)
+        + (avg_morale * 0.32)
+        - (role_diversity * 8.0)
+        - (resource_stress * 0.22),
+        0.0,
+        100.0,
+    )
     ideology_spread = max(ideology.values()) - min(ideology.values())
     schism_pressure = _clamp(
         max(0.0, 62.0 - cohesion) * 0.95
         + max(0.0, count - 3) * 6.5
         + biome_diversity * 26.0
         + role_diversity * 18.0
-        + ideology_spread * 8.0,
+        + ideology_spread * 8.0
+        + (resource_stress * 0.28),
         0.0,
         100.0,
     )
@@ -81,6 +146,8 @@ def compute_faction_metrics(member_snapshots: list[dict[str, Any]], avg_bond: fl
         + (avg_known_resources * 6.0)
         + (biome_diversity * 16.0)
         + max(0.0, 58.0 - cohesion) * 0.3
+        + (resource_stress * 0.35)
+        + max(0.0, 55.0 - food_security) * 0.25
         + (12.0 if primary_doctrine == "exploration" else 0.0)
         + (6.0 if primary_doctrine == "growth" else 0.0)
         - (8.0 if primary_doctrine == "harmony" else 0.0),
@@ -97,6 +164,10 @@ def compute_faction_metrics(member_snapshots: list[dict[str, Any]], avg_bond: fl
         "schism_pressure": round(schism_pressure, 3),
         "migration_pressure": round(migration_pressure, 3),
         "preferred_biome": preferred_biome,
+        "resource_stress": round(resource_stress, 3),
+        "food_security": round(food_security, 3),
+        "material_security": round(material_security, 3),
+        "ecology_fertility": round(ecology_fertility, 3),
     }
 
 
@@ -190,3 +261,4 @@ def choose_migration_target(
         _clamp(centroid[0] + (vector_x * distance), 40.0, max(40.0, world_width - 40.0)),
         _clamp(centroid[1] + (vector_y * distance), 40.0, max(40.0, world_height - 40.0)),
     )
+

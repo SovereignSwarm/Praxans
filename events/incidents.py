@@ -119,9 +119,47 @@ def incident_disease_outbreak(game_state: dict):
             f"Outbreak of {disease_label}! {actually_infected} praxans infected.", "Crisis"
         )
 
+def incident_natural_disaster(game_state: dict):
+    """Storyteller-triggered natural disaster — delegates to DisasterManager."""
+    disaster_manager = game_state.get('disaster_manager')
+    if disaster_manager is None:
+        return
+
+    import time as _time
+    praxans = game_state.get('praxans', [])
+    buildings = game_state.get('buildings', [])
+    world_map = game_state.get('world_map')
+    event_bus = game_state.get('event_bus')
+    narrative_panel = game_state.get('narrative_panel')
+    season = game_state.get('season')
+    weather_system = game_state.get('weather_system')
+    season_name = getattr(season, 'current', 'summer') if season else 'summer'
+    weather_name = getattr(weather_system, 'current_weather', 'clear') if weather_system else 'clear'
+
+    now = _time.time()
+    # Force selection and firing (bypass the random chance check)
+    disaster_id = disaster_manager._select_disaster(
+        now, praxans, buildings, world_map, season_name, weather_name,
+    )
+    if disaster_id:
+        disaster_manager._fire_disaster(
+            disaster_id, now, praxans, buildings,
+            world_map, event_bus, narrative_panel,
+        )
+        # Apply immediately
+        for ad in disaster_manager.active_disasters:
+            if not ad.applied:
+                ad.applied = True
+                disaster_manager._apply_effects(
+                    ad, praxans, buildings, world_map,
+                    event_bus, narrative_panel,
+                )
+
+
 def register_all_incidents(storyteller):
     storyteller.add_incident("crop_blight", INCIDENT_BAD, 40.0, incident_crop_blight)
     storyteller.add_incident("animal_attack", INCIDENT_BAD, 60.0, incident_animal_attack)
     storyteller.add_incident("disease_outbreak", INCIDENT_BAD, 80.0, incident_disease_outbreak)
+    storyteller.add_incident("natural_disaster", INCIDENT_BAD, 90.0, incident_natural_disaster)
     storyteller.add_incident("migrant_wave", INCIDENT_GOOD, 0.0, incident_migrant_wave)
     storyteller.add_incident("resource_pod", INCIDENT_NEUTRAL, 0.0, incident_resource_pod)

@@ -436,6 +436,135 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertAlmostEqual(loaded["factions"][0]["last_resource_crisis_elapsed"], 10.0, places=1)
 
 
+
+    def test_malformed_skill_values_fall_back_without_crashing(self):
+        """Malformed skill level/xp values should not crash snapshot serialization."""
+        praxan = SimpleNamespace(
+            id=1,
+            role="gatherer",
+            x=0.0,
+            y=0.0,
+            health=100.0,
+            happiness=50.0,
+            morale=50.0,
+            inspiration=0.0,
+            favorite_biome="plains",
+            age=20.0,
+            diseased=False,
+            resilience=1.0,
+            settlement_prosperity=0.5,
+            inventory={"food": 0, "wood": 0, "stone": 0},
+            needs={"hunger": 50.0, "energy": 50.0, "thirst": 50.0},
+            state="idle",
+            current_action="idle",
+            personal_goal=None,
+            goal_progress=0.0,
+            personality={},
+            genetics={},
+            generation=1,
+            parent_ids=[],
+            lineage_id=1,
+            mutation_count=0,
+            birth_origin="founder",
+            skills={"gathering": {"level": "n/a", "xp": "unknown"}},
+            bonds={},
+            opinions={},
+            relationships={},
+            traits=[],
+            name="Test",
+            faction_id=None,
+            known_resources=[],
+            last_reproduction_time=0.0,
+            goal_assigned_time=0.0,
+            episodic_memory=None,
+        )
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [praxan],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+        )
+
+        skills = snapshot["praxans"][0]["skills"]
+        self.assertEqual(skills["gathering"]["level"], 1)
+        self.assertEqual(skills["gathering"]["xp"], 0.0)
+    def test_malformed_celebration_timers_fall_back_without_crashing(self):
+        """Malformed celebration timer values should not crash snapshot serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+            celebration_state={"active_until": "bad", "cooldown_until": object(), "center": (42.0, 51.0)},
+        )
+
+        celebration = snapshot["celebration"]
+        self.assertEqual(celebration["active_remaining"], 0.0)
+        self.assertEqual(celebration["cooldown_remaining"], 0.0)
+        self.assertEqual(celebration["center"], {"x": 42.0, "y": 51.0})
 if __name__ == "__main__":
     unittest.main()
+
+
+
 

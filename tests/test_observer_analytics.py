@@ -54,6 +54,10 @@ class ObserverAnalyticsTests(unittest.TestCase):
                     migration_pressure=48.0,
                     rival_faction_ids=[1],
                     succession_count=2,
+                    resource_stress=63.0,
+                    food_security=42.0,
+                    material_security=38.0,
+                    ecology_fertility=46.0,
                 ),
             }
         )
@@ -74,9 +78,103 @@ class ObserverAnalyticsTests(unittest.TestCase):
         self.assertEqual(report["active_factions"][0]["members"], 3)
         self.assertEqual(report["active_factions"][0]["leader_id"], 2)
         self.assertEqual(report["active_factions"][0]["doctrine"], "industry")
+        self.assertEqual(report["active_factions"][0]["resource_stress"], 63.0)
+        self.assertEqual(report["active_factions"][0]["food_security"], 42.0)
+        self.assertEqual(report["active_factions"][0]["material_security"], 38.0)
+        self.assertEqual(report["active_factions"][0]["ecology_fertility"], 46.0)
         self.assertEqual(report["timeline"][-1]["summary"], "Faction 0 formed")
         self.assertEqual(report["faction_history"][0]["action"], "formed")
 
+    def test_build_observer_report_skips_non_numeric_avg_traits(self):
+        advisor = SimpleNamespace(
+            total_deaths=0,
+            group_tasks=[],
+            events_history=[],
+            session_stats={
+                "current_evolution_summary": {
+                    "lineage_counts": {1: 1},
+                    "avg_traits": {
+                        "learning_affinity": "n/a",
+                        "immune_strength": 0.95,
+                    },
+                },
+            },
+        )
+
+        report = build_observer_report([SimpleNamespace(id=1, lineage_id=1, generation=0)], advisor, faction_manager=None)
+
+        self.assertEqual(len(report["trait_outliers"]), 1)
+        self.assertEqual(report["trait_outliers"][0]["trait_name"], "immune_strength")
+
+    def test_build_observer_report_handles_non_numeric_timeline_time(self):
+        praxans = [SimpleNamespace(id=9, lineage_id=9, generation=0)]
+        advisor = SimpleNamespace(
+            total_deaths=0,
+            group_tasks=[],
+            events_history=[],
+            session_stats={
+                "current_evolution_summary": {
+                    "lineage_counts": {9: 1},
+                    "avg_traits": {"metabolism_efficiency": 1.0},
+                },
+                "timeline_events": [
+                    {"time": "unknown", "category": "faction", "summary": "Malformed timestamp"},
+                    {"time": 2.0, "category": "faction", "summary": "Faction formed"},
+                ],
+            },
+        )
+
+        report = build_observer_report(praxans, advisor, faction_manager=None)
+
+        self.assertEqual(len(report["timeline"]), 2)
+        self.assertEqual(report["timeline"][0]["summary"], "Malformed timestamp")
+        self.assertEqual(report["timeline"][0]["time"], 0.0)
+        self.assertEqual(report["timeline"][1]["summary"], "Faction formed")
+    def test_build_observer_report_handles_non_numeric_faction_metrics(self):
+        praxans = [SimpleNamespace(id=1, lineage_id=1, generation=0)]
+        advisor = SimpleNamespace(
+            total_deaths=0,
+            group_tasks=[],
+            events_history=[],
+            session_stats={
+                "current_evolution_summary": {
+                    "lineage_counts": {1: 1},
+                    "avg_traits": {"metabolism_efficiency": 1.0},
+                },
+            },
+        )
+        faction_manager = SimpleNamespace(
+            factions={
+                0: SimpleNamespace(
+                    member_ids=[1],
+                    leader_id=1,
+                    shared_goals=[],
+                    primary_doctrine="growth",
+                    cohesion="bad",
+                    stability="59.5",
+                    schism_pressure=None,
+                    migration_pressure="unknown",
+                    rival_faction_ids=[],
+                    succession_count=0,
+                    resource_stress="x",
+                    food_security="n/a",
+                    material_security=37.5,
+                    ecology_fertility="fertile",
+                ),
+            }
+        )
+
+        report = build_observer_report(praxans, advisor, faction_manager)
+
+        faction = report["active_factions"][0]
+        self.assertEqual(faction["cohesion"], 0.0)
+        self.assertEqual(faction["stability"], 59.5)
+        self.assertEqual(faction["schism_pressure"], 0.0)
+        self.assertEqual(faction["migration_pressure"], 0.0)
+        self.assertEqual(faction["resource_stress"], 0.0)
+        self.assertEqual(faction["food_security"], 52.0)
+        self.assertEqual(faction["material_security"], 37.5)
+        self.assertEqual(faction["ecology_fertility"], 70.0)
     def test_build_observer_report_falls_back_to_existing_events_when_timeline_is_missing(self):
         praxans = [SimpleNamespace(id=7, lineage_id=7, generation=0)]
         advisor = SimpleNamespace(
@@ -101,3 +199,4 @@ class ObserverAnalyticsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

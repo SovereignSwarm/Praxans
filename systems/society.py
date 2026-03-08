@@ -1,10 +1,75 @@
 import time
 import logging
 import copy
+import math
 from collections import defaultdict, deque
-from praxans_game import *
-from society_dynamics import compute_faction_metrics
 import random
+
+from society_content import (
+    AUTONOMOUS_DOCTRINE_GOALS,
+    FACTION_DOCTRINE_PROFILES,
+    FACTION_DYNAMICS,
+    FACTION_IDEOLOGY_AXES,
+)
+from society_dynamics import compute_faction_metrics
+from society_dynamics import choose_migration_target, choose_schism_members
+
+ROLE_SKILL_MAP = {
+    "gatherer": "gathering",
+    "builder": "building",
+    "explorer": "exploring",
+}
+
+
+def clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
+def distance_between(x1, y1, x2, y2):
+    return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+
+def get_role_skill_key(role):
+    return ROLE_SKILL_MAP.get(role)
+
+
+def append_bounded_history(target_list, entry, limit):
+    target_list.append(entry)
+    if len(target_list) > limit:
+        del target_list[:-limit]
+
+
+def record_observer_timeline_event(advisor, current_time, category, summary, details=None):
+    if advisor is None:
+        return
+
+    summary_text = str(summary).strip()
+    if not summary_text:
+        return
+
+    append_bounded_history(
+        advisor.events_history,
+        {
+            "time": current_time,
+            "description": summary_text,
+        },
+        24,
+    )
+    timeline_event = {
+        "time": current_time,
+        "category": str(category or "simulation"),
+        "summary": summary_text,
+    }
+    if details:
+        timeline_event["details"] = str(details).strip()
+    append_bounded_history(advisor.session_stats.setdefault("timeline_events", []), timeline_event, 32)
+
+def _safe_float(value, default=0.0):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    return parsed if math.isfinite(parsed) else float(default)
 
 class Faction:
     """Represents a group of praxans with strong bonds"""
@@ -25,6 +90,11 @@ class Faction:
         self.rival_faction_ids = []
         self.schism_pressure = 0.0
         self.migration_pressure = 0.0
+        self.resource_stress = 0.0
+        self.food_security = 52.0
+        self.material_security = 48.0
+        self.ecology_fertility = 70.0
+        self.last_resource_crisis_time = 0.0
         self.migration_target = None
         self.preferred_biome = "plains"
         self.succession_count = 0
@@ -97,7 +167,7 @@ class Faction:
         avg_y = sum(member.y for member in members) / len(members)
         return (avg_x, avg_y)
 
-    def refresh_identity(self, praxans):
+    def refresh_identity(self, praxans, context=None):
         members = self.get_members(praxans)
         if not members:
             return
@@ -127,7 +197,7 @@ class Faction:
                 }
             )
 
-        metrics = compute_faction_metrics(member_snapshots, avg_bond=avg_bond)
+        metrics = compute_faction_metrics(member_snapshots, avg_bond=avg_bond, context=context)
         self.ideology = dict(metrics["ideology"])
         self.primary_doctrine = str(metrics["primary_doctrine"])
         self.doctrine_profile = dict(FACTION_DOCTRINE_PROFILES.get(self.primary_doctrine, FACTION_DOCTRINE_PROFILES["growth"]))
@@ -135,6 +205,10 @@ class Faction:
         self.stability = clamp(float(metrics["stability"]), 0.0, 100.0)
         self.schism_pressure = clamp(float(metrics["schism_pressure"]), 0.0, 100.0)
         self.migration_pressure = clamp(float(metrics["migration_pressure"]), 0.0, 100.0)
+        self.resource_stress = clamp(float(metrics.get("resource_stress", self.resource_stress)), 0.0, 100.0)
+        self.food_security = clamp(float(metrics.get("food_security", self.food_security)), 0.0, 100.0)
+        self.material_security = clamp(float(metrics.get("material_security", self.material_security)), 0.0, 100.0)
+        self.ecology_fertility = clamp(float(metrics.get("ecology_fertility", self.ecology_fertility)), 0.0, 100.0)
         self.preferred_biome = str(metrics.get("preferred_biome", "plains"))
 
         if getattr(self, "golden_age", False):
@@ -163,8 +237,7 @@ class FactionManager:
         self.last_update = 0
         self.update_interval = 10.0  # Update every 10 seconds
     
-    def update_factions(self, praxans, advisor=None, diplomacy_manager=None,
-                        event_bus=None):
+    def update_factions(self, praxans, advisor=None, diplomacy_manager=None, event_bus=None, ecology_manager=None):
         """Auto-form and update factions based on bonds > 70"""
         current_time = time.time()
 
@@ -228,7 +301,7 @@ class FactionManager:
                 previous_leader_id = faction.leader_id
                 faction.member_ids = list(best_match)
                 faction.update_leader(praxans)
-                faction.refresh_identity(praxans)
+                faction.refresh_identity(praxans, context=self._build_resource_context(faction, praxans, ecology_manager))
                 self._register_leadership_change(faction, previous_leader_id, advisor, current_time)
                 used_groups.add(id(best_match))
             else:
@@ -254,7 +327,7 @@ class FactionManager:
             if id(group) not in used_groups:
                 new_faction = Faction(group)
                 new_faction.update_leader(praxans)
-                new_faction.refresh_identity(praxans)
+                new_faction.refresh_identity(praxans, context=self._build_resource_context(new_faction, praxans, ecology_manager))
                 self.factions[new_faction.id] = new_faction
                 
                 # Assign faction_id to members
@@ -287,8 +360,20 @@ class FactionManager:
             )
 
         for faction in self.factions.values():
-            faction.refresh_identity(praxans)
+            faction.refresh_identity(praxans, context=self._build_resource_context(faction, praxans, ecology_manager))
             
+            if faction.resource_stress >= 75.0 and current_time - getattr(faction, "last_resource_crisis_time", 0.0) >= 45.0:
+                faction.last_resource_crisis_time = current_time
+                if advisor is not None:
+                    advisor.session_stats["resource_crises"] = advisor.session_stats.get("resource_crises", 0) + 1
+                    record_observer_timeline_event(
+                        advisor,
+                        current_time,
+                        "resource",
+                        f"Faction {faction.id} entered a resource crisis",
+                        f"Food security {int(faction.food_security)} / materials {int(faction.material_security)} / fertility {int(faction.ecology_fertility)}.",
+                    )
+
             if faction.cohesion >= 95.0 and faction.stability >= 90.0 and not getattr(faction, "golden_age", False):
                 faction.golden_age = True
                 if advisor is not None:
@@ -310,7 +395,53 @@ class FactionManager:
                                diplomacy_manager=diplomacy_manager)
         if diplomacy_manager is None:
             self._update_rivalries()
+    def _build_resource_context(self, faction, praxans, ecology_manager=None):
+        members = faction.get_members(praxans)
+        if not members:
+            return {
+                "food_security": 52.0,
+                "material_security": 48.0,
+                "ecology_fertility": 70.0,
+                "resource_stress": 0.0,
+            }
 
+        population = max(1, len(members))
+        total_food = 0.0
+        total_wood = 0.0
+        total_stone = 0.0
+        for member in members:
+            inventory = getattr(member, "inventory", {}) or {}
+            total_food += _safe_float(inventory.get("food", 0.0), 0.0)
+            total_wood += _safe_float(inventory.get("wood", 0.0), 0.0)
+            total_stone += _safe_float(inventory.get("stone", 0.0), 0.0)
+
+        food_per_member = total_food / population
+        materials_per_member = (total_wood + total_stone) / population
+        food_security = clamp(food_per_member * 45.0, 0.0, 100.0)
+        material_security = clamp(materials_per_member * 26.0, 0.0, 100.0)
+
+        ecology_fertility = 70.0
+        centroid = faction.get_centroid(praxans)
+        if centroid and ecology_manager is not None and hasattr(ecology_manager, "get_region_info"):
+            try:
+                region_info = ecology_manager.get_region_info(centroid[0], centroid[1])
+                ecology_fertility = clamp(_safe_float(region_info.get("fertility", ecology_fertility), ecology_fertility), 0.0, 100.0)
+            except Exception:
+                pass
+
+        resource_stress = clamp(
+            max(0.0, 58.0 - food_security) * 0.9
+            + max(0.0, 52.0 - material_security) * 0.55
+            + max(0.0, 62.0 - ecology_fertility) * 0.42,
+            0.0,
+            100.0,
+        )
+        return {
+            "food_security": food_security,
+            "material_security": material_security,
+            "ecology_fertility": ecology_fertility,
+            "resource_stress": resource_stress,
+        }
     def _update_rivalries(self):
         factions = list(self.factions.values())
         for faction in factions:

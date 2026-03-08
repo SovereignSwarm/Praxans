@@ -62,6 +62,83 @@ class SocietyDynamicsTests(unittest.TestCase):
         self.assertGreater(metrics["schism_pressure"], 40.0)
         self.assertGreater(metrics["migration_pressure"], 45.0)
 
+    def test_compute_faction_metrics_resource_context_raises_stress_pressures(self):
+        members = [
+            {
+                "id": 1,
+                "health": 75,
+                "happiness": 60,
+                "morale": 58,
+                "curiosity": 0.6,
+                "sociability": 0.5,
+                "learning_affinity": 1.0,
+                "immune_strength": 0.95,
+                "fertility_drive": 1.0,
+                "social_cohesion": 0.9,
+                "adaptability": 1.0,
+                "favorite_biome": "plains",
+                "role": "gatherer",
+                "known_resources_count": 1,
+            },
+            {
+                "id": 2,
+                "health": 74,
+                "happiness": 59,
+                "morale": 57,
+                "curiosity": 0.62,
+                "sociability": 0.48,
+                "learning_affinity": 1.01,
+                "immune_strength": 0.96,
+                "fertility_drive": 1.0,
+                "social_cohesion": 0.88,
+                "adaptability": 1.02,
+                "favorite_biome": "plains",
+                "role": "builder",
+                "known_resources_count": 1,
+            },
+            {
+                "id": 3,
+                "health": 76,
+                "happiness": 61,
+                "morale": 59,
+                "curiosity": 0.58,
+                "sociability": 0.49,
+                "learning_affinity": 0.99,
+                "immune_strength": 0.94,
+                "fertility_drive": 0.99,
+                "social_cohesion": 0.9,
+                "adaptability": 1.0,
+                "favorite_biome": "plains",
+                "role": "explorer",
+                "known_resources_count": 2,
+            },
+        ]
+
+        calm = compute_faction_metrics(
+            members,
+            avg_bond=58.0,
+            context={
+                "food_security": 85.0,
+                "material_security": 80.0,
+                "ecology_fertility": 82.0,
+                "resource_stress": 8.0,
+            },
+        )
+        stressed = compute_faction_metrics(
+            members,
+            avg_bond=58.0,
+            context={
+                "food_security": 20.0,
+                "material_security": 18.0,
+                "ecology_fertility": 26.0,
+                "resource_stress": 86.0,
+            },
+        )
+
+        self.assertLess(calm["resource_stress"], stressed["resource_stress"])
+        self.assertLess(calm["schism_pressure"], stressed["schism_pressure"])
+        self.assertLess(calm["migration_pressure"], stressed["migration_pressure"])
+        self.assertGreater(calm["stability"], stressed["stability"])
     def test_choose_schism_members_selects_dissenters(self):
         members = [
             {"id": 1, "leader_bond": 80, "happiness": 70, "curiosity": 0.2, "social_cohesion": 1.1, "favorite_biome": "plains", "role": "builder"},
@@ -118,3 +195,4 @@ class SocietyDynamicsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

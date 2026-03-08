@@ -3,6 +3,17 @@ from __future__ import annotations
 from typing import Any
 
 
+def _try_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _rounded_float_attr(entity: Any, attr_name: str, default: float = 0.0) -> float:
+    value = _try_float(getattr(entity, attr_name, default))
+    return round(value if value is not None else default, 2)
+
 def _count_lineages(praxans) -> dict[int, int]:
     lineage_counts: dict[int, int] = {}
     for praxan in praxans:
@@ -41,12 +52,16 @@ def _build_faction_snapshots(praxans, faction_manager) -> list[dict[str, Any]]:
                 "shared_goals": len(getattr(faction, "shared_goals", [])),
                 "avg_generation": avg_generation,
                 "doctrine": getattr(faction, "primary_doctrine", "growth"),
-                "cohesion": round(float(getattr(faction, "cohesion", 0.0)), 2),
-                "stability": round(float(getattr(faction, "stability", 0.0)), 2),
-                "schism_pressure": round(float(getattr(faction, "schism_pressure", 0.0)), 2),
-                "migration_pressure": round(float(getattr(faction, "migration_pressure", 0.0)), 2),
+                "cohesion": _rounded_float_attr(faction, "cohesion"),
+                "stability": _rounded_float_attr(faction, "stability"),
+                "schism_pressure": _rounded_float_attr(faction, "schism_pressure"),
+                "migration_pressure": _rounded_float_attr(faction, "migration_pressure"),
                 "rival_count": len(getattr(faction, "rival_faction_ids", []) or []),
                 "succession_count": int(getattr(faction, "succession_count", 0) or 0),
+                "resource_stress": _rounded_float_attr(faction, "resource_stress"),
+                "food_security": _rounded_float_attr(faction, "food_security", default=52.0),
+                "material_security": _rounded_float_attr(faction, "material_security", default=48.0),
+                "ecology_fertility": _rounded_float_attr(faction, "ecology_fertility", default=70.0),
             }
         )
 
@@ -80,9 +95,17 @@ def _build_timeline(session_stats: dict[str, Any], advisor_events) -> list[dict[
                 }
             )
 
-    timeline_events = [event for event in timeline_events if isinstance(event.get("summary"), str)]
-    timeline_events.sort(key=lambda event: float(event.get("time", 0.0)))
-    return timeline_events[-8:]
+    normalized_events = []
+    for event in timeline_events:
+        if not isinstance(event.get("summary"), str):
+            continue
+        normalized_event = dict(event)
+        normalized_time = _try_float(normalized_event.get("time", 0.0))
+        normalized_event["time"] = normalized_time if normalized_time is not None else 0.0
+        normalized_events.append(normalized_event)
+
+    normalized_events.sort(key=lambda event: event["time"])
+    return normalized_events[-8:]
 
 
 def build_observer_report(praxans, advisor, faction_manager=None) -> dict[str, Any]:
@@ -121,7 +144,9 @@ def build_observer_report(praxans, advisor, faction_manager=None) -> dict[str, A
     avg_traits = dict(summary.get("avg_traits", {}) or {})
     trait_outliers = []
     for trait_name, value in avg_traits.items():
-        numeric_value = float(value)
+        numeric_value = _try_float(value)
+        if numeric_value is None:
+            continue
         trait_outliers.append(
             {
                 "trait_name": str(trait_name),
@@ -154,3 +179,4 @@ def build_observer_report(praxans, advisor, faction_manager=None) -> dict[str, A
         "faction_history": list(session_stats.get("faction_history", []))[-6:],
         "active_factions": faction_snapshots,
     }
+

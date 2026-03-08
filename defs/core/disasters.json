@@ -1,0 +1,193 @@
+{
+    "DisasterDef": [
+        {
+            "id": "earthquake",
+            "label": "Earthquake",
+            "description": "Seismic tremors shake the settlement, cracking foundations and hurling praxans to the ground.",
+            "radius": 300,
+            "duration": 12.0,
+            "effects": {
+                "building_damage_pct": 0.30,
+                "health_damage": 25,
+                "mood_offset": -18,
+                "resource_scatter_pct": 0.20
+            },
+            "conditions": {
+                "min_population": 4,
+                "min_buildings": 2,
+                "season_weights": {"spring": 1.0, "summer": 1.0, "autumn": 1.2, "winter": 0.8},
+                "weather_boost": {},
+                "biome_weights": {"mountains": 2.5, "volcanic": 3.0, "plains": 0.8, "forest": 0.7, "swamp": 0.5, "desert": 1.0, "tundra": 0.6, "jungle": 0.6}
+            },
+            "follow_up": {"disease_id": "gut_rot", "chance": 0.15},
+            "base_weight": 1.0,
+            "cooldown": 180.0,
+            "storyteller_cost": 70.0,
+            "drama": 8,
+            "tags": ["seismic", "structural"]
+        },
+        {
+            "id": "flood",
+            "label": "Flash Flood",
+            "description": "Torrential waters sweep through low-lying areas, drowning crops and scattering supplies.",
+            "radius": 350,
+            "duration": 18.0,
+            "effects": {
+                "building_damage_pct": 0.15,
+                "health_damage": 15,
+                "mood_offset": -12,
+                "resource_scatter_pct": 0.40,
+                "farm_destruction_pct": 0.50
+            },
+            "conditions": {
+                "min_population": 3,
+                "min_buildings": 1,
+                "season_weights": {"spring": 2.0, "summer": 0.6, "autumn": 1.5, "winter": 0.3},
+                "weather_boost": {"rain": 2.0, "storm": 3.0},
+                "biome_weights": {"swamp": 3.0, "jungle": 2.0, "plains": 1.5, "forest": 1.0, "mountains": 0.3, "desert": 0.1, "tundra": 0.4}
+            },
+            "follow_up": {"disease_id": "gut_rot", "chance": 0.25},
+            "base_weight": 1.2,
+            "cooldown": 150.0,
+            "storyteller_cost": 55.0,
+            "drama": 7,
+            "tags": ["water", "erosion"]
+        },
+        {
+            "id": "wildfire",
+            "label": "Wildfire",
+            "description": "Flames race across dry terrain, consuming wooden structures and forcing praxans to flee.",
+            "radius": 400,
+            "duration": 25.0,
+            "effects": {
+                "building_damage_pct": 0.45,
+                "health_damage": 30,
+                "mood_offset": -20,
+                "resource_scatter_pct": 0.10,
+                "farm_destruction_pct": 0.70,
+                "wood_destruction_pct": 0.60
+            },
+            "conditions": {
+                "min_population": 5,
+                "min_buildings": 3,
+                "season_weights": {"spring": 0.5, "summer": 2.5, "autumn": 1.8, "winter": 0.1},
+                "weather_boost": {"drought": 3.0, "clear": 1.2},
+                "biome_weights": {"forest": 2.5, "plains": 2.0, "jungle": 1.5, "desert": 0.8, "swamp": 0.2, "tundra": 0.1, "mountains": 0.5}
+            },
+            "follow_up": {"disease_id": "grey_lung", "chance": 0.20},
+            "base_weight": 0.9,
+            "cooldown": 200.0,
+            "storyteller_cost": 80.0,
+            "drama": 9,
+            "tags": ["fire", "structural"]
+        },
+        {
+            "id": "blizzard",
+            "label": "Blizzard",
+            "description": "A howling wall of snow and ice descends, freezing exposed praxans and burying supplies.",
+            "radius": 500,
+            "duration": 30.0,
+            "effects": {
+                "building_damage_pct": 0.10,
+                "health_damage": 20,
+                "mood_offset": -15,
+                "resource_scatter_pct": 0.15,
+                "speed_penalty": 0.40
+            },
+            "conditions": {
+                "min_population": 3,
+                "min_buildings": 1,
+                "season_weights": {"spring": 0.3, "summer": 0.0, "autumn": 0.8, "winter": 3.0},
+                "weather_boost": {"storm": 2.5},
+                "biome_weights": {"tundra": 3.0, "mountains": 2.5, "taiga": 2.0, "plains": 1.0, "forest": 0.8, "swamp": 0.3, "desert": 0.0, "jungle": 0.0}
+            },
+            "follow_up": {"disease_id": "grey_lung", "chance": 0.30},
+            "base_weight": 1.0,
+            "cooldown": 160.0,
+            "storyteller_cost": 50.0,
+            "drama": 7,
+            "tags": ["cold", "exposure"]
+        },
+        {
+            "id": "toxic_bloom",
+            "label": "Toxic Bloom",
+            "description": "Poisonous spores erupt from the ground, creating a lingering miasma that sickens all who breathe it.",
+            "radius": 250,
+            "duration": 20.0,
+            "effects": {
+                "building_damage_pct": 0.0,
+                "health_damage": 35,
+                "mood_offset": -22,
+                "resource_scatter_pct": 0.0,
+                "farm_destruction_pct": 0.30
+            },
+            "conditions": {
+                "min_population": 4,
+                "min_buildings": 1,
+                "season_weights": {"spring": 1.5, "summer": 2.0, "autumn": 1.5, "winter": 0.3},
+                "weather_boost": {"rain": 1.5},
+                "biome_weights": {"swamp": 3.5, "jungle": 2.5, "forest": 1.5, "plains": 0.5, "desert": 0.2, "tundra": 0.1, "mountains": 0.3, "volcanic": 2.0}
+            },
+            "follow_up": {"disease_id": "swamp_fever", "chance": 0.40},
+            "base_weight": 0.8,
+            "cooldown": 140.0,
+            "storyteller_cost": 60.0,
+            "drama": 7,
+            "tags": ["biological", "miasma"]
+        },
+        {
+            "id": "meteor_strike",
+            "label": "Meteor Strike",
+            "description": "A blazing rock from the sky slams into the earth, leaving devastation and rare minerals in its wake.",
+            "radius": 200,
+            "duration": 5.0,
+            "effects": {
+                "building_damage_pct": 0.60,
+                "health_damage": 50,
+                "mood_offset": -25,
+                "resource_scatter_pct": 0.30,
+                "resource_bonus": {"stone": 15, "wood": 5}
+            },
+            "conditions": {
+                "min_population": 6,
+                "min_buildings": 4,
+                "season_weights": {"spring": 1.0, "summer": 1.0, "autumn": 1.0, "winter": 1.0},
+                "weather_boost": {"aurora": 2.0},
+                "biome_weights": {"plains": 1.0, "desert": 1.0, "forest": 1.0, "mountains": 1.0, "tundra": 1.0, "swamp": 1.0, "jungle": 1.0}
+            },
+            "follow_up": {},
+            "base_weight": 0.3,
+            "cooldown": 300.0,
+            "storyteller_cost": 100.0,
+            "drama": 10,
+            "tags": ["cosmic", "rare", "structural"]
+        },
+        {
+            "id": "dust_storm",
+            "label": "Dust Storm",
+            "description": "Choking clouds of sand and grit reduce visibility and clog lungs.",
+            "radius": 450,
+            "duration": 22.0,
+            "effects": {
+                "building_damage_pct": 0.05,
+                "health_damage": 12,
+                "mood_offset": -10,
+                "resource_scatter_pct": 0.25,
+                "speed_penalty": 0.30
+            },
+            "conditions": {
+                "min_population": 3,
+                "min_buildings": 1,
+                "season_weights": {"spring": 1.5, "summer": 2.0, "autumn": 1.0, "winter": 0.5},
+                "weather_boost": {"drought": 2.5, "storm": 1.5},
+                "biome_weights": {"desert": 3.5, "plains": 2.0, "volcanic": 2.0, "mountains": 0.8, "forest": 0.3, "jungle": 0.2, "swamp": 0.1, "tundra": 0.5}
+            },
+            "follow_up": {"disease_id": "grey_lung", "chance": 0.20},
+            "base_weight": 1.1,
+            "cooldown": 120.0,
+            "storyteller_cost": 40.0,
+            "drama": 6,
+            "tags": ["wind", "exposure"]
+        }
+    ]
+}

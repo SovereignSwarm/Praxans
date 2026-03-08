@@ -1,12 +1,13 @@
 import json
 import os
-import tempfile
 import unittest
 from types import SimpleNamespace
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pygame
+
+from test_tempdir import workspace_tempdir
 
 from ui.analytics import draw_end_summary, draw_modal_layer
 from ui.hud import draw_run_hud
@@ -106,7 +107,7 @@ class UIRenderSmokeTests(unittest.TestCase):
             "stored_stone": 4,
         }
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with workspace_tempdir() as temp_dir:
             archive_payload = {
                 "session_id": "session-alpha",
                 "scenario": {"name": "High Mutation"},
@@ -141,3 +142,4 @@ class UIRenderSmokeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
