@@ -159,51 +159,70 @@ class SpriteLibrary:
         recipe = palette_for_biome_and_season(biome_type, season_name)
         source = _surface((SOURCE_TILE_SIZE, SOURCE_TILE_SIZE))
         source.fill(recipe.base)
-        _px(source, recipe.light, 0, 0, SOURCE_TILE_SIZE, 2)
-        _px(source, recipe.shadow, 0, SOURCE_TILE_SIZE - 2, SOURCE_TILE_SIZE, 2)
-        _px(source, mix_color(recipe.base, recipe.shadow, 0.2), 0, SOURCE_TILE_SIZE - 1, SOURCE_TILE_SIZE, 1)
+        
+        import random
+        rng = random.Random(hash(biome_type + str(season_name)) + variant * 37)
+        
+        for _ in range(12):
+            x, y = rng.randint(0, SOURCE_TILE_SIZE - 2), rng.randint(0, SOURCE_TILE_SIZE - 2)
+            c = rng.choice([recipe.light, recipe.shadow, recipe.mid])
+            _px(source, c, x, y, rng.randint(1, 2), rng.randint(1, 2))
 
         if biome_type == "plains":
-            for x in (2, 6, 10, 13):
-                _px(source, recipe.light, x, (variant + x) % 5 + 5, 1, 2)
-                _px(source, recipe.mid, x + 1, (variant + x * 2) % 6 + 8, 1, 2)
+            for _ in range(6):
+                x, y = rng.randint(1, 13), rng.randint(2, 12)
+                _px(source, recipe.light, x, y, 1, 2)
+                _px(source, recipe.mid, x + 1, y + 1, 1, 2)
             if variant % 2 == 0:
-                _px(source, recipe.accent, 4, 10)
-                _px(source, recipe.accent, 11, 6)
+                _px(source, recipe.accent, rng.randint(2, 12), rng.randint(2, 12))
         elif biome_type == "forest":
-            for x, y in ((3, 4), (8, 3), (12, 7), (5, 11), (10, 12)):
-                _px(source, recipe.mid, x, y, 3, 2)
-                _px(source, darken(recipe.shadow, 0.06), x + 1, y + 1, 2, 2)
-            _px(source, recipe.accent, 6, 9, 2, 3)
+            for _ in range(8):
+                x, y = rng.randint(1, 12), rng.randint(1, 10)
+                _px(source, recipe.mid, x, y, rng.randint(3, 5), rng.randint(2, 4))
+                _px(source, darken(recipe.shadow, 0.06), x + 1, y + 1, 2, rng.randint(2, 3))
+                if rng.random() > 0.5:
+                    _px(source, recipe.light, x, y, 2, 1)
+            for _ in range(2):
+                x, y = rng.randint(2, 11), rng.randint(2, 11)
+                _px(source, recipe.accent, x, y, 2, 3)
         elif biome_type == "mountains":
-            pygame.draw.polygon(source, recipe.mid, [(0, 12), (4, 6), (7, 10), (10, 3), (15, 11), (15, 15), (0, 15)])
-            pygame.draw.lines(source, recipe.light, False, [(0, 12), (4, 6), (7, 10), (10, 3), (15, 11)], 1)
-            _px(source, recipe.shadow, 8, 8, 2, 5)
-            _px(source, recipe.accent, 2, 13, 3, 1)
+            for _ in range(4):
+                x = rng.randint(0, 8)
+                y = rng.randint(2, 8)
+                pygame.draw.polygon(source, recipe.mid, [(x, y + 6), (x + 4, y), (x + 8, y + 6), (x + 4, y + 8)])
+                pygame.draw.lines(source, recipe.light, False, [(x, y + 6), (x + 4, y), (x + 8, y + 6)], 1)
+                _px(source, recipe.shadow, x + 4, y + 2, 2, 4)
         elif biome_type == "desert":
-            for y in (4, 7, 10, 13):
-                pygame.draw.line(source, recipe.light, (0, y), (15, max(0, y - 2)), 1)
-            _px(source, recipe.accent, 12, 11, 2, 2)
-            _px(source, darken(recipe.shadow, 0.08), 4, 8, 1, 1)
+            for _ in range(5):
+                y = rng.randint(2, 13)
+                x = rng.randint(0, 8)
+                pygame.draw.line(source, recipe.light, (x, y), (x + rng.randint(4, 7), y - rng.randint(1, 2)), 1)
+            for _ in range(2):
+                _px(source, recipe.accent, rng.randint(2, 12), rng.randint(2, 12), 2, 2)
         elif biome_type == "snow":
-            for x, y in ((2, 5), (7, 3), (11, 8), (5, 12), (13, 13)):
-                _px(source, recipe.light, x, y, 2, 1)
-            pygame.draw.arc(source, mix_color(recipe.shadow, recipe.moisture, 0.3), (1, 8, 14, 6), 0.0, 3.14, 1)
+            for _ in range(8):
+                _px(source, recipe.light, rng.randint(1, 14), rng.randint(1, 14), 2, 1)
+            for _ in range(2):
+                pygame.draw.arc(source, mix_color(recipe.shadow, recipe.moisture, 0.3), (rng.randint(0, 6), rng.randint(2, 10), 6, 4), 0.0, 3.14, 1)
         elif biome_type == "swamp":
-            pygame.draw.ellipse(source, recipe.moisture, (2, 3, 8, 6))
-            pygame.draw.ellipse(source, darken(recipe.moisture, 0.12), (7, 8, 7, 4))
-            for x in (3, 6, 11):
-                _px(source, recipe.accent, x, 12, 1, 3)
+            for _ in range(3):
+                pygame.draw.ellipse(source, recipe.moisture, (rng.randint(1, 8), rng.randint(1, 8), rng.randint(4, 7), rng.randint(3, 5)))
+            for _ in range(4):
+                _px(source, recipe.accent, rng.randint(2, 13), rng.randint(2, 13), 1, rng.randint(2, 4))
         elif biome_type == "taiga":
-            for x, y in ((3, 5), (7, 3), (12, 6)):
-                pygame.draw.polygon(source, recipe.mid, [(x, y + 4), (x + 2, y), (x + 4, y + 4)])
-                _px(source, recipe.light, x + 2, y + 1, 1, 2)
-            _px(source, recipe.shadow, 1, 12, 14, 2)
+            for _ in range(6):
+                x, y = rng.randint(1, 10), rng.randint(1, 10)
+                pygame.draw.polygon(source, recipe.mid, [(x, y + 5), (x + 2, y), (x + 4, y + 5)])
+                _px(source, recipe.light, x + 2, y + 1, 1, 3)
+            for _ in range(2):
+                _px(source, recipe.shadow, rng.randint(1, 6), rng.randint(8, 13), rng.randint(4, 8), 2)
         elif biome_type == "tundra":
-            pygame.draw.line(source, recipe.light, (2, 4), (6, 8), 1)
-            pygame.draw.line(source, recipe.light, (8, 10), (13, 6), 1)
-            _px(source, recipe.accent, 4, 12, 2, 1)
-            _px(source, recipe.moisture, 11, 12, 2, 1)
+            for _ in range(4):
+                x = rng.randint(1, 8)
+                y = rng.randint(2, 10)
+                pygame.draw.line(source, recipe.light, (x, y), (x + 4, y + rng.randint(-2, 2)), 1)
+            for _ in range(3):
+                _px(source, recipe.accent, rng.randint(2, 13), rng.randint(2, 13), 2, 1)
 
         return source
 
@@ -233,28 +252,34 @@ class SpriteLibrary:
         if file_surface is not None:
             self._cache[cache_key] = file_surface
             return file_surface
+            
         source = _surface((SOURCE_TILE_SIZE, SOURCE_TILE_SIZE))
         target_recipe = palette_for_biome_and_season(target_biome, season_name)
-        band = 3
-        if edge == "north":
-            _px(source, _alpha(target_recipe.mid, 150), 0, 0, SOURCE_TILE_SIZE, band)
-            _px(source, _alpha(target_recipe.light, 110), 0, band, SOURCE_TILE_SIZE, 1)
-        elif edge == "south":
-            _px(source, _alpha(target_recipe.shadow, 150), 0, SOURCE_TILE_SIZE - band, SOURCE_TILE_SIZE, band)
-            _px(source, _alpha(target_recipe.mid, 120), 0, SOURCE_TILE_SIZE - band - 1, SOURCE_TILE_SIZE, 1)
-        elif edge == "west":
-            _px(source, _alpha(target_recipe.mid, 150), 0, 0, band, SOURCE_TILE_SIZE)
-            _px(source, _alpha(target_recipe.light, 110), band, 0, 1, SOURCE_TILE_SIZE)
-        elif edge == "east":
-            _px(source, _alpha(target_recipe.shadow, 150), SOURCE_TILE_SIZE - band, 0, band, SOURCE_TILE_SIZE)
-            _px(source, _alpha(target_recipe.mid, 110), SOURCE_TILE_SIZE - band - 1, 0, 1, SOURCE_TILE_SIZE)
+        import random
+        rng = random.Random(hash(source_biome + target_biome + edge))
+        
+        for i in range(SOURCE_TILE_SIZE):
+            depth = rng.randint(2, 5)
+            if target_biome in {"desert", "snow", "water", "swamp"}:
+                depth += rng.randint(0, 2)
+            for d in range(depth):
+                alpha = 200 - (d * 30)
+                color = _alpha(target_recipe.mid if d > depth // 2 else target_recipe.shadow, max(0, alpha))
+                light = _alpha(target_recipe.light, max(0, alpha - 40))
+                
+                if edge == "north":
+                    _px(source, color, i, d, 1, 1)
+                    if d == depth - 1: _px(source, light, i, d + 1, 1, 1)
+                elif edge == "south":
+                    _px(source, color, i, SOURCE_TILE_SIZE - 1 - d, 1, 1)
+                    if d == depth - 1: _px(source, light, i, SOURCE_TILE_SIZE - 2 - d, 1, 1)
+                elif edge == "west":
+                    _px(source, color, d, i, 1, 1)
+                    if d == depth - 1: _px(source, light, d + 1, i, 1, 1)
+                elif edge == "east":
+                    _px(source, color, SOURCE_TILE_SIZE - 1 - d, i, 1, 1)
+                    if d == depth - 1: _px(source, light, SOURCE_TILE_SIZE - 2 - d, i, 1, 1)
 
-        if target_biome in {"swamp", "snow", "desert", "mountains"}:
-            for offset in range(0, SOURCE_TILE_SIZE, 4):
-                if edge in {"north", "south"}:
-                    _px(source, _alpha(target_recipe.accent, 115), offset, 1 if edge == "north" else SOURCE_TILE_SIZE - 2, 2, 1)
-                else:
-                    _px(source, _alpha(target_recipe.accent, 115), 1 if edge == "west" else SOURCE_TILE_SIZE - 2, offset, 1, 2)
         self._cache[cache_key] = _scale(source, (tile_size, tile_size))
         return self._cache[cache_key]
 

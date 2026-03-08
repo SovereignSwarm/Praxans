@@ -104,11 +104,13 @@ class ChunkState:
     world_x: int
     world_y: int
     tiles: dict[tuple[int, int], str]
-    biome_mix: dict[str, float]
-    elevation_avg: float
-    moisture_avg: float
-    temperature_avg: float
-    region_id: str
+    elevations: dict[tuple[int, int], float] = field(default_factory=dict)
+    moistures: dict[tuple[int, int], float] = field(default_factory=dict)
+    biome_mix: dict[str, float] = field(default_factory=dict)
+    elevation_avg: float = 0.0
+    moisture_avg: float = 0.0
+    temperature_avg: float = 0.0
+    region_id: str = ""
     water_tiles: tuple[tuple[int, int], ...] = field(default_factory=tuple)
     river_tiles: tuple[tuple[int, int], ...] = field(default_factory=tuple)
 

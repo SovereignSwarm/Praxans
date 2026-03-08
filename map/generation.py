@@ -453,6 +453,8 @@ def _chunk_tiles(seed: int, profile: WorldProfile, chunk_x: int, chunk_y: int, r
     region = regions[f"r{region_col}_{region_row}"]
     biome_mix_counter: Counter[str] = Counter()
     tiles: dict[tuple[int, int], str] = {}
+    elevations: dict[tuple[int, int], float] = {}
+    moistures: dict[tuple[int, int], float] = {}
     water_tiles: list[tuple[int, int]] = []
     river_tiles: list[tuple[int, int]] = []
 
@@ -465,16 +467,45 @@ def _chunk_tiles(seed: int, profile: WorldProfile, chunk_x: int, chunk_y: int, r
             local_elevation = _clamp(region.elevation + (_fractal_noise(nx * 9.0, ny * 9.0, seed + 701, octaves=3, gain=0.52) * 0.14), 0.0, 1.0)
             local_temperature = _clamp(region.temperature + (_fractal_noise(nx * 7.0, ny * 7.0, seed + 719, octaves=2, gain=0.5) * 0.08), 0.0, 1.0)
             local_moisture = _clamp(region.moisture + (_fractal_noise(nx * 8.0, ny * 8.0, seed + 733, octaves=3, gain=0.5) * 0.1), 0.0, 1.0)
+            elevations[(tile_x, tile_y)] = local_elevation
+            moistures[(tile_x, tile_y)] = local_moisture
+            
             distance_to_river_sq = min((_distance_squared_to_polyline(sample_world_x, sample_world_y, path) for path in river_paths), default=999999999.0)
             river_here = distance_to_river_sq <= (profile.tile_size * 1.4) ** 2
             coastal_here = local_elevation < 0.38
             biome = _pick_biome(local_elevation, local_temperature, local_moisture + (0.16 if river_here else 0.0), coastal_here, river_here)
             tiles[(tile_x, tile_y)] = biome
-            biome_mix_counter[biome] += 1
+            
             if coastal_here or (river_here and biome not in {"desert", "mountains"}):
                 water_tiles.append((tile_x, tile_y))
             if river_here:
                 river_tiles.append((tile_x, tile_y))
+
+    # Cellular Automata smoothing pass to reduce standalone noise speckles
+    water_set = set(water_tiles)
+    river_set = set(river_tiles)
+    for _ in range(2):
+        new_tiles = {}
+        for (tx, ty), biome in tiles.items():
+            if (tx, ty) in water_set or (tx, ty) in river_set or biome == "mountains":
+                new_tiles[(tx, ty)] = biome
+                continue
+                
+            counts = Counter()
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    nb = tiles.get((tx + dx, ty + dy), biome)
+                    counts[nb] += 1
+                    
+            most_common = counts.most_common(1)[0][0]
+            if counts[most_common] >= 5:
+                new_tiles[(tx, ty)] = most_common
+            else:
+                new_tiles[(tx, ty)] = biome
+        tiles = new_tiles
+
+    for biome in tiles.values():
+        biome_mix_counter[biome] += 1
 
     total_tiles = float(max(1, tiles_per_chunk * tiles_per_chunk))
     biome_mix = {biome: round(count / total_tiles, 4) for biome, count in biome_mix_counter.items()}
@@ -484,6 +515,8 @@ def _chunk_tiles(seed: int, profile: WorldProfile, chunk_x: int, chunk_y: int, r
         world_x=world_x,
         world_y=world_y,
         tiles=tiles,
+        elevations=elevations,
+        moistures=moistures,
         biome_mix=biome_mix,
         elevation_avg=region.elevation,
         moisture_avg=region.moisture,
