@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import pygame
 
 from graphics import GraphicsConfig, SceneRenderer, build_render_frame
-from graphics.content import building_origin_to_anchor, building_world_rect
+from graphics.content import building_lot_world_rect, building_origin_to_anchor, building_world_rect
 from graphics.sprites import SpriteLibrary
 
 
@@ -73,6 +73,11 @@ class _DummyBuilding(_DummyEntity):
         self.occupants = list(occupants or [])
         self.aura_strength = aura_strength
         self.built_by = built_by
+        self.origin_biome = "forest"
+        self.material_style = "timber"
+        self.wear = 0.18
+        self.construction_progress = 1.0
+        self.built_at = 0.0
 
     def draw(self, surface):
         pygame.draw.rect(surface, (180, 120, 80), (int(self.x - 6), int(self.y - 6), 12, 12))
@@ -307,10 +312,28 @@ class GraphicsRendererTests(unittest.TestCase):
             )
             self.assertEqual(sprite.get_size(), (48, 48))
 
+    def test_building_lot_sprite_supports_parcel_overlays(self):
+        library = SpriteLibrary(os.path.join(os.path.dirname(__file__), "..", "assets"))
+        sprite = library.get_building_lot_sprite(
+            building_type="market",
+            variant_id=5,
+            district_identity="civic",
+            prosperity_score=0.78,
+            material_style="plaster",
+            biome_type="desert",
+            construction_progress=0.64,
+            wear=0.22,
+            occupancy_ratio=0.5,
+            target_size=(56, 40),
+        )
+        self.assertEqual(sprite.get_size(), (56, 40))
+        self.assertGreater(sprite.get_bounding_rect().width, 0)
+
     def test_building_geometry_helpers_align_rect_with_anchor(self):
         anchor_x, anchor_y = building_origin_to_anchor(64.0, 128.0, "workshop", 32)
         self.assertEqual((anchor_x, anchor_y), (112.0, 160.0))
         self.assertEqual(building_world_rect(anchor_x, anchor_y, "workshop", 32), (64.0, 128.0, 160.0, 192.0))
+        self.assertEqual(building_lot_world_rect(anchor_x, anchor_y, "workshop", 32), (32.0, 96.0, 192.0, 224.0))
 
 
     def test_scene_renderer_tiny_tiles_with_water_do_not_crash(self):

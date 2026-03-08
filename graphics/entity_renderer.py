@@ -4,8 +4,7 @@ import math
 
 import pygame
 
-from graphics.content import ANIMATION_TIMINGS, snap_zoom_level
-from graphics.content import get_building_recipe
+from graphics.content import ANIMATION_TIMINGS, building_lot_world_rect, get_building_recipe, snap_zoom_level
 from graphics.palette import HAZARD_COLORS, NPC_COLORS, doctrine_color, lighten
 
 
@@ -61,27 +60,52 @@ class EntityRenderer:
                     biome_type = None
             if biome_type is None:
                 biome_type = getattr(building, "origin_biome", None)
+            district_identity = str(frame.world.settlement_state.get("district_identity", "homestead"))
+            prosperity_score = float(frame.world.settlement_state.get("prosperity_score", 0.0) or 0.0)
+            material_style = str(getattr(building, "material_style", "") or "")
+            construction_progress = float(getattr(building, "construction_progress", 1.0) or 1.0)
+            wear = float(getattr(building, "wear", 0.0) or 0.0)
+            building_age = max(0.0, frame.world.current_time - float(getattr(building, "built_at", frame.world.current_time) or frame.world.current_time))
             target_size = (
                 max(28, int((22 + recipe.grid_width * 10) * zoom)),
                 max(28, int((22 + recipe.grid_height * 10 + (10 if recipe.silhouette == "tower" else 0)) * zoom)),
             )
             occupancy = len(getattr(building, "occupants", []) or []) / max(1, 2 + max(0, int(getattr(building, "level", 1)) - 1))
+            lot_rect = building_lot_world_rect(building.x, building.y, str(getattr(building, "building_type", "house")), frame.world.tile_size)
+            lot_size = (
+                max(14, int((lot_rect[2] - lot_rect[0]) * zoom)),
+                max(14, int((lot_rect[3] - lot_rect[1]) * zoom)),
+            )
             sprite = self.sprite_library.get_building_sprite(
                 building_type=str(getattr(building, "building_type", "house")),
                 level=int(getattr(building, "level", 1) or 1),
                 active=active,
                 occupancy_ratio=occupancy,
                 variant_id=entity_state.variant_id,
-                district_identity=str(frame.world.settlement_state.get("district_identity", "homestead")),
-                prosperity_score=float(frame.world.settlement_state.get("prosperity_score", 0.0) or 0.0),
-                material_style=str(getattr(building, "material_style", "") or ""),
+                district_identity=district_identity,
+                prosperity_score=prosperity_score,
+                material_style=material_style,
                 biome_type=str(biome_type or ""),
-                construction_progress=float(getattr(building, "construction_progress", 1.0) or 1.0),
-                wear=float(getattr(building, "wear", 0.0) or 0.0),
-                building_age=max(0.0, frame.world.current_time - float(getattr(building, "built_at", frame.world.current_time) or frame.world.current_time)),
+                construction_progress=construction_progress,
+                wear=wear,
+                building_age=building_age,
                 target_size=target_size,
             )
             screen_x, screen_y = self._screen_point(frame, building.x, building.y)
+            if lot_size[0] >= 10 and lot_size[1] >= 10:
+                lot_sprite = self.sprite_library.get_building_lot_sprite(
+                    building_type=str(getattr(building, "building_type", "house")),
+                    variant_id=entity_state.variant_id,
+                    district_identity=district_identity,
+                    prosperity_score=prosperity_score,
+                    material_style=material_style,
+                    biome_type=str(biome_type or ""),
+                    construction_progress=construction_progress,
+                    wear=wear,
+                    occupancy_ratio=occupancy,
+                    target_size=lot_size,
+                )
+                surface.blit(lot_sprite, (screen_x - lot_sprite.get_width() // 2, screen_y - lot_sprite.get_height() // 2))
             surface.blit(sprite, (screen_x - sprite.get_width() // 2, screen_y - int(sprite.get_height() * 0.62)))
             if entity_state.selected:
                 self._draw_selection_ring(surface, frame, entity_state, max(16, int(18 * zoom)))

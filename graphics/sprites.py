@@ -16,7 +16,9 @@ from graphics.content import (
     SOURCE_PRAXAN_SIZE,
     SOURCE_TILE_SIZE,
     TILE_ATLASES,
+    building_lot_tile_span,
     get_building_recipe,
+    get_building_lot_profile,
     get_zone_overlay_type,
     palette_for_biome_and_season,
 )
@@ -348,6 +350,338 @@ class SpriteLibrary:
             for plank_y in range(scaffold_y + 4, height - 2, max(5, height // 6)):
                 pygame.draw.line(overlayed, (*scaffold, 120), (3, plank_y), (width - 3, plank_y), 1)
         return overlayed
+
+    def _draw_building_lot_fence(
+        self,
+        surface: pygame.Surface,
+        *,
+        fence_style: str,
+        base_color: tuple[int, int, int],
+        accent_color: tuple[int, int, int],
+    ) -> None:
+        if fence_style == "open":
+            return
+        width, height = surface.get_size()
+        left, top = 2, 2
+        right, bottom = width - 3, height - 3
+        gate_half = max(4, width // 10)
+        gate_min = max(left + 3, width // 2 - gate_half)
+        gate_max = min(right - 3, width // 2 + gate_half)
+        if fence_style == "hedge":
+            hedge = mix_color(base_color, (94, 132, 86), 0.42)
+            for x in range(left, right, max(4, width // 8)):
+                if gate_min <= x <= gate_max:
+                    continue
+                pygame.draw.rect(surface, (*hedge, 200), (x, top, max(3, width // 10), 2), border_radius=1)
+                pygame.draw.rect(surface, (*hedge, 200), (x, bottom - 1, max(3, width // 10), 2), border_radius=1)
+            for y in range(top + 2, bottom - 1, max(4, height // 7)):
+                pygame.draw.rect(surface, (*hedge, 200), (left, y, 2, max(3, height // 10)), border_radius=1)
+                pygame.draw.rect(surface, (*hedge, 200), (right - 1, y, 2, max(3, height // 10)), border_radius=1)
+            return
+        if fence_style == "low_stone":
+            stone = mix_color(base_color, (156, 154, 146), 0.28)
+            for x in range(left, right, max(4, width // 9)):
+                if gate_min <= x <= gate_max:
+                    continue
+                pygame.draw.rect(surface, (*stone, 200), (x, top, max(3, width // 11), 2))
+                pygame.draw.rect(surface, (*stone, 200), (x, bottom - 1, max(3, width // 11), 2))
+            for y in range(top + 2, bottom - 1, max(4, height // 8)):
+                pygame.draw.rect(surface, (*stone, 200), (left, y, 2, max(3, height // 11)))
+                pygame.draw.rect(surface, (*stone, 200), (right - 1, y, 2, max(3, height // 11)))
+            return
+        if fence_style == "palisade":
+            stake = darken(base_color, 0.08)
+            for x in range(left, right, max(3, width // 12)):
+                if gate_min <= x <= gate_max:
+                    continue
+                pygame.draw.line(surface, (*stake, 210), (x, top), (x, top + 4), 1)
+                pygame.draw.line(surface, (*stake, 210), (x, bottom - 4), (x, bottom), 1)
+            pygame.draw.line(surface, (*accent_color, 150), (left, top + 3), (right, top + 3), 1)
+            pygame.draw.line(surface, (*accent_color, 150), (left, bottom - 3), (right, bottom - 3), 1)
+            pygame.draw.line(surface, (*accent_color, 150), (left + 3, top), (left + 3, bottom), 1)
+            pygame.draw.line(surface, (*accent_color, 150), (right - 3, top), (right - 3, bottom), 1)
+            return
+        rail = darken(base_color, 0.06)
+        for x in range(left, right, max(4, width // 9)):
+            if gate_min <= x <= gate_max:
+                continue
+            pygame.draw.line(surface, (*rail, 200), (x, top), (x, top + 3), 1)
+            pygame.draw.line(surface, (*rail, 200), (x, bottom - 3), (x, bottom), 1)
+        pygame.draw.line(surface, (*accent_color, 140), (left, top + 2), (right, top + 2), 1)
+        pygame.draw.line(surface, (*accent_color, 140), (left, bottom - 2), (gate_min, bottom - 2), 1)
+        pygame.draw.line(surface, (*accent_color, 140), (gate_max, bottom - 2), (right, bottom - 2), 1)
+        pygame.draw.line(surface, (*accent_color, 140), (left + 2, top), (left + 2, bottom), 1)
+        pygame.draw.line(surface, (*accent_color, 140), (right - 2, top), (right - 2, bottom), 1)
+
+    def _draw_building_lot_attachment(
+        self,
+        surface: pygame.Surface,
+        *,
+        attachment: str,
+        index: int,
+        variant_id: int,
+        wall_color: tuple[int, int, int],
+        trim_color: tuple[int, int, int],
+        accent_color: tuple[int, int, int],
+        foliage_color: tuple[int, int, int],
+        prosperity_score: float,
+        occupancy_ratio: float,
+    ) -> None:
+        width, height = surface.get_size()
+        base_x = 4 + ((variant_id * 7) + index * 11) % max(6, width - 12)
+        base_y = max(4, height // 2 + ((variant_id + index * 3) % max(3, height // 4)))
+        if attachment == "shed":
+            body = pygame.Rect(base_x, max(4, height // 3), max(7, width // 6), max(5, height // 5))
+            roof = [(body.left, body.top), (body.centerx, body.top - 3), (body.right, body.top)]
+            pygame.draw.polygon(surface, darken(trim_color, 0.08), roof)
+            pygame.draw.rect(surface, (*wall_color, 190), body)
+        elif attachment == "laundry" and occupancy_ratio > 0.0:
+            pole_y = max(4, height // 3)
+            pygame.draw.line(surface, (*trim_color, 180), (base_x, pole_y), (base_x + max(8, width // 6), pole_y + 1), 1)
+            for offset in (2, 5, 8):
+                cloth = mix_color(accent_color, (226, 214, 178), 0.2 + offset * 0.01)
+                pygame.draw.rect(surface, (*cloth, 170), (base_x + offset, pole_y + 1, 2, 3))
+        elif attachment == "crates":
+            crate = mix_color(trim_color, (138, 102, 72), 0.18)
+            for offset in (0, 4):
+                pygame.draw.rect(surface, (*crate, 190), (base_x + offset, min(height - 6, base_y), 3, 3))
+        elif attachment == "lean_to":
+            pygame.draw.polygon(
+                surface,
+                (*darken(trim_color, 0.08), 180),
+                [(base_x, base_y), (base_x + 7, base_y - 4), (base_x + 10, base_y)],
+            )
+            pygame.draw.line(surface, (*wall_color, 170), (base_x + 1, base_y), (base_x + 1, min(height - 2, base_y + 4)), 1)
+            pygame.draw.line(surface, (*wall_color, 170), (base_x + 8, base_y), (base_x + 8, min(height - 2, base_y + 4)), 1)
+        elif attachment == "hay":
+            pygame.draw.ellipse(surface, (*mix_color(accent_color, (192, 170, 94), 0.28), 190), (base_x, base_y, 6, 4))
+        elif attachment == "trough":
+            pygame.draw.rect(surface, (*trim_color, 180), (base_x, base_y, max(6, width // 7), 2))
+            pygame.draw.rect(surface, (*accent_color, 160), (base_x + 1, base_y + 1, max(4, width // 8), 1))
+        elif attachment == "forge_stack":
+            pygame.draw.rect(surface, (*trim_color, 190), (base_x, max(3, height // 4 - 6), 3, 7))
+            pygame.draw.circle(surface, (*accent_color, 170), (base_x + 1, max(2, height // 4 - 1)), 2)
+        elif attachment == "lanterns":
+            for offset in (0, 6):
+                pygame.draw.circle(surface, (*lighten(accent_color, 0.14), 180), (base_x + offset, max(4, height // 4)), 2)
+        elif attachment == "stones":
+            stone = mix_color(trim_color, (158, 156, 148), 0.34)
+            for offset in (0, 5, 9):
+                pygame.draw.ellipse(surface, (*stone, 180), (base_x + offset, min(height - 5, base_y + offset // 4), 4, 2))
+        elif attachment == "buckets":
+            for offset in (0, 5):
+                pygame.draw.circle(surface, (*accent_color, 170), (base_x + offset, min(height - 4, base_y)), 2)
+                pygame.draw.line(surface, (*trim_color, 160), (base_x + offset - 1, min(height - 4, base_y - 2)), (base_x + offset + 1, min(height - 4, base_y - 2)), 1)
+        elif attachment == "herbs":
+            bed = mix_color(foliage_color, accent_color, 0.12)
+            for offset in (0, 6):
+                pygame.draw.rect(surface, (*darken(trim_color, 0.08), 150), (base_x + offset, base_y, 4, 3))
+                pygame.draw.rect(surface, (*bed, 180), (base_x + offset, base_y - 1, 4, 2))
+        elif attachment == "beds":
+            for offset in (0, 7):
+                frame = pygame.Rect(base_x + offset, max(4, base_y - 2), 5, 3)
+                pygame.draw.rect(surface, (*trim_color, 170), frame, 1)
+                pygame.draw.rect(surface, (*lighten(wall_color, 0.2), 150), frame.inflate(-2, -1))
+        elif attachment == "bench":
+            pygame.draw.line(surface, (*trim_color, 180), (base_x, base_y), (base_x + 8, base_y), 2)
+            pygame.draw.line(surface, (*trim_color, 150), (base_x + 1, base_y), (base_x + 1, base_y + 3), 1)
+            pygame.draw.line(surface, (*trim_color, 150), (base_x + 7, base_y), (base_x + 7, base_y + 3), 1)
+        elif attachment == "tree":
+            pygame.draw.rect(surface, (*trim_color, 170), (base_x + 2, max(4, base_y - 2), 2, 5))
+            pygame.draw.circle(surface, (*foliage_color, 190), (base_x + 3, max(4, base_y - 3)), 4)
+        elif attachment == "fire":
+            ember = mix_color(accent_color, (244, 160, 92), 0.36)
+            pygame.draw.circle(surface, (*ember, 190), (base_x + 2, base_y), 3)
+            pygame.draw.line(surface, (*trim_color, 170), (base_x - 1, base_y + 2), (base_x + 5, base_y - 1), 1)
+            pygame.draw.line(surface, (*trim_color, 170), (base_x - 1, base_y - 1), (base_x + 5, base_y + 2), 1)
+        elif attachment == "stalls":
+            awning = mix_color(accent_color, wall_color, 0.1)
+            span = max(10, width // 4)
+            for offset in (0, span + 2):
+                pygame.draw.rect(surface, (*trim_color, 160), (base_x + offset, base_y, span, 2))
+                for stripe in range(3):
+                    stripe_color = awning if stripe % 2 == 0 else lighten(awning, 0.22)
+                    pygame.draw.rect(surface, (*stripe_color, 180), (base_x + offset + stripe * max(2, span // 3), base_y - 3, max(2, span // 3), 3))
+        elif attachment == "awning":
+            awning = mix_color(accent_color, (236, 216, 174), 0.14)
+            top = max(4, height // 3)
+            pygame.draw.rect(surface, (*trim_color, 155), (base_x, top, max(10, width // 4), 2))
+            for stripe in range(4):
+                shade = awning if stripe % 2 == 0 else lighten(awning, 0.24)
+                pygame.draw.rect(surface, (*shade, 170), (base_x + stripe * 3, top - 4, 3, 4))
+        if prosperity_score > 0.7 and attachment in {"garden", "tree", "herbs", "stalls"}:
+            pygame.draw.circle(surface, (*lighten(accent_color, 0.2), 140), (min(width - 4, base_x + 3), max(4, base_y - 4)), 2)
+
+    def _building_lot_source(
+        self,
+        *,
+        building_type: str,
+        variant_id: int,
+        district_identity: str,
+        prosperity_score: float,
+        material_style: str,
+        biome_type: str,
+        construction_progress: float,
+        wear: float,
+        occupancy_ratio: float,
+    ) -> pygame.Surface:
+        recipe = get_building_recipe(building_type)
+        lot_profile = get_building_lot_profile(building_type)
+        lot_tiles_w, lot_tiles_h = building_lot_tile_span(building_type)
+        width = max(24, lot_tiles_w * SOURCE_TILE_SIZE)
+        height = max(24, lot_tiles_h * SOURCE_TILE_SIZE)
+        source = _surface((width, height))
+        district_accent, district_style = self._district_building_palette(district_identity)
+        material_colors = self._materialized_building_colors(
+            recipe,
+            material_style=material_style,
+            biome_type=biome_type,
+            wear=wear,
+        )
+        wall = material_colors["wall"]
+        trim = material_colors["trim"]
+        accent = material_colors["accent"]
+        ground = mix_color(wall, district_accent, 0.16)
+        path = mix_color(trim, district_accent, 0.1)
+        foliage = mix_color(district_accent, (102, 142, 88), 0.42)
+        if biome_type == "desert":
+            ground = mix_color(ground, (196, 168, 118), 0.22)
+            foliage = mix_color(foliage, (166, 150, 94), 0.28)
+        elif biome_type in {"snow", "tundra"}:
+            ground = mix_color(ground, (202, 210, 220), 0.3)
+        elif biome_type == "swamp":
+            ground = mix_color(ground, (112, 124, 102), 0.24)
+        parcel = pygame.Rect(2, 2, width - 4, height - 4)
+        inner = parcel.inflate(-6, -6)
+        pygame.draw.ellipse(source, (*darken(ground, 0.2), 56), parcel.inflate(-2, -4))
+        if lot_profile.ground_style == "field":
+            pygame.draw.rect(source, (*mix_color(ground, (148, 122, 84), 0.22), 188), parcel, border_radius=3)
+            for x in range(inner.left, inner.right, max(5, width // 10)):
+                pygame.draw.line(source, (*darken(accent, 0.18), 128), (x, inner.top), (x, inner.bottom), 1)
+        elif lot_profile.ground_style == "precinct":
+            pygame.draw.rect(source, (*lighten(ground, 0.06), 176), parcel, border_radius=5)
+            tile = mix_color(path, (194, 190, 178), 0.2)
+            for x in range(inner.left, inner.right, max(5, width // 9)):
+                pygame.draw.line(source, (*tile, 120), (x, inner.top), (x, inner.bottom), 1)
+            for y in range(inner.top, inner.bottom, max(5, height // 8)):
+                pygame.draw.line(source, (*tile, 120), (inner.left, y), (inner.right, y), 1)
+            pygame.draw.circle(source, (*lighten(accent, 0.18), 110), parcel.center, max(4, min(width, height) // 7), 1)
+        elif lot_profile.ground_style == "bazaar":
+            pygame.draw.rect(source, (*mix_color(ground, accent, 0.08), 184), parcel, border_radius=4)
+            rug = mix_color(accent, district_accent, 0.14)
+            for y in range(inner.top + 2, inner.bottom, max(5, height // 7)):
+                pygame.draw.rect(source, (*(rug if (y // 2) % 2 == 0 else lighten(rug, 0.16)), 88), (inner.left, y, inner.width, 2))
+        else:
+            pygame.draw.rect(source, (*lighten(ground, 0.04), 180), parcel, border_radius=5)
+            if lot_profile.ground_style in {"garden", "courtyard", "commons", "watch_post"}:
+                path_width = max(5, width // 7)
+                path_rect = pygame.Rect(width // 2 - path_width // 2, height // 2, path_width, max(6, height // 2 - 4))
+                pygame.draw.rect(source, (*path, 110), path_rect, border_radius=2)
+            if lot_profile.ground_style in {"garden", "yard", "commons"}:
+                for index in range(3 + (variant_id % 2)):
+                    patch_x = 5 + ((variant_id + index * 5) * 9) % max(6, width - 14)
+                    patch_y = 5 + ((variant_id + index * 3) * 7) % max(6, height - 14)
+                    pygame.draw.ellipse(source, (*foliage, 96), (patch_x, patch_y, 7, 4))
+            if lot_profile.ground_style == "watch_post":
+                ring = mix_color(trim, (164, 124, 84), 0.18)
+                pygame.draw.arc(source, (*ring, 130), (inner.left, inner.top + 3, inner.width, inner.height - 6), 0.0, 3.14, 1)
+
+        if district_style == "furrows" and lot_profile.ground_style != "field":
+            for x in range(inner.left, inner.right, max(6, width // 10)):
+                pygame.draw.line(source, (*district_accent, 48), (x, inner.top), (x, inner.bottom), 1)
+        elif district_style == "ring":
+            pygame.draw.circle(source, (*district_accent, 52), parcel.center, max(4, min(width, height) // 4), 1)
+
+        self._draw_building_lot_fence(
+            source,
+            fence_style=lot_profile.fence_style,
+            base_color=trim,
+            accent_color=district_accent,
+        )
+
+        for index, attachment in enumerate(lot_profile.attachments):
+            self._draw_building_lot_attachment(
+                source,
+                attachment=attachment,
+                index=index,
+                variant_id=variant_id,
+                wall_color=wall,
+                trim_color=trim,
+                accent_color=accent,
+                foliage_color=foliage,
+                prosperity_score=prosperity_score,
+                occupancy_ratio=occupancy_ratio,
+            )
+
+        if prosperity_score > 0.62 and construction_progress >= 0.995:
+            flower = mix_color(district_accent, (238, 210, 148), 0.22)
+            for index in range(2 + (variant_id % 3)):
+                bloom_x = 6 + ((variant_id + index * 4) * 7) % max(6, width - 12)
+                bloom_y = max(height // 2, height - 10 - (index % 2) * 3)
+                pygame.draw.circle(source, (*flower, 140), (bloom_x, bloom_y), 2)
+        if wear > 0.2:
+            bare = mix_color(ground, (110, 92, 76), min(0.34, wear * 0.4))
+            for index in range(max(1, min(4, int(wear * 6)))):
+                patch_x = 5 + ((variant_id + index) * 11) % max(6, width - 12)
+                patch_y = 5 + ((variant_id + index * 2) * 5) % max(6, height - 12)
+                pygame.draw.ellipse(source, (*bare, 100), (patch_x, patch_y, 6, 4))
+        progress = max(0.0, min(1.0, construction_progress))
+        if progress < 0.995:
+            trench = mix_color(trim, (122, 92, 66), 0.24)
+            coverage = pygame.Surface((width, height), pygame.SRCALPHA)
+            coverage.fill((70, 56, 42, 42))
+            source.blit(coverage, (0, 0))
+            for x in range(inner.left, inner.right, max(5, width // 9)):
+                pygame.draw.line(source, (*trench, 165), (x, inner.top + 2), (x + 2, inner.bottom - 2), 1)
+            for offset in (0, max(6, width // 6)):
+                pile_x = max(4, width // 2 - width // 8 + offset - max(6, width // 8))
+                pygame.draw.ellipse(source, (*mix_color(accent, trim, 0.22), 180), (pile_x, height - 8, max(6, width // 8), 4))
+        return source
+
+    def get_building_lot_sprite(
+        self,
+        *,
+        building_type: str,
+        variant_id: int,
+        district_identity: str,
+        prosperity_score: float,
+        material_style: str,
+        biome_type: str,
+        construction_progress: float,
+        wear: float,
+        occupancy_ratio: float,
+        target_size: tuple[int, int],
+    ) -> pygame.Surface:
+        progress_bucket = int(round(max(0.0, min(1.0, construction_progress)) * 20))
+        wear_bucket = int(round(max(0.0, min(1.0, wear)) * 10))
+        cache_key = (
+            "building_lot",
+            building_type,
+            variant_id,
+            district_identity,
+            round(prosperity_score, 2),
+            str(material_style or ""),
+            str(biome_type or ""),
+            progress_bucket,
+            wear_bucket,
+            round(occupancy_ratio, 2),
+            target_size,
+        )
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        source = self._building_lot_source(
+            building_type=building_type,
+            variant_id=variant_id,
+            district_identity=district_identity,
+            prosperity_score=prosperity_score,
+            material_style=material_style,
+            biome_type=biome_type,
+            construction_progress=construction_progress,
+            wear=wear,
+            occupancy_ratio=occupancy_ratio,
+        )
+        self._cache[cache_key] = _scale(source, target_size)
+        return self._cache[cache_key]
 
     def _apply_resource_state_overlays(self, sprite: pygame.Surface, *, depleted: bool) -> pygame.Surface:
         if not depleted:

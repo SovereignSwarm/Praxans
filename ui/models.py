@@ -5,12 +5,78 @@ from typing import Any
 import os
 
 
+import subprocess
+
+def get_git_changes(limit: int = 20) -> dict[str, Any] | None:
+    try:
+        result = subprocess.run(
+            ['git', 'log', f'--pretty=format:%s', '-n', str(limit)],
+            cwd=os.path.dirname(__file__),
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        commits = result.stdout.strip().split('\n')
+        if not commits or not commits[0]:
+            return None
+            
+        categories = {
+            "Added": [],
+            "Changed": [],
+            "Fixed": [],
+            "Internal": []
+        }
+        
+        for msg in commits:
+            msg = msg.strip()
+            if not msg:
+                continue
+                
+            lower_msg = msg.lower()
+            if lower_msg.startswith("feat"):
+                target = "Added"
+            elif lower_msg.startswith("fix"):
+                target = "Fixed"
+            elif lower_msg.startswith("refactor") or lower_msg.startswith("perf") or lower_msg.startswith("style"):
+                target = "Changed"
+            else:
+                # Merge docs, test, build, ci, chore into Internal
+                target = "Internal"
+                
+            if ":" in msg and " " not in msg.split(":")[0]:
+                msg = msg.split(":", 1)[1].strip()
+                
+            if msg:
+                msg = msg[0].upper() + msg[1:]
+                
+            if msg not in categories[target]:
+                categories[target].append(msg)
+                
+        clean_categories = {k: v for k, v in categories.items() if v}
+        
+        if clean_categories:
+            return {
+                "version": "Latest System Activity (Git)",
+                "categories": clean_categories
+            }
+    except Exception:
+        pass
+    return None
+
+
 def parse_changelog(filepath: str) -> list[dict[str, Any]]:
     """Parse a markdown changelog into a structured list of version dicts."""
-    if not os.path.exists(filepath):
-        return []
-        
     versions = []
+    
+    # Prepend dynamic git changes if available
+    git_changes = get_git_changes()
+    if git_changes:
+        versions.append(git_changes)
+        
+    if not os.path.exists(filepath):
+        return versions
+        
     current_version = None
     current_category = None
     
