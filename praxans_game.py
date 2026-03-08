@@ -4462,6 +4462,8 @@ def restore_session_from_snapshot(
             restored_faction.last_schism_time = now - last_schism_elapsed if last_schism_elapsed > 0 else 0.0
             last_migration_elapsed = max(0.0, float(faction_data.get("last_migration_elapsed", 0.0)))
             restored_faction.last_migration_time = now - last_migration_elapsed if last_migration_elapsed > 0 else 0.0
+            last_resource_crisis_elapsed = max(0.0, float(faction_data.get("last_resource_crisis_elapsed", 0.0)))
+            restored_faction.last_resource_crisis_time = now - last_resource_crisis_elapsed if last_resource_crisis_elapsed > 0 else 0.0
             formed_elapsed = max(0.0, float(faction_data.get("formed_elapsed", 0.0)))
             restored_faction.formed_time = now - formed_elapsed if formed_elapsed > 0 else now
             faction_manager.factions[saved_faction_id] = restored_faction
@@ -6152,7 +6154,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             # Update factions outside the loop for efficiency
             faction_manager.update_factions(praxans, advisor,
                                             diplomacy_manager=diplomacy_manager,
-                                            event_bus=event_bus)
+                                            event_bus=event_bus,
+                                            ecology_manager=ecology_manager)
             faction_manager.apply_autonomous_pressure(
                 praxans,
                 advisor,

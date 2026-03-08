@@ -1,7 +1,8 @@
 import os
-import tempfile
 import unittest
 from types import SimpleNamespace
+
+from test_tempdir import workspace_tempdir
 
 from run_snapshot import (
     SNAPSHOT_VERSION,
@@ -15,7 +16,7 @@ from run_snapshot import (
 
 class RunSnapshotTests(unittest.TestCase):
     def test_find_latest_snapshot_returns_newest_file(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with workspace_tempdir() as temp_dir:
             older = os.path.join(temp_dir, "snapshot_old.json")
             newer = os.path.join(temp_dir, "snapshot_new.json")
             with open(older, "w", encoding="utf-8") as file_handle:
@@ -29,7 +30,7 @@ class RunSnapshotTests(unittest.TestCase):
             self.assertEqual(find_latest_snapshot(temp_dir), newer)
 
     def test_resolve_snapshot_path_uses_log_dir_for_relative_names(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with workspace_tempdir() as temp_dir:
             snapshot_path = os.path.join(temp_dir, "snapshot_case.json")
             with open(snapshot_path, "w", encoding="utf-8") as file_handle:
                 file_handle.write("{}")
@@ -38,7 +39,7 @@ class RunSnapshotTests(unittest.TestCase):
             self.assertEqual(resolved, os.path.abspath(snapshot_path))
 
     def test_load_run_snapshot_rejects_newer_snapshot_version(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with workspace_tempdir() as temp_dir:
             snapshot_path = os.path.join(temp_dir, "snapshot_future.json")
             with open(snapshot_path, "w", encoding="utf-8") as file_handle:
                 file_handle.write('{"snapshot_version": 999}')
@@ -177,6 +178,7 @@ class RunSnapshotTests(unittest.TestCase):
                     last_succession_time=95.0,
                     last_schism_time=92.0,
                     last_migration_time=98.0,
+                    last_resource_crisis_time=90.0,
                     rival_faction_ids=[2],
                     formed_time=84.0,
                 )
@@ -265,6 +267,7 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["factions"][0]["migration_target"]["x"], 180.0)
         self.assertEqual(snapshot["factions"][0]["succession_count"], 2)
         self.assertEqual(snapshot["factions"][0]["rival_faction_ids"], [2])
+        self.assertAlmostEqual(snapshot["factions"][0]["last_resource_crisis_elapsed"], 10.0, places=1)
         self.assertEqual(snapshot["city_planner"]["zones"][0]["zone_type"], "residential")
         self.assertEqual(snapshot["world"]["world_seed"], 12345)
         self.assertEqual(snapshot["world"]["world_profile"]["chunk_cols"], 16)
@@ -276,7 +279,7 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["advisor"]["council_state"]["doctrine"]["focus"], "growth")
         self.assertEqual(snapshot["advisor"]["advisory_history"][0]["doctrine"]["focus"], "growth")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with workspace_tempdir() as temp_dir:
             snapshot_path = write_run_snapshot(temp_dir, "test_session", snapshot)
             loaded = load_run_snapshot(snapshot_path)
 
@@ -365,7 +368,7 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertAlmostEqual(praxan_snap["opinions"]["2"], -45.0)
         self.assertAlmostEqual(praxan_snap["opinions"]["3"], 30.0)
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with workspace_tempdir() as temp_dir:
             path = write_run_snapshot(temp_dir, "opinions_test", snapshot)
             loaded = load_run_snapshot(path)
 
@@ -374,5 +377,65 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertAlmostEqual(loaded_opinions["3"], 30.0)
 
 
+    def test_last_resource_crisis_time_survives_snapshot_round_trip(self):
+        """last_resource_crisis_time must be serialized as elapsed duration so that
+        the 45-second crisis cooldown is not spuriously reset to zero on reload."""
+        faction_manager = SimpleNamespace(
+            factions={
+                0: SimpleNamespace(
+                    member_ids=[1],
+                    leader_id=1,
+                    shared_goals=[],
+                    ideology={"growth": 0.5},
+                    cohesion=60.0,
+                    stability=55.0,
+                    schism_pressure=20.0,
+                    migration_pressure=30.0,
+                    primary_doctrine="growth",
+                    preferred_biome="plains",
+                    migration_target=None,
+                    succession_count=0,
+                    last_succession_time=0.0,
+                    last_schism_time=0.0,
+                    last_migration_time=0.0,
+                    last_resource_crisis_time=90.0,  # crisis fired 10s before snapshot at t=100
+                    rival_faction_ids=[],
+                    formed_time=50.0,
+                )
+            }
+        )
+        advisor = SimpleNamespace(
+            research_points=0, points_spent=0, stability_counter=0,
+            current_focus="resources",
+            directives=[], json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={}, advisory_history=[], session_stats={},
+            current_settlement_state={}, query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[], civilization_age=1, total_deaths=0,
+            achievements=[], history=[], events_history=[], last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [], [], [], advisor, season, weather_system,
+            current_time=100.0, game_start_time=0.0,
+            faction_manager=faction_manager,
+        )
+
+        # The crisis fired 10 seconds before the snapshot, so elapsed should be ~10.0
+        self.assertIn("last_resource_crisis_elapsed", snapshot["factions"][0])
+        self.assertAlmostEqual(snapshot["factions"][0]["last_resource_crisis_elapsed"], 10.0, places=1)
+
+        with workspace_tempdir() as temp_dir:
+            path = write_run_snapshot(temp_dir, "crisis_time_test", snapshot)
+            loaded = load_run_snapshot(path)
+
+        self.assertAlmostEqual(loaded["factions"][0]["last_resource_crisis_elapsed"], 10.0, places=1)
+
+
 if __name__ == "__main__":
     unittest.main()
+

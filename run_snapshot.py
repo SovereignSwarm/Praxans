@@ -227,6 +227,12 @@ def _serialize_factions(faction_manager, current_time: float) -> list[dict[str, 
                     else 0.0,
                     3,
                 ),
+                "last_resource_crisis_elapsed": round(
+                    max(0.0, current_time - float(getattr(faction, "last_resource_crisis_time", 0.0) or 0.0))
+                    if getattr(faction, "last_resource_crisis_time", 0.0)
+                    else 0.0,
+                    3,
+                ),
                 "formed_elapsed": round(
                     max(0.0, current_time - float(getattr(faction, "formed_time", current_time) or current_time)),
                     3,
