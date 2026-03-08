@@ -3,6 +3,7 @@
 import unittest
 import time
 import math
+from unittest import mock
 
 from systems.disasters import (
     DisasterManager,
@@ -423,10 +424,11 @@ class TestDisasterEffects(unittest.TestCase):
         praxan = StubPraxan(x=100, y=100)
         now = time.time()
         ad = ActiveDisaster("earthquake", 100, 100, 0.5, now, 15.0)
-        self.mgr._apply_effects(
-            ad, [praxan], [], StubWorldMap(),
-            bus, StubNarrativePanel(),
-        )
+        with mock.patch("systems.disasters.random.random", return_value=1.0):
+            self.mgr._apply_effects(
+                ad, [praxan], [], StubWorldMap(),
+                bus, StubNarrativePanel(),
+            )
         self.assertEqual(len(bus.published), 1)
         self.assertEqual(bus.published[0].category, "disaster")
 
@@ -436,10 +438,11 @@ class TestDisasterEffects(unittest.TestCase):
         praxan = StubPraxan(x=100, y=100)
         now = time.time()
         ad = ActiveDisaster("earthquake", 100, 100, 0.5, now, 15.0)
-        self.mgr._apply_effects(
-            ad, [praxan], [], StubWorldMap(),
-            StubEventBus(), panel,
-        )
+        with mock.patch("systems.disasters.random.random", return_value=1.0):
+            self.mgr._apply_effects(
+                ad, [praxan], [], StubWorldMap(),
+                StubEventBus(), panel,
+            )
         self.assertEqual(len(panel.messages), 1)
         self.assertIn("Catastrophe", panel.messages[0][1])
 

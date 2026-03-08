@@ -50,6 +50,16 @@ class BuildingRecipe:
 
 
 @dataclass(frozen=True)
+class BuildingLotProfile:
+    building_type: str
+    margin_x_tiles: int
+    margin_y_tiles: int
+    ground_style: str
+    fence_style: str
+    attachments: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ResourceRecipe:
     resource_type: str
     silhouette: str
@@ -161,6 +171,19 @@ BUILDING_FOOTPRINT_ART: dict[str, BuildingRecipe] = {
     "market": BuildingRecipe("market", (48, 36), 3, 2, "bazaar", (214, 176, 98), (188, 88, 82), (112, 78, 54), (244, 216, 134)),
 }
 
+BUILDING_LOT_PROFILES: dict[str, BuildingLotProfile] = {
+    "house": BuildingLotProfile("house", 1, 1, "garden", "hedge", ("shed", "laundry")),
+    "storage": BuildingLotProfile("storage", 1, 1, "yard", "post", ("crates", "lean_to")),
+    "farm": BuildingLotProfile("farm", 1, 1, "field", "post", ("hay", "trough")),
+    "workshop": BuildingLotProfile("workshop", 1, 1, "yard", "post", ("forge_stack", "crates")),
+    "shrine": BuildingLotProfile("shrine", 1, 1, "precinct", "open", ("lanterns", "stones")),
+    "well": BuildingLotProfile("well", 1, 1, "commons", "open", ("buckets",)),
+    "hospital": BuildingLotProfile("hospital", 1, 1, "courtyard", "low_stone", ("herbs", "beds")),
+    "school": BuildingLotProfile("school", 1, 1, "yard", "post", ("bench", "tree")),
+    "watchtower": BuildingLotProfile("watchtower", 1, 1, "watch_post", "palisade", ("fire", "crates")),
+    "market": BuildingLotProfile("market", 1, 1, "bazaar", "open", ("stalls", "crates", "awning")),
+}
+
 RESOURCE_ART: dict[str, ResourceRecipe] = {
     "food": ResourceRecipe("food", "berry_bush", (150, 112, 84), (171, 72, 88), (96, 132, 77)),
     "wood": ResourceRecipe("wood", "timber", (128, 95, 63), (86, 58, 38), (112, 146, 89)),
@@ -246,6 +269,10 @@ def get_building_recipe(building_type: str) -> BuildingRecipe:
     return BUILDING_FOOTPRINT_ART.get(str(building_type), BUILDING_FOOTPRINT_ART["house"])
 
 
+def get_building_lot_profile(building_type: str) -> BuildingLotProfile:
+    return BUILDING_LOT_PROFILES.get(str(building_type), BUILDING_LOT_PROFILES["house"])
+
+
 def get_zone_overlay_type(zone_type: str) -> str:
     normalized = str(zone_type or "mixed").lower()
     mapped = ZONE_OVERLAY_ALIASES.get(normalized, normalized)
@@ -281,6 +308,27 @@ def building_world_rect(anchor_x: float, anchor_y: float, building_type: str, ti
         origin_y,
         origin_x + grid_width * float(tile_size),
         origin_y + grid_height * float(tile_size),
+    )
+
+
+def building_lot_tile_span(building_type: str) -> tuple[int, int]:
+    recipe = get_building_recipe(building_type)
+    profile = get_building_lot_profile(building_type)
+    return (
+        recipe.grid_width + profile.margin_x_tiles * 2,
+        recipe.grid_height + profile.margin_y_tiles * 2,
+    )
+
+
+def building_lot_world_rect(anchor_x: float, anchor_y: float, building_type: str, tile_size: int) -> tuple[float, float, float, float]:
+    lot_width, lot_height = building_lot_tile_span(building_type)
+    half_width = lot_width * float(tile_size) / 2.0
+    half_height = lot_height * float(tile_size) / 2.0
+    return (
+        float(anchor_x) - half_width,
+        float(anchor_y) - half_height,
+        float(anchor_x) + half_width,
+        float(anchor_y) + half_height,
     )
 
 

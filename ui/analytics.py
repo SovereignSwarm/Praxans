@@ -8,12 +8,13 @@ from run_archive import find_recent_archives, load_run_archive
 from ui.models import ArchiveCard, build_archive_card
 from ui.theme import draw_button, draw_divider, draw_panel, wrap_text
 
-_archive_cache: dict[str, tuple[float, list[ArchiveCard]]] = {}
+_archive_cache: dict[tuple[str, int], tuple[float, list[ArchiveCard]]] = {}
 
 
 def load_archive_cards(log_dir: str, limit: int = 18) -> list[ArchiveCard]:
     now = _time.monotonic()
-    cached = _archive_cache.get(log_dir)
+    cache_key = (log_dir, int(limit))
+    cached = _archive_cache.get(cache_key)
     if cached is not None and now - cached[0] < 10.0:
         return cached[1]
     cards: list[ArchiveCard] = []
@@ -22,7 +23,7 @@ def load_archive_cards(log_dir: str, limit: int = 18) -> list[ArchiveCard]:
             cards.append(build_archive_card(load_run_archive(archive_path)))
         except Exception:
             continue
-    _archive_cache[log_dir] = (now, cards)
+    _archive_cache[cache_key] = (now, cards)
     return cards
 
 

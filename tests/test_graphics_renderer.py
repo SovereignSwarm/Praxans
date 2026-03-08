@@ -1,8 +1,11 @@
+import builtins
 import os
+import sys
 import unittest
 from types import SimpleNamespace
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import pygame
 
@@ -310,6 +313,105 @@ class GraphicsRendererTests(unittest.TestCase):
         self.assertEqual(building_world_rect(anchor_x, anchor_y, "workshop", 32), (64.0, 128.0, 160.0, 192.0))
 
 
+    def test_scene_renderer_tiny_tiles_with_water_do_not_crash(self):
+        surface = pygame.Surface((320, 240), pygame.SRCALPHA)
+        renderer = SceneRenderer(GraphicsConfig())
+        tiny_chunk = _DummyChunk()
+        tiny_chunk.tiles = {(x, y): "plains" for x in range(6) for y in range(6)}
+        tiny_chunk.water_tiles = {(0, 0)}
+        tiny_chunk.river_tiles = {(1, 0)}
+
+        frame = build_render_frame(
+            world_map=SimpleNamespace(
+                chunks={(0, 0): tiny_chunk},
+                region_overlay=[],
+                route_network=[],
+                landmark_markers=[],
+                polity_overlay=[],
+                water_network=[],
+            ),
+            camera=_DummyCamera(),
+            fog_of_war=_DummyFog(),
+            territory_manager=_DummyTerritory(),
+            city_planner=_DummyCityPlanner(),
+            faction_manager=SimpleNamespace(factions={}),
+            season=SimpleNamespace(current="spring"),
+            weather_system=SimpleNamespace(current_weather="clear"),
+            settlement_state={"district_identity": "agrarian"},
+            current_time=1.0,
+            game_start_time=0.0,
+            frame_count=1,
+            window_size=(320, 240),
+            chunk_size=24,
+            tile_size=4,
+            world_size=(320, 240),
+            buildings=[],
+            resources=[],
+            praxans=[],
+            encounters=[],
+            hazards=[],
+            npcs=[],
+        )
+
+        renderer.render(surface, frame)
+
+        self.assertGreater(len(renderer.terrain_renderer._chunk_cache), 0)
+
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class GraphicsHashDeterminismTests(unittest.TestCase):
+    def test_scene_renderer_does_not_depend_on_python_hash_randomization(self):
+        surface = pygame.Surface((320, 240), pygame.SRCALPHA)
+        renderer = SceneRenderer(GraphicsConfig())
+        tiny_chunk = _DummyChunk()
+        tiny_chunk.tiles = {(x, y): "plains" for x in range(4) for y in range(4)}
+        tiny_chunk.water_tiles = {(0, 0)}
+        tiny_chunk.river_tiles = {(1, 0)}
+
+        frame = build_render_frame(
+            world_map=SimpleNamespace(
+                chunks={(0, 0): tiny_chunk},
+                region_overlay=[],
+                route_network=[],
+                landmark_markers=[],
+                polity_overlay=[],
+                water_network=[],
+            ),
+            camera=_DummyCamera(),
+            fog_of_war=_DummyFog(),
+            territory_manager=_DummyTerritory(),
+            city_planner=_DummyCityPlanner(),
+            faction_manager=SimpleNamespace(factions={}),
+            season=SimpleNamespace(current="spring"),
+            weather_system=SimpleNamespace(current_weather="clear"),
+            settlement_state={"district_identity": "agrarian"},
+            current_time=1.0,
+            game_start_time=0.0,
+            frame_count=1,
+            window_size=(320, 240),
+            chunk_size=24,
+            tile_size=6,
+            world_size=(320, 240),
+            buildings=[],
+            resources=[],
+            praxans=[],
+            encounters=[],
+            hazards=[],
+            npcs=[],
+        )
+
+        original_hash = builtins.hash
+
+        def fail_hash(*_args, **_kwargs):
+            raise AssertionError("render path should not call builtins.hash() for terrain seeds")
+
+        builtins.hash = fail_hash
+        try:
+            renderer.render(surface, frame)
+        finally:
+            builtins.hash = original_hash
+
+        self.assertGreater(len(renderer.terrain_renderer._chunk_cache), 0)

@@ -195,7 +195,7 @@ def _apply_side_outcomes(
     # Social need
     social_gain = outcomes.get("social_need", 0)
     if social_gain and hasattr(praxan, "needs"):
-        praxan.needs["social"] = min(100, praxan.needs.get("social", 50) + social_gain)
+        praxan.needs["social"] = max(0, min(100, praxan.needs.get("social", 50) + social_gain))
 
     # Mood offset → moodlet
     mood_offset = outcomes.get("mood_offset", 0)

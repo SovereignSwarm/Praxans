@@ -4834,11 +4834,14 @@ def main(runtime_config=RUNTIME_CONFIG):
     def emergency_flush():
         """Emergency flush logs on unexpected exit"""
         try:
-            if 'game_logger' in locals():
-                game_logger.flush_logs()
-                game_logger.logger.debug("Emergency exit flush completed")
-                game_logger.flush_logs()
-        except:
+            # game_logger is captured from the outer scope; it is not in this function's locals().
+            game_logger.flush_logs()
+            game_logger.logger.debug("Emergency exit flush completed")
+            game_logger.flush_logs()
+        except NameError:
+            # Defensive fallback if registration happens before logger initialization.
+            pass
+        except Exception:
             pass  # Don't fail on exit
     
     atexit.register(emergency_flush)
@@ -5482,6 +5485,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     # #endregion
     
     # Main game loop - wrapped in try-finally for crash safety
+    next_runtime_config = None
     try:
         frame_count = 0
         time_speed_index = 0
@@ -7349,8 +7353,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             traceback.print_exc()
             next_runtime_config = None
 
-        if next_runtime_config is not None:
-            return main(next_runtime_config)
+    if next_runtime_config is not None:
+        return main(next_runtime_config)
 
 
 if __name__ == "__main__":

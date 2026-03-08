@@ -16,6 +16,20 @@ class TerrainRenderer:
         while len(cache) > limit:
             cache.pop(next(iter(cache)))
 
+    def _bounded_randint(self, rng, low: int, high: int, fallback: int) -> int:
+        if high < low:
+            return fallback
+        return rng.randint(low, high)
+
+    def _stable_seed(self, *parts: int) -> int:
+        """Return a deterministic seed independent of Python's randomized hash()."""
+        seed = 0x345678
+        for idx, part in enumerate(parts):
+            value = int(part) & 0xFFFFFFFF
+            seed ^= (value + 0x9E3779B9 + ((seed << 6) & 0xFFFFFFFF) + (seed >> 2) + idx) & 0xFFFFFFFF
+            seed &= 0xFFFFFFFF
+        return seed
+
     def _chunk_zone_signature(self, chunk, city_planner, tile_size: int, chunk_size: int) -> tuple[str, ...]:
         zones = getattr(city_planner, "zones", {})
         hits: list[str] = []
@@ -86,22 +100,24 @@ class TerrainRenderer:
         for tile_x, tile_y in getattr(chunk, "water_tiles", ()):
             local_x = tile_x * tile_size
             local_y = tile_y * tile_size
-            rng = random.Random(hash((chunk_seed_x, chunk_seed_y, tile_x, tile_y)))
+            rng = random.Random(self._stable_seed(chunk_seed_x, chunk_seed_y, tile_x, tile_y))
             for _ in range(4):
-                cx = local_x + rng.randint(3, tile_size - 3)
-                cy = local_y + rng.randint(3, tile_size - 3)
-                cr = rng.randint(tile_size // 4, int(tile_size // 1.5))
+                cx = local_x + self._bounded_randint(rng, 3, tile_size - 3, max(0, tile_size // 2))
+                cy = local_y + self._bounded_randint(rng, 3, tile_size - 3, max(0, tile_size // 2))
+                min_radius = max(1, tile_size // 4)
+                max_radius = max(min_radius, int(tile_size // 1.5))
+                cr = rng.randint(min_radius, max_radius)
                 pygame.draw.circle(surface, (62, 108, 156, 180), (cx, cy), cr)
                 pygame.draw.circle(surface, (130, 186, 220, 100), (cx, cy), cr, max(1, cr // 4))
                 
         for tile_x, tile_y in getattr(chunk, "river_tiles", ()):
             local_x = tile_x * tile_size
             local_y = tile_y * tile_size
-            rng = random.Random(hash((chunk_seed_x, chunk_seed_y, tile_x, tile_y)))
+            rng = random.Random(self._stable_seed(chunk_seed_x, chunk_seed_y, tile_x, tile_y, 1))
             pts = [
-                (local_x + rng.randint(4, tile_size - 4), local_y - 2),
-                (local_x + rng.randint(4, tile_size - 4), local_y + tile_size // 2),
-                (local_x + rng.randint(4, tile_size - 4), local_y + tile_size + 2)
+                (local_x + self._bounded_randint(rng, 4, tile_size - 4, max(0, tile_size // 2)), local_y - 2),
+                (local_x + self._bounded_randint(rng, 4, tile_size - 4, max(0, tile_size // 2)), local_y + tile_size // 2),
+                (local_x + self._bounded_randint(rng, 4, tile_size - 4, max(0, tile_size // 2)), local_y + tile_size + 2)
             ]
             pygame.draw.lines(surface, (106, 178, 220, 160), False, pts, max(3, tile_size // 4))
 
@@ -131,7 +147,7 @@ class TerrainRenderer:
         tile_size = world_state.tile_size
         import random
         chunk_seed_x, chunk_seed_y = self._chunk_seed_coords(chunk, world_state)
-        seed_base = hash((chunk_seed_x, chunk_seed_y))
+        seed_base = self._stable_seed(chunk_seed_x, chunk_seed_y)
         
         for (tile_x, tile_y), biome_type in getattr(chunk, "tiles", {}).items():
             if biome_type in {"mountains", "snow", "water", "desert", "tundra"}:
@@ -139,8 +155,8 @@ class TerrainRenderer:
             rng = random.Random(seed_base + tile_x * 73 + tile_y * 191)
             if rng.random() < 0.4:
                 clutter_type = rng.choice(["grass", "pebble", "flower"])
-                local_x = tile_x * tile_size + rng.randint(2, tile_size - 6)
-                local_y = tile_y * tile_size + rng.randint(2, tile_size - 6)
+                local_x = tile_x * tile_size + self._bounded_randint(rng, 2, tile_size - 6, max(0, tile_size // 2))
+                local_y = tile_y * tile_size + self._bounded_randint(rng, 2, tile_size - 6, max(0, tile_size // 2))
                 
                 if clutter_type == "grass":
                     pygame.draw.line(surface, (110, 150, 80, 180), (local_x, local_y + 4), (local_x - 1, local_y), 1)
@@ -306,3 +322,5 @@ class TerrainRenderer:
             self._render_frontier_map(surface, world_state, zoom_band)
             return
         self._render_local_chunks(surface, world_state, zoom_band)
+
+

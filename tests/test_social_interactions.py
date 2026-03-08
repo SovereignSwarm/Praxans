@@ -278,6 +278,17 @@ class TestExecution(unittest.TestCase):
         target_moodlets = [m["name"] for m in b.moodlets]
         self.assertIn("WasInsulted", target_moodlets)
 
+    def test_insult_does_not_underflow_social_need(self):
+        a = _make_praxan()
+        a.age = 100
+        b = _make_praxan(x=110)
+        b.age = 100
+        b.needs["social"] = 1
+
+        execute_interaction(a, b, self.interactions["insult"])
+
+        self.assertGreaterEqual(b.needs["social"], 0)
+
     def test_bonds_change(self):
         a = _make_praxan()
         a.age = 100
@@ -548,3 +559,4 @@ class TestPickSocialTarget(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
