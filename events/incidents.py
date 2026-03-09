@@ -1,5 +1,33 @@
+import math
 import random
+import time
 from systems.storyteller import INCIDENT_GOOD, INCIDENT_NEUTRAL, INCIDENT_BAD
+
+
+def _clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
+def _compute_colony_anchor(praxans, buildings, world_width, world_height):
+    anchors = []
+    for praxan in praxans:
+        if hasattr(praxan, "x") and hasattr(praxan, "y") and getattr(praxan, "alive", True):
+            anchors.append((float(praxan.x), float(praxan.y)))
+    for building in buildings:
+        if hasattr(building, "x") and hasattr(building, "y"):
+            anchors.append((float(building.x), float(building.y)))
+
+    if anchors:
+        center_x = sum(anchor[0] for anchor in anchors) / len(anchors)
+        center_y = sum(anchor[1] for anchor in anchors) / len(anchors)
+    else:
+        center_x = world_width / 2.0
+        center_y = world_height / 2.0
+
+    return (
+        _clamp(center_x, 120.0, max(120.0, world_width - 120.0)),
+        _clamp(center_y, 120.0, max(120.0, world_height - 120.0)),
+    )
 
 def incident_crop_blight(game_state: dict):
     buildings = game_state.get('buildings', [])
@@ -7,7 +35,11 @@ def incident_crop_blight(game_state: dict):
     blighted = 0
     for farm in farms:
         if random.random() < 0.5:
-            farm.stored_resources['food'] = 0
+            resources = getattr(farm, 'stored_resources', None)
+            if not isinstance(resources, dict):
+                resources = {}
+                setattr(farm, 'stored_resources', resources)
+            resources['food'] = 0
             blighted += 1
             
     narrative_panel = game_state.get('narrative_panel')
@@ -16,6 +48,7 @@ def incident_crop_blight(game_state: dict):
 
 def incident_migrant_wave(game_state: dict):
     praxans = game_state.get('praxans', [])
+    buildings = game_state.get('buildings', [])
     world_width = game_state.get('world_width', 800)
     world_height = game_state.get('world_height', 600)
     PraxanClass = game_state.get('praxan_class')
@@ -23,12 +56,20 @@ def incident_migrant_wave(game_state: dict):
     if not PraxanClass: return
     
     count = random.randint(1, 3)
+    center_x, center_y = _compute_colony_anchor(praxans, buildings, world_width, world_height)
     for _ in range(count):
-        # Spawn at edges
-        x = random.choice([20, world_width - 20])
-        y = random.choice([20, world_height - 20])
+        angle = random.uniform(0.0, math.tau)
+        distance = random.uniform(70.0, 150.0)
+        x = _clamp(center_x + math.cos(angle) * distance, 80.0, max(80.0, world_width - 80.0))
+        y = _clamp(center_y + math.sin(angle) * distance, 80.0, max(80.0, world_height - 80.0))
         new_praxan = PraxanClass(x, y)
         new_praxan.inventory['food'] = 2
+        new_praxan.personal_goal = {
+            'type': 'migrate',
+            'target': {'x': center_x, 'y': center_y},
+            'reason': 'migrant_wave',
+            'assigned_at': time.time(),
+        }
         praxans.append(new_praxan)
         
     narrative_panel = game_state.get('narrative_panel')

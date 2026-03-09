@@ -4,7 +4,7 @@ import argparse
 import builtins
 import os
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, fields
 from typing import Optional, Sequence
 
 from game_scenarios import DEFAULT_SCENARIO_ID, format_scenario_help, list_scenario_ids
@@ -38,10 +38,12 @@ class RuntimeConfig:
     log_dir: str = "logs"
     seed: Optional[int] = None
     enable_probe_log: bool = False
+    telemetry_interval: float = 5.0
     model: str = "qwen3.5:9b"
     snapshot_file: Optional[str] = None
     load_latest_snapshot: bool = False
     scenario: str = DEFAULT_SCENARIO_ID
+    session_tag: str = ""
 
 
 @dataclass
@@ -57,7 +59,19 @@ class UserSettings:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return cls(**data)
+            if not isinstance(data, dict):
+                raise ValueError("settings file must contain a JSON object")
+
+            allowed_fields = {field.name for field in fields(cls)}
+            unknown_fields = sorted(key for key in data if key not in allowed_fields)
+            if unknown_fields:
+                print(
+                    f"Warning: Ignoring unknown setting key(s) in {path}: "
+                    + ", ".join(unknown_fields)
+                )
+
+            filtered_data = {key: value for key, value in data.items() if key in allowed_fields}
+            return cls(**filtered_data)
         except Exception as e:
             print(f"Warning: Failed to load {path}: {e}")
             return cls()
@@ -77,6 +91,13 @@ def _positive_int(value: str) -> int:
     parsed = int(value)
     if parsed <= 0:
         raise argparse.ArgumentTypeError("value must be greater than zero")
+    return parsed
+
+
+def _non_negative_float(value: str) -> float:
+    parsed = float(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("value must be zero or greater")
     return parsed
 
 
@@ -103,6 +124,12 @@ def parse_runtime_config(argv: Optional[Sequence[str]] = None) -> RuntimeConfig:
         help="Enable the low-level debug probe log used for render diagnostics.",
     )
     parser.add_argument(
+        "--telemetry-interval",
+        type=_non_negative_float,
+        default=5.0,
+        help="Seconds between structured telemetry samples written to telemetry_*.jsonl (0 disables telemetry).",
+    )
+    parser.add_argument(
         "--model",
         default="qwen3.5:9b",
         help="Preferred Ollama model name.",
@@ -123,6 +150,11 @@ def parse_runtime_config(argv: Optional[Sequence[str]] = None) -> RuntimeConfig:
         default=DEFAULT_SCENARIO_ID,
         help=f"Observer scenario preset. Options: {format_scenario_help()}",
     )
+    parser.add_argument(
+        "--session-tag",
+        default="",
+        help="Optional label stored in logs/reports to identify batch or experiment runs.",
+    )
     args = parser.parse_args(argv)
     return RuntimeConfig(
         width=args.width,
@@ -136,10 +168,12 @@ def parse_runtime_config(argv: Optional[Sequence[str]] = None) -> RuntimeConfig:
         log_dir=args.log_dir,
         seed=args.seed,
         enable_probe_log=args.enable_probe_log,
+        telemetry_interval=args.telemetry_interval,
         model=args.model,
         snapshot_file=args.snapshot_file,
         load_latest_snapshot=args.load_latest_snapshot,
         scenario=args.scenario,
+        session_tag=args.session_tag,
     )
 
 
@@ -158,3 +192,4 @@ def build_console_printer(config: RuntimeConfig):
             builtin_print(*args, **kwargs)
 
     return runtime_print
+

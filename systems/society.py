@@ -689,20 +689,21 @@ class FactionManager:
                 return faction
         return None
 
-
 class TradeSystem:
     """Inter-faction trade: factions exchange surplus resources when not rivals."""
 
     TRADE_INTERVAL = 30.0  # seconds between trade rounds
     SURPLUS_THRESHOLD = 3   # Must have > 3 of a resource to offer it
     DEFICIT_THRESHOLD = 1   # Will accept if they have <= 1
+    RELIEF_STRESS_THRESHOLD = 72.0
+    DONOR_STRESS_MAX = 38.0
 
     def __init__(self):
         self.last_trade_time = 0.0
         self.trade_log = []  # [{time, from_faction, to_faction, resource, amount}]
         self.max_log = 20
 
-    def update(self, faction_manager, praxans, current_time, diplomacy_manager=None):
+    def update(self, faction_manager, praxans, current_time, diplomacy_manager=None, advisor=None):
         """Run a trade round if enough time has passed."""
         if current_time - self.last_trade_time < self.TRADE_INTERVAL:
             return
@@ -740,9 +741,88 @@ class TradeSystem:
                         continue
                 fb = faction_manager.factions[fid_b]
                 inv_b = faction_inventories.get(fid_b, {})
-                traded = self._try_trade(fa, fb, inv_a, inv_b, praxans, current_time)
+                traded = self._try_relief_trade(
+                    fa,
+                    fb,
+                    inv_a,
+                    inv_b,
+                    praxans,
+                    current_time,
+                    advisor=advisor,
+                )
+                if not traded:
+                    traded = self._try_trade(fa, fb, inv_a, inv_b, praxans, current_time)
                 if traded and diplomacy_manager is not None:
                     diplomacy_manager.register_trade(fid_a, fid_b, current_time)
+
+    def _try_relief_trade(self, fa, fb, inv_a, inv_b, praxans, current_time, advisor=None):
+        """Prioritize directed aid when one faction is in a strong resource crisis."""
+        stress_a = _safe_float(getattr(fa, "resource_stress", 0.0), 0.0)
+        stress_b = _safe_float(getattr(fb, "resource_stress", 0.0), 0.0)
+
+        if stress_a >= self.RELIEF_STRESS_THRESHOLD and stress_b <= self.DONOR_STRESS_MAX:
+            return self._try_directed_transfer(
+                donor_faction=fb,
+                recipient_faction=fa,
+                donor_inventory=inv_b,
+                recipient_inventory=inv_a,
+                praxans=praxans,
+                current_time=current_time,
+                advisor=advisor,
+            )
+        if stress_b >= self.RELIEF_STRESS_THRESHOLD and stress_a <= self.DONOR_STRESS_MAX:
+            return self._try_directed_transfer(
+                donor_faction=fa,
+                recipient_faction=fb,
+                donor_inventory=inv_a,
+                recipient_inventory=inv_b,
+                praxans=praxans,
+                current_time=current_time,
+                advisor=advisor,
+            )
+        return False
+
+    def _relief_priority_resources(self, recipient_faction):
+        food_security = _safe_float(getattr(recipient_faction, "food_security", 50.0), 50.0)
+        material_security = _safe_float(getattr(recipient_faction, "material_security", 50.0), 50.0)
+        if food_security <= material_security:
+            return ("food", "wood", "stone")
+        return ("wood", "stone", "food")
+
+    def _try_directed_transfer(
+        self,
+        donor_faction,
+        recipient_faction,
+        donor_inventory,
+        recipient_inventory,
+        praxans,
+        current_time,
+        advisor=None,
+    ):
+        for resource_key in self._relief_priority_resources(recipient_faction):
+            donor_amount = donor_inventory.get(resource_key, 0)
+            recipient_amount = recipient_inventory.get(resource_key, 0)
+            if donor_amount <= self.SURPLUS_THRESHOLD or recipient_amount > self.DEFICIT_THRESHOLD:
+                continue
+            if self._execute_transfer(
+                donor_faction,
+                recipient_faction,
+                resource_key,
+                praxans,
+                current_time,
+                transfer_kind="relief",
+            ):
+                if advisor is not None:
+                    advisor.session_stats["relief_transfers"] = advisor.session_stats.get("relief_transfers", 0) + 1
+                    record_observer_timeline_event(
+                        advisor,
+                        current_time,
+                        "resource",
+                        f"Faction {donor_faction.id} sent relief to F{recipient_faction.id}",
+                        f"Transferred {resource_key} under crisis pressure.",
+                    )
+                return True
+        return False
 
     def _try_trade(self, fa, fb, inv_a, inv_b, praxans, current_time):
         """Attempt a single resource exchange between two factions. Returns True if traded."""
@@ -753,26 +833,32 @@ class TradeSystem:
             qty_b = inv_b.get(res, 0)
             if qty_b > self.DEFICIT_THRESHOLD:
                 continue
-            # Transfer 1 unit: take from a random member of A, give to random member of B
-            amount = 1
-            donors = [m for m in fa.get_members(praxans) if getattr(m, 'inventory', {}).get(res, 0) > 0]
-            recipients = fb.get_members(praxans)
-            if donors and recipients:
-                donor = random.choice(donors)
-                recipient = random.choice(recipients)
-                donor.inventory[res] = max(0, donor.inventory.get(res, 0) - amount)
-                recipient.inventory[res] = recipient.inventory.get(res, 0) + amount
-                self.trade_log.append({
-                    'time': current_time,
-                    'from_faction': fa.id,
-                    'to_faction': fb.id,
-                    'resource': res,
-                    'amount': amount,
-                })
-                if len(self.trade_log) > self.max_log:
-                    del self.trade_log[:-self.max_log]
+            if self._execute_transfer(fa, fb, res, praxans, current_time, transfer_kind="trade"):
                 return True  # One trade per pair per round
         return False
+
+    def _execute_transfer(self, donor_faction, recipient_faction, resource_key, praxans, current_time, transfer_kind):
+        """Transfer one resource unit from donor faction to recipient faction."""
+        amount = 1
+        donors = [m for m in donor_faction.get_members(praxans) if getattr(m, 'inventory', {}).get(resource_key, 0) > 0]
+        recipients = recipient_faction.get_members(praxans)
+        if not donors or not recipients:
+            return False
+        donor = random.choice(donors)
+        recipient = random.choice(recipients)
+        donor.inventory[resource_key] = max(0, donor.inventory.get(resource_key, 0) - amount)
+        recipient.inventory[resource_key] = recipient.inventory.get(resource_key, 0) + amount
+        self.trade_log.append({
+            'time': current_time,
+            'from_faction': donor_faction.id,
+            'to_faction': recipient_faction.id,
+            'resource': resource_key,
+            'amount': amount,
+            'kind': str(transfer_kind),
+        })
+        if len(self.trade_log) > self.max_log:
+            del self.trade_log[:-self.max_log]
+        return True
 
     def get_trade_opportunities(self, faction_manager, praxans):
         """Return human-readable trade opportunity descriptions for LLM state view."""

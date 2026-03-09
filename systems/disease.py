@@ -223,6 +223,7 @@ class DiseaseManager:
                 if disease.severity >= 1.0:
                     lethality = ddef.get("lethality", 0.3)
                     if random.random() < lethality:
+                        setattr(praxan, "last_death_cause_hint", f"disease:{ddef.get('id', 'unknown')}")
                         praxan.alive = False
                         _on_disease_death(praxan, ddef, event_bus, narrative_panel, now)
                     else:

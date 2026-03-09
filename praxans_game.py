@@ -816,6 +816,329 @@ def record_population_evolution_sample(advisor, praxans, current_time, game_star
     return summary
 
 
+def compute_colony_anchor(praxans, buildings):
+    living_praxans = [praxan for praxan in praxans if getattr(praxan, "alive", True)]
+    if buildings:
+        anchors = [(float(building.x), float(building.y)) for building in buildings if hasattr(building, "x") and hasattr(building, "y")]
+        if living_praxans:
+            anchors.extend((float(praxan.x), float(praxan.y)) for praxan in living_praxans[:8])
+        if anchors:
+            return (
+                sum(anchor[0] for anchor in anchors) / len(anchors),
+                sum(anchor[1] for anchor in anchors) / len(anchors),
+            )
+
+    if not living_praxans:
+        return None
+
+    def _cluster_cost(candidate):
+        return sum(math.sqrt((candidate.x - other.x) ** 2 + (candidate.y - other.y) ** 2) for other in living_praxans)
+
+    anchor_praxan = min(living_praxans, key=_cluster_cost)
+    return float(anchor_praxan.x), float(anchor_praxan.y)
+
+
+def estimate_bootstrap_materials(anchor_x, anchor_y, praxans, buildings, resources):
+    available_wood = 0.0
+    available_stone = 0.0
+
+    for praxan in praxans:
+        if not getattr(praxan, "alive", True):
+            continue
+        if math.sqrt((praxan.x - anchor_x) ** 2 + (praxan.y - anchor_y) ** 2) > 260:
+            continue
+        available_wood += float(praxan.inventory.get("wood", 0) or 0)
+        available_stone += float(praxan.inventory.get("stone", 0) or 0)
+
+    for building in buildings:
+        stored_resources = getattr(building, "stored_resources", None)
+        if not stored_resources:
+            continue
+        if math.sqrt((building.x - anchor_x) ** 2 + (building.y - anchor_y) ** 2) > 220:
+            continue
+        available_wood += float(stored_resources.get("wood", 0) or 0)
+        available_stone += float(stored_resources.get("stone", 0) or 0)
+
+    for resource in resources:
+        if getattr(resource, "collected", False):
+            continue
+        if getattr(resource, "resource_type", "") not in ("wood", "stone"):
+            continue
+        if math.sqrt((resource.x - anchor_x) ** 2 + (resource.y - anchor_y) ** 2) > 240:
+            continue
+        if resource.resource_type == "wood":
+            available_wood += 1.0
+        else:
+            available_stone += 1.0
+
+    return available_wood, available_stone
+
+
+def consume_bootstrap_materials(anchor_x, anchor_y, required_wood, required_stone, praxans, buildings, resources, current_time):
+    wood_needed = float(required_wood)
+    stone_needed = float(required_stone)
+
+    for praxan in praxans:
+        if wood_needed <= 0 and stone_needed <= 0:
+            return True
+        if not getattr(praxan, "alive", True):
+            continue
+        if math.sqrt((praxan.x - anchor_x) ** 2 + (praxan.y - anchor_y) ** 2) > 260:
+            continue
+        if wood_needed > 0:
+            available = float(praxan.inventory.get("wood", 0) or 0)
+            take = min(wood_needed, available)
+            praxan.inventory["wood"] = max(0, available - take)
+            wood_needed -= take
+        if stone_needed > 0:
+            available = float(praxan.inventory.get("stone", 0) or 0)
+            take = min(stone_needed, available)
+            praxan.inventory["stone"] = max(0, available - take)
+            stone_needed -= take
+
+    for building in buildings:
+        if wood_needed <= 0 and stone_needed <= 0:
+            return True
+        stored_resources = getattr(building, "stored_resources", None)
+        if not stored_resources:
+            continue
+        if math.sqrt((building.x - anchor_x) ** 2 + (building.y - anchor_y) ** 2) > 220:
+            continue
+        if wood_needed > 0:
+            available = float(stored_resources.get("wood", 0) or 0)
+            take = min(wood_needed, available)
+            stored_resources["wood"] = max(0.0, available - take)
+            wood_needed -= take
+        if stone_needed > 0:
+            available = float(stored_resources.get("stone", 0) or 0)
+            take = min(stone_needed, available)
+            stored_resources["stone"] = max(0.0, available - take)
+            stone_needed -= take
+
+    for resource in resources:
+        if wood_needed <= 0 and stone_needed <= 0:
+            return True
+        if getattr(resource, "collected", False):
+            continue
+        if math.sqrt((resource.x - anchor_x) ** 2 + (resource.y - anchor_y) ** 2) > 240:
+            continue
+        if resource.resource_type == "wood" and wood_needed > 0:
+            resource.collected = True
+            resource.collect_time = current_time
+            wood_needed -= 1.0
+        elif resource.resource_type == "stone" and stone_needed > 0:
+            resource.collected = True
+            resource.collect_time = current_time
+            stone_needed -= 1.0
+
+    return wood_needed <= 0 and stone_needed <= 0
+
+
+def attempt_bootstrap_construction(
+    *,
+    praxans,
+    buildings,
+    resources,
+    advisor,
+    city_planner,
+    world_map,
+    particle_system,
+    narrative_panel,
+    current_time,
+):
+    if advisor is None or city_planner is None or not praxans:
+        return None
+
+    last_bootstrap_time = float(getattr(advisor, "last_bootstrap_build_time", 0.0) or 0.0)
+    if current_time - last_bootstrap_time < 12.0:
+        return None
+
+    living_praxans = [praxan for praxan in praxans if getattr(praxan, "alive", True)]
+    if not living_praxans:
+        return None
+
+    anchor = compute_colony_anchor(living_praxans, buildings)
+    if anchor is None:
+        return None
+    anchor_x, anchor_y = anchor
+
+    counts = {}
+    for building in buildings:
+        building_type = getattr(building, "building_type", "house")
+        counts[building_type] = counts.get(building_type, 0) + 1
+
+    desired_build_order = []
+    if counts.get("house", 0) == 0:
+        desired_build_order.append("house")
+    if counts.get("storage", 0) == 0 and len(living_praxans) >= 2:
+        desired_build_order.append("storage")
+    if counts.get("farm", 0) == 0 and len(living_praxans) >= 2:
+        desired_build_order.append("farm")
+    if counts.get("well", 0) == 0 and len(living_praxans) >= 3:
+        desired_build_order.append("well")
+
+    if not desired_build_order:
+        return None
+
+    available_wood, available_stone = estimate_bootstrap_materials(anchor_x, anchor_y, living_praxans, buildings, resources)
+    for building_type in desired_build_order:
+        required_wood, required_stone = get_building_cost(building_type)
+        if available_wood < required_wood or available_stone < required_stone:
+            continue
+
+        build_x, build_y, _ = city_planner.find_best_location(building_type, buildings, getattr(world_map, "hazards", []), anchor)
+        if not consume_bootstrap_materials(anchor_x, anchor_y, required_wood, required_stone, living_praxans, buildings, resources, current_time):
+            continue
+
+        new_building = Building(build_x, build_y, building_type)
+        new_building.built_at = current_time
+        builder = min(living_praxans, key=lambda praxan: math.sqrt((praxan.x - build_x) ** 2 + (praxan.y - build_y) ** 2))
+        new_building.built_by = getattr(builder, "id", None)
+        if world_map is not None and hasattr(world_map, "get_biome_at"):
+            try:
+                new_building.origin_biome = world_map.get_biome_at(build_x, build_y)
+            except Exception:
+                new_building.origin_biome = None
+        if not new_building.material_style:
+            new_building.material_style = new_building._derive_material_style(new_building.origin_biome)
+
+        buildings.append(new_building)
+        particle_system.create_particles(build_x, build_y, 'build', 12)
+        try:
+            builder.gain_skill_xp('building', SKILL_XP_BUILDING)
+        except Exception:
+            pass
+        advisor.session_stats['buildings_built'][building_type] = advisor.session_stats['buildings_built'].get(building_type, 0) + 1
+        advisor.last_bootstrap_build_time = current_time
+        narrative_panel.add_message(f"Bootstrap crew raised a {building_type}.", 'Achievement')
+        record_observer_timeline_event(
+            advisor,
+            current_time,
+            "build",
+            f"Built {building_type}",
+            f"Bootstrap construction completed near colony center by #{getattr(builder, 'id', 'unknown')}.",
+        )
+        return new_building
+
+    return None
+
+
+def build_runtime_telemetry_sample(
+    *,
+    current_time,
+    game_start_time,
+    frame_count,
+    praxans,
+    buildings,
+    resources,
+    advisor,
+    settlement_state,
+    season,
+    weather_system,
+    faction_manager,
+    runtime_config,
+    selected_model,
+    time_speed_value,
+):
+    elapsed_seconds = max(0.0, float(current_time) - float(game_start_time))
+    active_resources = {
+        "food": 0,
+        "wood": 0,
+        "stone": 0,
+        "water": 0,
+    }
+    for resource in resources:
+        if getattr(resource, "collected", False):
+            continue
+        resource_type = str(getattr(resource, "resource_type", "food") or "food")
+        active_resources[resource_type] = active_resources.get(resource_type, 0) + 1
+
+    building_counts = {}
+    for building in buildings:
+        building_type = str(getattr(building, "building_type", "house") or "house")
+        building_counts[building_type] = building_counts.get(building_type, 0) + 1
+    dominant_buildings = [
+        {"type": building_type, "count": count}
+        for building_type, count in sorted(building_counts.items(), key=lambda item: (-item[1], item[0]))[:6]
+    ]
+
+    population = max(0, len(praxans))
+    avg_health = round(sum(float(getattr(praxan, "health", 0.0) or 0.0) for praxan in praxans) / population, 2) if population else 0.0
+    avg_happiness = round(sum(float(getattr(praxan, "happiness", 0.0) or 0.0) for praxan in praxans) / population, 2) if population else 0.0
+    avg_morale = round(sum(float(getattr(praxan, "morale", 0.0) or 0.0) for praxan in praxans) / population, 2) if population else 0.0
+    avg_inspiration = round(sum(float(getattr(praxan, "inspiration", 0.0) or 0.0) for praxan in praxans) / population, 2) if population else 0.0
+    diseased_count = sum(1 for praxan in praxans if bool(getattr(praxan, "diseased", False)))
+    mutated_count = sum(1 for praxan in praxans if int(getattr(praxan, "mutation_count", 0) or 0) > 0)
+    max_generation = max((int(getattr(praxan, "generation", 0) or 0) for praxan in praxans), default=0)
+
+    faction_count = len(getattr(faction_manager, "factions", {}) or {}) if faction_manager is not None else 0
+    current_summary = dict(getattr(advisor, "session_stats", {}).get("current_run_summary", {}) or {})
+    current_phase = dict(current_summary.get("current_phase", {}) or {})
+    end_state = dict(current_summary.get("end_state", {}) or {})
+
+    llm_pending = False
+    if hasattr(advisor, "has_pending_llm_jobs"):
+        try:
+            llm_pending = bool(advisor.has_pending_llm_jobs())
+        except Exception:
+            llm_pending = False
+
+    return {
+        "timestamp": round(float(current_time), 3),
+        "elapsed_seconds": round(elapsed_seconds, 3),
+        "frame_count": int(frame_count),
+        "scenario_id": str(getattr(advisor, "session_stats", {}).get("scenario_id", runtime_config.scenario)),
+        "session_tag": str(getattr(runtime_config, "session_tag", "") or ""),
+        "population": population,
+        "buildings_total": len(buildings),
+        "resources_active": active_resources,
+        "dominant_buildings": dominant_buildings,
+        "praxans": {
+            "avg_health": avg_health,
+            "avg_happiness": avg_happiness,
+            "avg_morale": avg_morale,
+            "avg_inspiration": avg_inspiration,
+            "diseased": diseased_count,
+            "mutated": mutated_count,
+            "max_generation": max_generation,
+        },
+        "settlement": {
+            "district_identity": str(settlement_state.get("district_identity", "homestead")),
+            "prosperity_score": round(float(settlement_state.get("prosperity_score", 0.0) or 0.0), 3),
+            "culture_score": round(float(settlement_state.get("culture_score", 0.0) or 0.0), 3),
+            "security_score": round(float(settlement_state.get("security_score", 0.0) or 0.0), 3),
+            "stored_food": int(settlement_state.get("stored_food", 0) or 0),
+            "stored_wood": int(settlement_state.get("stored_wood", 0) or 0),
+            "stored_stone": int(settlement_state.get("stored_stone", 0) or 0),
+        },
+        "factions": {
+            "active": faction_count,
+            "peak": int(getattr(advisor, "session_stats", {}).get("peak_factions", faction_count) or faction_count),
+            "group_tasks_active": len(getattr(advisor, "group_tasks", []) or []),
+            "active_challenges": len(getattr(advisor, "active_challenges", []) or []),
+        },
+        "advisor": {
+            "births_total": int(getattr(advisor, "session_stats", {}).get("births_total", 0) or 0),
+            "deaths_total": int(getattr(advisor, "total_deaths", 0) or 0),
+            "research_points": int(getattr(advisor, "research_points", 0) or 0),
+            "last_model_used": str(getattr(advisor, "last_model_used", "") or ""),
+            "phase_id": str(current_phase.get("id", "")),
+            "end_state_id": str(end_state.get("id", "")),
+            "score": int(end_state.get("score", 0) or 0),
+        },
+        "environment": {
+            "season": str(getattr(season, "current", "")),
+            "weather": str(getattr(weather_system, "current_weather", "")),
+            "time_speed": round(float(time_speed_value or 0.0), 3),
+        },
+        "llm": {
+            "enabled": bool(LLM_ENABLED and not runtime_config.disable_llm),
+            "selected_model": str(selected_model or ""),
+            "pending_jobs": llm_pending,
+        },
+    }
+
+
 def compute_settlement_snapshot(praxans, buildings, world_map=None, season=None, weather_system=None):
     counts = {btype: 0 for btype in ["house", "storage", "farm", "workshop", "shrine", "well"]}
     stored_food = 0
@@ -3731,15 +4054,18 @@ class ObserverOverlay:
 
 class GameLogger:
     """Handles comprehensive logging and session reports"""
-    def __init__(self, log_dir=None, log_level=None):
+    def __init__(self, log_dir=None, log_level=None, session_tag=None):
         self.session_start_time = datetime.now()
         self.session_id = f"{self.session_start_time.strftime('%Y%m%d_%H%M%S_%f')}_{os.getpid()}"
         self.log_dir = log_dir or RUNTIME_CONFIG.log_dir
+        self.session_tag = str(session_tag or getattr(RUNTIME_CONFIG, "session_tag", "") or "")
         self.crash_count = 0
         self.error_log = []
         self.game_events = []
         self.log_level_name = (log_level or RUNTIME_CONFIG.log_level).upper()
         self.log_level = getattr(logging, self.log_level_name, logging.INFO)
+        self.telemetry_count = 0
+        self.last_telemetry_sample = None
         
         # Create logs directory if it doesn't exist
         os.makedirs(self.log_dir, exist_ok=True)
@@ -3782,16 +4108,22 @@ class GameLogger:
         self.logger = logging.getLogger(__name__)
         self.log_file = log_file  # Store for reference
         self.file_handler = file_handler  # Keep reference for flushing
+        self.telemetry_file = os.path.join(self.log_dir, f"telemetry_{self.session_id}.jsonl")
+        self.telemetry_handle = open(self.telemetry_file, 'a', encoding='utf-8')
         
         # Log session start
         self.logger.info(f"Game session started: {self.session_id}")
         self.logger.info(f"Log file location: {os.path.abspath(log_file)}")
+        if self.session_tag:
+            self.logger.info(f"Session tag: {self.session_tag}")
         self.flush_logs()  # Ensure it's written
     
     def flush_logs(self):
         """Force flush all log handlers to ensure data is written"""
         if hasattr(self, 'file_handler'):
             self.file_handler.flush()
+        if hasattr(self, 'telemetry_handle') and self.telemetry_handle:
+            self.telemetry_handle.flush()
         for handler in logging.getLogger().handlers:
             if hasattr(handler, 'flush'):
                 handler.flush()
@@ -3864,6 +4196,29 @@ class GameLogger:
                 # Even if crash log fails, at least try to log it
                 print(f"CRITICAL: Failed to write crash log: {e}")
                 traceback.print_exc()
+
+    def log_telemetry(self, sample):
+        """Append a structured telemetry sample to the session telemetry log."""
+        if not isinstance(sample, dict):
+            return
+        try:
+            self.telemetry_handle.write(json.dumps(sample, sort_keys=True) + "\n")
+            self.telemetry_handle.flush()
+            self.telemetry_count += 1
+            self.last_telemetry_sample = dict(sample)
+            population = sample.get("population", 0)
+            buildings = sample.get("buildings_total", 0)
+            elapsed = sample.get("elapsed_seconds", 0.0)
+            phase_id = dict(sample.get("advisor", {}) or {}).get("phase_id", "")
+            self.logger.debug(
+                "[telemetry] t=%.1fs pop=%s buildings=%s phase=%s",
+                float(elapsed),
+                population,
+                buildings,
+                phase_id or "unknown",
+            )
+        except Exception:
+            self.logger.exception("Failed to write telemetry sample")
     
     def generate_session_report(self, game_state=None):
         """Generate comprehensive session report"""
@@ -3876,8 +4231,12 @@ class GameLogger:
             'end_time': session_end_time.isoformat(),
             'duration_seconds': duration.total_seconds(),
             'duration_formatted': str(duration),
+            'session_tag': self.session_tag,
             'crash_count': self.crash_count,
             'total_events': len(self.game_events),
+            'telemetry_file': os.path.abspath(self.telemetry_file),
+            'telemetry_samples': self.telemetry_count,
+            'last_telemetry': self.last_telemetry_sample,
             'game_state': game_state,
             'errors': self.error_log
         }
@@ -4797,7 +5156,11 @@ def main(runtime_config=RUNTIME_CONFIG):
                 print(f"[LLM] Warning: Failed to refresh client with new settings: {e}")
 
     # Initialize logging and crash tracking
-    game_logger = GameLogger(log_dir=runtime_config.log_dir, log_level=runtime_config.log_level)
+    game_logger = GameLogger(
+        log_dir=runtime_config.log_dir,
+        log_level=runtime_config.log_level,
+        session_tag=runtime_config.session_tag,
+    )
     snapshot_resume_path = shell_choice.get("snapshot_path")
     snapshot_payload = None
     if snapshot_resume_path:
@@ -4889,6 +5252,7 @@ def main(runtime_config=RUNTIME_CONFIG):
     game_logger.log_event("system", "Game starting")
     print(f"\n[LOGGING] Log files will be saved to: {os.path.abspath(game_logger.log_dir)}")
     print(f"[LOGGING] Session log: {os.path.abspath(game_logger.log_file)}\n")
+    print(f"[LOGGING] Session telemetry: {os.path.abspath(game_logger.telemetry_file)}")
     print(f"[Scenario] {scenario_profile['name']} ({scenario_profile['id']})")
     
     print("Starting Praxans...")
@@ -5508,12 +5872,14 @@ def main(runtime_config=RUNTIME_CONFIG):
     next_runtime_config = None
     try:
         frame_count = 0
-        time_speed_index = 0
+        last_telemetry_time = 0.0
+        debug_watermark_error_logged = False
+        storyteller_overlay_error_logged = False
         # #region agent log
         debug_log("main:loop_start", "Main loop started", {"frame_count": frame_count, "running": running}, "H1")
         # #endregion
         while running:
-            delta_time = clock.tick(FPS) / 1000.0 * TIME_SPEED_OPTIONS[time_speed_index]
+            delta_time = clock.tick(FPS) / 1000.0 * TIME_SPEED_OPTIONS[current_time_speed]
             frame_count += 1
             
             # Update game time
@@ -6124,6 +6490,19 @@ def main(runtime_config=RUNTIME_CONFIG):
                 current_time,
                 delta_time,
             )
+            bootstrap_building = attempt_bootstrap_construction(
+                praxans=praxans,
+                buildings=buildings,
+                resources=resources,
+                advisor=advisor,
+                city_planner=city_planner,
+                world_map=world_map,
+                particle_system=particle_system,
+                narrative_panel=narrative_panel,
+                current_time=current_time,
+            )
+            if bootstrap_building is not None:
+                settlement_state = compute_settlement_snapshot(praxans, buildings, world_map, season, weather_system)
             advisor.current_settlement_state = settlement_state
             refresh_run_summary_cache(
                 advisor,
@@ -6140,6 +6519,27 @@ def main(runtime_config=RUNTIME_CONFIG):
                 extinction=game_over,
                 force=False,
             )
+            if runtime_config.telemetry_interval > 0.0 and (
+                frame_count == 1 or current_time - last_telemetry_time >= runtime_config.telemetry_interval
+            ):
+                telemetry_sample = build_runtime_telemetry_sample(
+                    current_time=current_time,
+                    game_start_time=game_start_time,
+                    frame_count=frame_count,
+                    praxans=praxans,
+                    buildings=buildings,
+                    resources=resources,
+                    advisor=advisor,
+                    settlement_state=settlement_state,
+                    season=season,
+                    weather_system=weather_system,
+                    faction_manager=faction_manager,
+                    runtime_config=runtime_config,
+                    selected_model=advisor.last_model_used or selected_model,
+                    time_speed_value=TIME_SPEED_OPTIONS[current_time_speed],
+                )
+                game_logger.log_telemetry(telemetry_sample)
+                last_telemetry_time = current_time
             
             # Weather effects are now handled inside Praxan.tick_normal via TickManager
             
@@ -6245,6 +6645,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                         # Track death cause
                         if praxan.age >= PRAXAN_MAX_AGE:
                             cause = 'old_age'
+                        elif getattr(praxan, 'last_death_cause_hint', ''):
+                            cause = str(getattr(praxan, 'last_death_cause_hint'))
                         elif praxan.health <= 0:
                             cause = 'health_failure'
                         else:
@@ -6285,6 +6687,13 @@ def main(runtime_config=RUNTIME_CONFIG):
                                             diplomacy_manager=diplomacy_manager,
                                             event_bus=event_bus,
                                             ecology_manager=ecology_manager)
+            trade_system.update(
+                faction_manager,
+                praxans,
+                current_time,
+                diplomacy_manager=diplomacy_manager,
+                advisor=advisor,
+            )
             faction_manager.apply_autonomous_pressure(
                 praxans,
                 advisor,
@@ -7155,8 +7564,14 @@ def main(runtime_config=RUNTIME_CONFIG):
                 try:
                     debug_text = font_small.render("DEBUG: RENDER OK", True, (255, 255, 0))
                     screen.blit(debug_text, (10, 5))
-                except Exception:
-                    pass
+                except Exception as overlay_error:
+                    if not debug_watermark_error_logged:
+                        game_logger.logger.warning(
+                            "Debug watermark render failed (suppressed after first warning): %s",
+                            overlay_error,
+                            exc_info=True,
+                        )
+                        debug_watermark_error_logged = True
                     
             # Storyteller Debug Overlay
             if not getattr(runtime_config, 'headless', False):
@@ -7168,8 +7583,14 @@ def main(runtime_config=RUNTIME_CONFIG):
                     screen.blit(st_text1, (10, y_offset))
                     screen.blit(st_text2, (10, y_offset + 20))
                     screen.blit(st_text3, (10, y_offset + 40))
-                except Exception:
-                    pass
+                except Exception as overlay_error:
+                    if not storyteller_overlay_error_logged:
+                        game_logger.logger.warning(
+                            "Storyteller overlay render failed (suppressed after first warning): %s",
+                            overlay_error,
+                            exc_info=True,
+                        )
+                        storyteller_overlay_error_logged = True
             
             # Screen tint for critical overpopulation
             if population_ratio >= 1.0:
@@ -7212,8 +7633,10 @@ def main(runtime_config=RUNTIME_CONFIG):
                     error_text = font.render(f"DISPLAY ERROR: {str(e)[:40]}", True, (255, 0, 0))
                     screen.blit(error_text, (10, 10))
                     pygame.display.flip()
-                except:
-                    pass  # Can't even show error, give up
+                except Exception:
+                    game_logger.logger.exception(
+                        "Failed to render emergency on-screen display error banner after flip failure"
+                    )
             
             # Tick clock to maintain FPS
             clock.tick(FPS)
@@ -7246,7 +7669,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             thumbnail_path = None
         try:
             pygame.quit()  # Ensure pygame is cleaned up
-        except:
+        except Exception:
             pass
         
         try:
@@ -7254,6 +7677,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             snapshot_file = None
             archive_file = None
             next_runtime_config = None
+            run_summary = None
+            archive_payload = None
             local_names = locals()
             required_snapshot_names = ("praxans", "buildings", "resources", "advisor", "season", "weather_system", "game_start_time")
             if all(name in local_names for name in required_snapshot_names):
@@ -7330,7 +7755,24 @@ def main(runtime_config=RUNTIME_CONFIG):
             game_state = {
                 'population': len(praxans),
                 'buildings': len(buildings),
-                'duration': time.time() - game_start_time
+                'duration': time.time() - game_start_time,
+                'scenario_id': scenario_profile["id"] if "scenario_profile" in local_names else runtime_config.scenario,
+                'scenario_name': scenario_profile["name"] if "scenario_profile" in local_names else ACTIVE_SCENARIO_PROFILE.get("name"),
+                'seed': runtime_config.seed,
+                'session_tag': runtime_config.session_tag,
+                'headless': runtime_config.headless,
+                'selected_model': advisor.last_model_used or selected_model,
+                'snapshot_file': os.path.abspath(snapshot_file) if snapshot_file else None,
+                'archive_file': os.path.abspath(archive_file) if archive_file else None,
+                'thumbnail_file': os.path.abspath(thumbnail_path) if thumbnail_path else None,
+                'log_file': os.path.abspath(game_logger.log_file),
+                'telemetry_file': os.path.abspath(game_logger.telemetry_file),
+                'telemetry_samples': game_logger.telemetry_count,
+                'run_summary': run_summary,
+                'observer_report': (archive_payload or {}).get("observer_report"),
+                'focus_moments': (archive_payload or {}).get("focus_moments", []),
+                'game_over': bool(game_over),
+                'crash_count': game_logger.crash_count,
             }
             game_logger.generate_session_report(game_state)
             game_logger.flush_logs()
@@ -7342,6 +7784,7 @@ def main(runtime_config=RUNTIME_CONFIG):
             print(f"Log directory: {os.path.abspath(game_logger.log_dir)}")
             print(f"Session Log: {os.path.abspath(game_logger.log_file)}")
             print(f"Session Report: {os.path.abspath(report_file)}")
+            print(f"Session Telemetry: {os.path.abspath(game_logger.telemetry_file)}")
             if snapshot_file:
                 print(f"Session Snapshot: {os.path.abspath(snapshot_file)}")
             if archive_file:
@@ -7394,4 +7837,7 @@ if __name__ == "__main__":
         print("If logging was initialized, check logs/ directory for detailed crash reports.")
         print(f"Expected location: {os.path.abspath('logs')}")
         print(f"{'='*80}")
+
+
+
 

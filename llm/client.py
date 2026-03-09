@@ -149,7 +149,7 @@ class OllamaClient:
             return None
 
         with self._detect_lock:
-            if self._detected_model:
+            if self._detected_model == USER_SETTINGS.llm_model and not force_refresh:
                 return self._detected_model
 
             try:

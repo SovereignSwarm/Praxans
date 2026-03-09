@@ -31,6 +31,11 @@ class Praxan:
         self.vx = 0
         self.vy = 0
         self.inventory = {'food': 0, 'wood': 0, 'stone': 0}
+        self.last_damage_type = ""
+        self.last_damage_part = ""
+        self.last_damage_amount = 0.0
+        self.last_damage_time = 0.0
+        self.last_death_cause_hint = ""
         
         # Needs system (0-100, decrease over time)
         self.needs = {
@@ -216,19 +221,40 @@ class Praxan:
         )
     
     def add_moodlet(self, name, value, duration, current_time):
+        normalized_moodlets = []
+        for moodlet in self.moodlets:
+            normalized = self._normalize_moodlet_entry(moodlet, current_time)
+            if normalized is not None:
+                normalized_moodlets.append(normalized)
+        self.moodlets = normalized_moodlets
+
         for m in self.moodlets:
             if m['name'] == name:
                 m['duration'] = duration
                 m['start_time'] = current_time
+                m['value'] = float(value)
+                m['offset'] = float(value)
+                m['label'] = str(m.get('label') or name)
+                m['applied_at'] = float(current_time)
                 return
         self.moodlets.append({
-            'name': name,
-            'value': value,
+            'id': self._make_moodlet_id(name),
+            'name': str(name),
+            'label': str(name),
+            'value': float(value),
+            'offset': float(value),
             'duration': duration,
-            'start_time': current_time
+            'start_time': float(current_time),
+            'applied_at': float(current_time),
         })
 
     def update_mood(self, current_time, delta_time):
+        normalized_moodlets = []
+        for moodlet in self.moodlets:
+            normalized = self._normalize_moodlet_entry(moodlet, current_time)
+            if normalized is not None:
+                normalized_moodlets.append(normalized)
+        self.moodlets = normalized_moodlets
         self.moodlets = [m for m in self.moodlets if m['duration'] is None or (current_time - m['start_time'] < m['duration'])]
         total_modifier = sum(m['value'] for m in self.moodlets)
         trait_mood = 0
@@ -256,6 +282,51 @@ class Praxan:
                 self.trigger_mental_break('major', current_time)
             elif self.happiness < 35.0:
                 self.trigger_mental_break('minor', current_time)
+
+    def _make_moodlet_id(self, name):
+        text = str(name or "moodlet").strip().lower()
+        safe = "".join(ch if ch.isalnum() else "_" for ch in text)
+        while "__" in safe:
+            safe = safe.replace("__", "_")
+        return safe.strip("_") or "moodlet"
+
+    def _normalize_moodlet_entry(self, moodlet, current_time):
+        if not isinstance(moodlet, dict):
+            return None
+
+        normalized = dict(moodlet)
+        name = normalized.get('name') or normalized.get('label') or normalized.get('id') or "Moodlet"
+        duration = normalized.get('duration')
+        value = normalized.get('value', normalized.get('offset', 0.0))
+        start_time = normalized.get('start_time', normalized.get('applied_at', current_time))
+        applied_at = normalized.get('applied_at', start_time)
+
+        try:
+            numeric_value = float(value or 0.0)
+        except (TypeError, ValueError):
+            numeric_value = 0.0
+        try:
+            numeric_duration = None if duration is None else float(duration)
+        except (TypeError, ValueError):
+            numeric_duration = None
+        try:
+            numeric_start = float(start_time or current_time)
+        except (TypeError, ValueError):
+            numeric_start = float(current_time)
+        try:
+            numeric_applied = float(applied_at or numeric_start)
+        except (TypeError, ValueError):
+            numeric_applied = numeric_start
+
+        normalized['name'] = str(name)
+        normalized['label'] = str(normalized.get('label') or name)
+        normalized['id'] = str(normalized.get('id') or self._make_moodlet_id(name))
+        normalized['value'] = numeric_value
+        normalized['offset'] = numeric_value
+        normalized['duration'] = numeric_duration
+        normalized['start_time'] = numeric_start
+        normalized['applied_at'] = numeric_applied
+        return normalized
 
     def trigger_mental_break(self, severity, current_time):
         if severity == 'extreme':
@@ -564,29 +635,53 @@ class Praxan:
         building_bonus = self.get_building_bonus()
         required_wood = max(1, int(base_wood / building_bonus))
         required_stone = max(1, int(base_stone / building_bonus))
-        
-        available_wood, available_stone = self.calculate_pooled_resources(other_praxans)
-        
+
+        best_x, best_y = self.x, self.y
+        if city_planner:
+            best_x, best_y, _ = city_planner.find_best_location(building_type, buildings, hazards, (self.x, self.y))
+
+        site_position = (best_x, best_y)
+        available_wood, available_stone = self.estimate_construction_materials(
+            buildings,
+            resources,
+            other_praxans,
+            site_position=site_position,
+        )
+
         if available_wood >= required_wood and available_stone >= required_stone:
-            # Find location and build
-            if city_planner:
-                best_x, best_y, _ = city_planner.find_best_location(building_type, buildings, hazards, (self.x, self.y))
-                dist = math.sqrt((best_x - self.x)**2 + (best_y - self.y)**2)
-                if dist < 20:
-                    if self.consume_pooled_resources(required_wood, required_stone, other_praxans):
-                        self.build_message = f"Built {building_type}!"
-                        self.build_message_time = time.time()
-                        self.next_build_location = (best_x, best_y)
-                        return building_type
-                else:
-                    dx, dy = best_x - self.x, best_y - self.y
-                    self.vx = (dx/dist) * PRAXAN_SPEED
-                    self.vy = (dy/dist) * PRAXAN_SPEED
-                    self.current_action = f"Building: Moving to {building_type} site"
+            dist = math.sqrt((best_x - self.x)**2 + (best_y - self.y)**2)
+            if dist < 20:
+                if self.consume_accessible_construction_materials(
+                    required_wood,
+                    required_stone,
+                    buildings,
+                    resources,
+                    other_praxans,
+                    site_position=site_position,
+                ):
+                    self.build_message = f"Built {building_type}!"
+                    self.build_message_time = time.time()
+                    self.next_build_location = (best_x, best_y)
+                    return building_type
+            elif dist > 0:
+                dx, dy = best_x - self.x, best_y - self.y
+                self.vx = (dx / dist) * PRAXAN_SPEED
+                self.vy = (dy / dist) * PRAXAN_SPEED
+                self.current_action = f"Building: Moving to {building_type} site"
+                return None
+
+        wood_shortfall = max(0.0, required_wood - available_wood)
+        stone_shortfall = max(0.0, required_stone - available_stone)
+        resource_target, resource_distance = self.find_needed_build_resource(resources, wood_shortfall, stone_shortfall)
+        if resource_target and resource_distance:
+            dx = resource_target.x - self.x
+            dy = resource_target.y - self.y
+            if resource_distance > 0:
+                self.vx = (dx / resource_distance) * PRAXAN_SPEED
+                self.vy = (dy / resource_distance) * PRAXAN_SPEED
+            self.current_action = f"Building: Fetching {resource_target.resource_type}"
         else:
-            # Not enough resources, maybe switch to gathering? 
-            # For now, just idle or let the priority grid handle it
-            self.current_action = "Building: Insufficient resources"
+            self.current_action = "Building: Waiting on materials"
             self.state = STATE_IDLE
         return None
 
@@ -821,6 +916,148 @@ class Praxan:
                 pass
         
         return available_wood, available_stone
+
+    def estimate_construction_materials(self, buildings, resources=None, other_praxans=None, site_position=None):
+        """Count build materials accessible to a local construction crew."""
+        ref_x, ref_y = site_position if site_position else (self.x, self.y)
+        available_wood = float(self.inventory.get('wood', 0) or 0)
+        available_stone = float(self.inventory.get('stone', 0) or 0)
+
+        for other in other_praxans or []:
+            if other is None or other is self or not hasattr(other, 'inventory'):
+                continue
+            if math.sqrt((other.x - ref_x) ** 2 + (other.y - ref_y) ** 2) > RESOURCE_SHARING_RADIUS:
+                continue
+            available_wood += float(other.inventory.get('wood', 0) or 0)
+            available_stone += float(other.inventory.get('stone', 0) or 0)
+
+        for building in buildings or []:
+            stored_resources = getattr(building, 'stored_resources', None)
+            if not stored_resources:
+                continue
+            if math.sqrt((building.x - ref_x) ** 2 + (building.y - ref_y) ** 2) > 180:
+                continue
+            available_wood += float(stored_resources.get('wood', 0) or 0)
+            available_stone += float(stored_resources.get('stone', 0) or 0)
+
+        for resource in resources or []:
+            if getattr(resource, 'collected', False):
+                continue
+            resource_type = getattr(resource, 'resource_type', '')
+            if resource_type not in ('wood', 'stone'):
+                continue
+            if math.sqrt((resource.x - ref_x) ** 2 + (resource.y - ref_y) ** 2) > 220:
+                continue
+            if resource_type == 'wood':
+                available_wood += 1.0
+            else:
+                available_stone += 1.0
+
+        return available_wood, available_stone
+
+    def consume_accessible_construction_materials(self, required_wood, required_stone, buildings, resources=None, other_praxans=None, site_position=None):
+        """Spend local construction materials from inventories, stockpiles, and loose resources."""
+        ref_x, ref_y = site_position if site_position else (self.x, self.y)
+        wood_needed = float(required_wood)
+        stone_needed = float(required_stone)
+
+        def _consume_inventory(owner, resource_type, amount_needed):
+            if amount_needed <= 0 or owner is None or not hasattr(owner, 'inventory'):
+                return amount_needed
+            available = float(owner.inventory.get(resource_type, 0) or 0)
+            take = min(amount_needed, available)
+            if take > 0:
+                owner.inventory[resource_type] = max(0, available - take)
+            return amount_needed - take
+
+        wood_needed = _consume_inventory(self, 'wood', wood_needed)
+        stone_needed = _consume_inventory(self, 'stone', stone_needed)
+
+        nearby_praxans = []
+        for other in other_praxans or []:
+            if other is None or other is self or not hasattr(other, 'inventory'):
+                continue
+            distance = math.sqrt((other.x - ref_x) ** 2 + (other.y - ref_y) ** 2)
+            if distance <= RESOURCE_SHARING_RADIUS:
+                nearby_praxans.append((distance, other))
+        nearby_praxans.sort(key=lambda item: item[0])
+        for _, other in nearby_praxans:
+            wood_needed = _consume_inventory(other, 'wood', wood_needed)
+            stone_needed = _consume_inventory(other, 'stone', stone_needed)
+            if wood_needed <= 0 and stone_needed <= 0:
+                return True
+
+        nearby_stockpiles = []
+        for building in buildings or []:
+            stored_resources = getattr(building, 'stored_resources', None)
+            if not stored_resources:
+                continue
+            distance = math.sqrt((building.x - ref_x) ** 2 + (building.y - ref_y) ** 2)
+            if distance <= 180:
+                nearby_stockpiles.append((distance, building))
+        nearby_stockpiles.sort(key=lambda item: item[0])
+        for _, building in nearby_stockpiles:
+            stored_resources = building.stored_resources
+            if wood_needed > 0:
+                available = float(stored_resources.get('wood', 0) or 0)
+                take = min(wood_needed, available)
+                stored_resources['wood'] = max(0.0, available - take)
+                wood_needed -= take
+            if stone_needed > 0:
+                available = float(stored_resources.get('stone', 0) or 0)
+                take = min(stone_needed, available)
+                stored_resources['stone'] = max(0.0, available - take)
+                stone_needed -= take
+            if wood_needed <= 0 and stone_needed <= 0:
+                return True
+
+        loose_resources = []
+        for resource in resources or []:
+            if getattr(resource, 'collected', False):
+                continue
+            resource_type = getattr(resource, 'resource_type', '')
+            if resource_type not in ('wood', 'stone'):
+                continue
+            distance = math.sqrt((resource.x - ref_x) ** 2 + (resource.y - ref_y) ** 2)
+            if distance <= 220:
+                loose_resources.append((distance, resource))
+        loose_resources.sort(key=lambda item: item[0])
+        for _, resource in loose_resources:
+            if resource.resource_type == 'wood' and wood_needed > 0:
+                resource.collected = True
+                resource.collect_time = time.time()
+                wood_needed -= 1.0
+            elif resource.resource_type == 'stone' and stone_needed > 0:
+                resource.collected = True
+                resource.collect_time = time.time()
+                stone_needed -= 1.0
+            if wood_needed <= 0 and stone_needed <= 0:
+                return True
+
+        return wood_needed <= 0 and stone_needed <= 0
+
+    def find_needed_build_resource(self, resources, wood_needed, stone_needed):
+        """Find the closest loose build material when a construction job is short on inputs."""
+        needed_types = []
+        if wood_needed > 0:
+            needed_types.append('wood')
+        if stone_needed > 0:
+            needed_types.append('stone')
+        if not needed_types:
+            return None, None
+
+        closest = None
+        min_distance = float('inf')
+        for resource in resources or []:
+            if getattr(resource, 'collected', False):
+                continue
+            if getattr(resource, 'resource_type', '') not in needed_types:
+                continue
+            distance = math.sqrt((resource.x - self.x) ** 2 + (resource.y - self.y) ** 2)
+            if distance < min_distance:
+                min_distance = distance
+                closest = resource
+        return closest, min_distance
     
     def consume_pooled_resources(self, required_wood, required_stone, other_praxans):
         """Consume resources: take from self first, then borrow from nearby praxans
@@ -1155,7 +1392,10 @@ class Praxan:
                 except Exception:
                     pass
                 
-                has_resources = 1.0 if (self.inventory['wood'] >= required_wood and self.inventory['stone'] >= required_stone) else 0.0
+                available_wood, available_stone = self.estimate_construction_materials(buildings, resources)
+                wood_ratio = min(1.0, available_wood / max(1.0, required_wood))
+                stone_ratio = 1.0 if required_stone <= 0 else min(1.0, available_stone / max(1.0, required_stone))
+                has_resources = (wood_ratio + stone_ratio) * 0.5
                 
                 # Check skill match
                 skill_bonus = 1.0
@@ -1383,30 +1623,37 @@ class Praxan:
         # Process Muse personal goals if available
         if getattr(self, 'personal_goal', None):
             goal = self.personal_goal
-            self.personal_goal = None
-            
-            gtype = goal.get('type')
-            gtarget = goal.get('target', '').lower()
-            
+            gtype = str(goal.get('type', ''))
+            gtarget = goal.get('target')
+            gtarget_text = gtarget.lower() if isinstance(gtarget, str) else ''
+
+            tx = ty = None
+            if isinstance(gtarget, dict):
+                tx = gtarget.get('x')
+                ty = gtarget.get('y')
+            elif isinstance(gtarget, (list, tuple)) and len(gtarget) >= 2:
+                tx, ty = gtarget[0], gtarget[1]
+
             if gtype == 'rest':
+                self.personal_goal = None
                 self.state = STATE_RESTING
                 self.current_action = "resting (muse idea)"
                 return None
             elif gtype in ('wander_to', 'socialize_with', 'explore_unknown'):
-                tx, ty = None, None
-                if buildings:
+                if (tx is None or ty is None) and gtarget_text and buildings:
                     for b in buildings:
-                        if getattr(b, 'building_type', '') in gtarget:
+                        if getattr(b, 'building_type', '') in gtarget_text:
                             tx, ty = b.x, b.y
                             break
-                if tx is None and other_praxans:
+                if tx is None and gtarget_text and other_praxans:
                     for p in other_praxans:
-                        if getattr(p, 'name', '').lower() in gtarget or str(p.id) in gtarget:
+                        if getattr(p, 'name', '').lower() in gtarget_text or str(p.id) in gtarget_text:
                             tx, ty = p.x, p.y
                             break
-                if tx is not None:
-                    tx += random.randint(-40, 40)
-                    ty += random.randint(-40, 40)
+                if tx is not None and ty is not None:
+                    self.personal_goal = None
+                    tx = float(tx) + random.randint(-40, 40)
+                    ty = float(ty) + random.randint(-40, 40)
                     path = self.calculate_path(tx, ty, buildings if buildings else [], None, None, other_praxans)
                     if len(path) > 1:
                         self.path = path
@@ -1418,7 +1665,7 @@ class Praxan:
                         speed = 40 * self.life_stage_modifiers.get('speed', 1.0)
                         self.vx = (dx / distance) * speed
                         self.vy = (dy / distance) * speed
-                        self.current_action = f"muse: {gtarget}"
+                        self.current_action = f"muse: {gtarget_text or gtype}"
                         return None
         
         # Check if we're gathering resources for a building directive and need to continue
@@ -2235,6 +2482,7 @@ class Praxan:
         decay_scale = 1.0 / max(0.75, self.resilience)
         
         if self.age >= PRAXAN_MAX_AGE:
+            self.last_death_cause_hint = "old_age"
             self.alive = False
             return False  # Should die
             
@@ -2273,6 +2521,16 @@ class Praxan:
             self.heal_damage(0.015 * delta_time * self.resilience)
             
         if self.health <= 0:
+            if self.last_damage_type:
+                self.last_death_cause_hint = self.last_damage_type
+            elif self.diseased:
+                self.last_death_cause_hint = "disease"
+            elif self.needs['thirst'] < 15:
+                self.last_death_cause_hint = "dehydration"
+            elif self.needs['hunger'] < 15:
+                self.last_death_cause_hint = "starvation"
+            else:
+                self.last_death_cause_hint = "health_failure"
             self.alive = False
             
         return self.alive
@@ -3000,6 +3258,12 @@ Best next action:"""
                 self.state = STATE_IDLE
         
         if self.body_parts['torso']['health'] <= 0 or self.body_parts['head']['health'] <= 0 or self.capacities['consciousness'] <= 0:
+            if self.body_parts['torso']['health'] <= 0:
+                self.last_death_cause_hint = self.last_damage_type or "torso_failure"
+            elif self.body_parts['head']['health'] <= 0:
+                self.last_death_cause_hint = self.last_damage_type or "head_trauma"
+            else:
+                self.last_death_cause_hint = self.last_damage_type or "consciousness_failure"
             self.alive = False
 
     def take_damage(self, amount, damage_type='blunt', current_time=None):
@@ -3024,6 +3288,10 @@ Best next action:"""
         
         self.body_parts[target_part]['health'] -= amount
         self.body_parts[target_part]['health'] = max(0, self.body_parts[target_part]['health'])
+        self.last_damage_type = str(damage_type or 'injury')
+        self.last_damage_part = target_part
+        self.last_damage_amount = float(amount or 0.0)
+        self.last_damage_time = current_time
         
         if amount > 15:
             self.add_moodlet("In extreme pain", -15, 120, current_time)
@@ -3051,6 +3319,8 @@ Best next action:"""
                 })
             
         self.calculate_capacities()
+        if not self.alive and not self.last_death_cause_hint:
+            self.last_death_cause_hint = f"{self.last_damage_type}:{target_part}"
         # Record near-death or significant combat wound memory
         total_health = sum(p['health'] for p in self.body_parts.values())
         max_health = sum(p['max'] for p in self.body_parts.values())

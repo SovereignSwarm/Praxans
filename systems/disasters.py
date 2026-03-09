@@ -428,12 +428,16 @@ class DisasterManager:
                     moodlet_id = f"disaster_{ad.disaster_id}"
                     # Check if moodlet already applied
                     if not any(m.get("id") == moodlet_id for m in moodlets):
+                        applied_at = time.time()
                         moodlets.append({
                             "id": moodlet_id,
+                            "name": f"Survived {label}",
                             "label": f"Survived {label}",
+                            "value": float(mood_offset),
                             "offset": int(mood_offset),
                             "duration": ddef.get("duration", 15.0) + 30.0,
-                            "applied_at": time.time(),
+                            "start_time": applied_at,
+                            "applied_at": applied_at,
                         })
 
             # Speed penalty (blizzards, dust storms)

@@ -11,9 +11,12 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
+
+_logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -135,14 +138,22 @@ class EventBus:
             try:
                 handler(event)
             except Exception:
-                pass  # Never let a subscriber crash the game
+                _logger.warning(
+                    "Category subscriber failed during EventBus.publish",
+                    extra={"event_category": event.category, "handler": getattr(handler, "__name__", repr(handler))},
+                    exc_info=True,
+                )
 
         # Wildcard handlers
         for handler in self._subscribers.get("*", []):
             try:
                 handler(event)
             except Exception:
-                pass
+                _logger.warning(
+                    "Wildcard subscriber failed during EventBus.publish",
+                    extra={"event_category": event.category, "handler": getattr(handler, "__name__", repr(handler))},
+                    exc_info=True,
+                )
 
     # ---- subscribing ------------------------------------------------------
 

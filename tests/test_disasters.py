@@ -686,5 +686,20 @@ class TestStorytellerIncidentIntegration(unittest.TestCase):
         incident_natural_disaster(game_state)
 
 
+class TestIncidentRobustness(unittest.TestCase):
+    def test_crop_blight_handles_missing_resource_store(self):
+        from events.incidents import incident_crop_blight
+
+        class FarmNoStore:
+            building_type = "farm"
+
+        farm = FarmNoStore()
+        with mock.patch("events.incidents.random.random", return_value=0.0):
+            incident_crop_blight({"buildings": [farm], "narrative_panel": None})
+
+        self.assertIsInstance(getattr(farm, "stored_resources", None), dict)
+        self.assertEqual(farm.stored_resources.get("food"), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

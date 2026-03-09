@@ -169,7 +169,8 @@ class ModLoader:
 
     def get_mod_by_id(self, mod_id: str) -> Optional[ModInfo]:
         for m in self.discovered_mods:
-            return m if m.mod_id == mod_id else None
+            if m.mod_id == mod_id:
+                return m
         return None
 
     def enable_mod(self, mod_id: str):
@@ -188,3 +189,4 @@ class ModLoader:
             "enabled_mods": [m.mod_id for m in self.discovered_mods if m.enabled],
             "disabled_mods": [m.mod_id for m in self.discovered_mods if not m.enabled],
         }
+
