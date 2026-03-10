@@ -79,14 +79,16 @@ def incident_migrant_wave(game_state: dict):
 def incident_animal_attack(game_state: dict):
     # For now, just a direct hit to a random praxan's health since we don't have a hostile mob system yet
     praxans = game_state.get('praxans', [])
-    if not praxans: return
-    
+    if not praxans:
+        return
+
     target = random.choice(praxans)
     target.health -= random.uniform(20, 50)
-    
+
     narrative_panel = game_state.get('narrative_panel')
     if narrative_panel:
-        narrative_panel.add_message(f"Praxan #{target.id} was attacked by a wild beast!", "Crisis")
+        target_label = getattr(target, 'id', '?')
+        narrative_panel.add_message(f"Praxan #{target_label} was attacked by a wild beast!", "Crisis")
 
 def incident_resource_pod(game_state: dict):
     resources = game_state.get('resources', [])

@@ -687,6 +687,20 @@ class TestStorytellerIncidentIntegration(unittest.TestCase):
 
 
 class TestIncidentRobustness(unittest.TestCase):
+    def test_animal_attack_handles_missing_praxan_id(self):
+        from events.incidents import incident_animal_attack
+
+        class PraxanNoId:
+            def __init__(self):
+                self.health = 100.0
+
+        panel = StubNarrativePanel()
+        with mock.patch("events.incidents.random.uniform", return_value=25.0):
+            incident_animal_attack({"praxans": [PraxanNoId()], "narrative_panel": panel})
+
+        self.assertEqual(len(panel.messages), 1)
+        self.assertIn("Praxan #?", panel.messages[0][0])
+
     def test_crop_blight_handles_missing_resource_store(self):
         from events.incidents import incident_crop_blight
 

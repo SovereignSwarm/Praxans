@@ -96,14 +96,18 @@ def _serialize_known_resources(praxan) -> list[dict[str, float]]:
     for resource_pos in getattr(praxan, "known_resources", []):
         if not isinstance(resource_pos, (list, tuple)) or len(resource_pos) != 2:
             continue
+        try:
+            x = float(resource_pos[0])
+            y = float(resource_pos[1])
+        except (TypeError, ValueError):
+            continue
         known_resources.append(
             {
-                "x": round(float(resource_pos[0]), 2),
-                "y": round(float(resource_pos[1]), 2),
+                "x": round(x, 2),
+                "y": round(y, 2),
             }
         )
     return known_resources
-
 
 def _serialize_celebration_state(celebration_state: dict[str, Any] | None, current_time: float) -> dict[str, Any]:
     if not celebration_state:
@@ -134,21 +138,34 @@ def _serialize_celebration_state(celebration_state: dict[str, Any] | None, curre
 def _serialize_camera_state(camera) -> dict[str, Any] | None:
     if camera is None:
         return None
+
+    def _coerce_float(value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
     return {
-        "x": round(float(getattr(camera, "x", 0.0)), 2),
-        "y": round(float(getattr(camera, "y", 0.0)), 2),
-        "zoom": round(float(getattr(camera, "zoom", 1.0)), 3),
+        "x": round(_coerce_float(getattr(camera, "x", 0.0), 0.0), 2),
+        "y": round(_coerce_float(getattr(camera, "y", 0.0), 0.0), 2),
+        "zoom": round(_coerce_float(getattr(camera, "zoom", 1.0), 1.0), 3),
         "follow_mode": bool(getattr(camera, "follow_mode", False)),
     }
 
 
 def _serialize_active_challenges(advisor, current_time: float) -> list[dict[str, Any]]:
+    def _coerce_float(value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
     serialized = []
     for challenge in getattr(advisor, "active_challenges", []):
         if not isinstance(challenge, dict):
             continue
-        start_time = float(challenge.get("start_time", current_time) or current_time)
-        duration = max(0.0, float(challenge.get("duration", 0.0) or 0.0))
+        start_time = _coerce_float(challenge.get("start_time", current_time), current_time)
+        duration = max(0.0, _coerce_float(challenge.get("duration", 0.0), 0.0))
         remaining_seconds = max(0.0, duration - max(0.0, current_time - start_time))
         if remaining_seconds <= 0.0:
             continue
@@ -161,13 +178,26 @@ def _serialize_active_challenges(advisor, current_time: float) -> list[dict[str,
 
 
 def _serialize_group_tasks(advisor, current_time: float) -> list[dict[str, Any]]:
+    def _coerce_float(value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _coerce_int(value: Any, default: int) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
     serialized = []
     for task in getattr(advisor, "group_tasks", []):
+        created_time = _coerce_float(getattr(task, "created_time", current_time), current_time)
         serialized.append(
             {
                 "task_type": getattr(task, "task_type", None),
                 "description": getattr(task, "description", ""),
-                "required_count": int(getattr(task, "required_count", 1)),
+                "required_count": max(1, _coerce_int(getattr(task, "required_count", 1), 1)),
                 "target_location": _sanitize_json_value(getattr(task, "target_location", None)),
                 "target_building_type": getattr(task, "target_building_type", None),
                 "assigned_praxans": [
@@ -177,10 +207,7 @@ def _serialize_group_tasks(advisor, current_time: float) -> list[dict[str, Any]]
                 ],
                 "active": bool(getattr(task, "active", True)),
                 "faction_id": getattr(task, "faction_id", None),
-                "created_elapsed": round(
-                    max(0.0, current_time - float(getattr(task, "created_time", current_time) or current_time)),
-                    3,
-                ),
+                "created_elapsed": round(max(0.0, current_time - created_time), 3),
             }
         )
     return serialized
@@ -189,24 +216,50 @@ def _serialize_group_tasks(advisor, current_time: float) -> list[dict[str, Any]]
 def _serialize_factions(faction_manager, current_time: float) -> list[dict[str, Any]]:
     if faction_manager is None:
         return []
+
+    def _coerce_float(value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _coerce_non_negative_int(value: Any, default: int = 0) -> int:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return default
+        return max(0, parsed)
+
+    def _elapsed_or_zero(value: Any) -> float:
+        if not value:
+            return 0.0
+        return round(max(0.0, current_time - _coerce_float(value, current_time)), 3)
+
+    def _elapsed_or_now(value: Any) -> float:
+        return round(max(0.0, current_time - _coerce_float(value, current_time)), 3)
+
     serialized = []
     for faction_id, faction in getattr(faction_manager, "factions", {}).items():
+        serialized_faction_id = _coerce_non_negative_int(
+            faction_id,
+            _coerce_non_negative_int(getattr(faction, "id", 0), 0),
+        )
         raw_migration_target = getattr(faction, "migration_target", None)
         if isinstance(raw_migration_target, (list, tuple)) and len(raw_migration_target) == 2:
             migration_target = {
-                "x": round(float(raw_migration_target[0]), 2),
-                "y": round(float(raw_migration_target[1]), 2),
+                "x": round(_coerce_float(raw_migration_target[0]), 2),
+                "y": round(_coerce_float(raw_migration_target[1]), 2),
             }
         elif isinstance(raw_migration_target, dict):
             migration_target = {
-                "x": round(float(raw_migration_target.get("x", 0.0)), 2),
-                "y": round(float(raw_migration_target.get("y", 0.0)), 2),
+                "x": round(_coerce_float(raw_migration_target.get("x", 0.0)), 2),
+                "y": round(_coerce_float(raw_migration_target.get("y", 0.0)), 2),
             }
         else:
             migration_target = None
         serialized.append(
             {
-                "id": int(faction_id),
+                "id": serialized_faction_id,
                 "member_ids": [
                     int(member_id)
                     for member_id in getattr(faction, "member_ids", [])
@@ -215,43 +268,20 @@ def _serialize_factions(faction_manager, current_time: float) -> list[dict[str, 
                 "leader_id": getattr(faction, "leader_id", None),
                 "shared_goals": _sanitize_json_value(list(getattr(faction, "shared_goals", []))),
                 "ideology": _sanitize_json_value(dict(getattr(faction, "ideology", {}))),
-                "cohesion": round(float(getattr(faction, "cohesion", 0.0)), 3),
-                "stability": round(float(getattr(faction, "stability", 0.0)), 3),
-                "schism_pressure": round(float(getattr(faction, "schism_pressure", 0.0)), 3),
-                "migration_pressure": round(float(getattr(faction, "migration_pressure", 0.0)), 3),
+                "cohesion": round(_coerce_float(getattr(faction, "cohesion", 0.0)), 3),
+                "stability": round(_coerce_float(getattr(faction, "stability", 0.0)), 3),
+                "schism_pressure": round(_coerce_float(getattr(faction, "schism_pressure", 0.0)), 3),
+                "migration_pressure": round(_coerce_float(getattr(faction, "migration_pressure", 0.0)), 3),
                 "primary_doctrine": getattr(faction, "primary_doctrine", None),
                 "preferred_biome": getattr(faction, "preferred_biome", None),
                 "migration_target": migration_target,
-                "succession_count": int(getattr(faction, "succession_count", 0) or 0),
+                "succession_count": _coerce_non_negative_int(getattr(faction, "succession_count", 0) or 0),
                 "rival_faction_ids": _sanitize_json_value(list(getattr(faction, "rival_faction_ids", []))),
-                "last_succession_elapsed": round(
-                    max(0.0, current_time - float(getattr(faction, "last_succession_time", 0.0) or 0.0))
-                    if getattr(faction, "last_succession_time", 0.0)
-                    else 0.0,
-                    3,
-                ),
-                "last_schism_elapsed": round(
-                    max(0.0, current_time - float(getattr(faction, "last_schism_time", 0.0) or 0.0))
-                    if getattr(faction, "last_schism_time", 0.0)
-                    else 0.0,
-                    3,
-                ),
-                "last_migration_elapsed": round(
-                    max(0.0, current_time - float(getattr(faction, "last_migration_time", 0.0) or 0.0))
-                    if getattr(faction, "last_migration_time", 0.0)
-                    else 0.0,
-                    3,
-                ),
-                "last_resource_crisis_elapsed": round(
-                    max(0.0, current_time - float(getattr(faction, "last_resource_crisis_time", 0.0) or 0.0))
-                    if getattr(faction, "last_resource_crisis_time", 0.0)
-                    else 0.0,
-                    3,
-                ),
-                "formed_elapsed": round(
-                    max(0.0, current_time - float(getattr(faction, "formed_time", current_time) or current_time)),
-                    3,
-                ),
+                "last_succession_elapsed": _elapsed_or_zero(getattr(faction, "last_succession_time", 0.0)),
+                "last_schism_elapsed": _elapsed_or_zero(getattr(faction, "last_schism_time", 0.0)),
+                "last_migration_elapsed": _elapsed_or_zero(getattr(faction, "last_migration_time", 0.0)),
+                "last_resource_crisis_elapsed": _elapsed_or_zero(getattr(faction, "last_resource_crisis_time", 0.0)),
+                "formed_elapsed": _elapsed_or_now(getattr(faction, "formed_time", current_time)),
             }
         )
     return serialized
@@ -387,21 +417,26 @@ def _serialize_world_state(world_map, current_time: float) -> dict[str, Any] | N
 
 
 def _serialize_temporary_modifiers(advisor, current_time: float) -> dict[str, dict[str, float]]:
+    def _coerce_float(value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
     serialized: dict[str, dict[str, float]] = {}
     modifiers = getattr(getattr(advisor, "game_modifiers", None), "temporary", {})
     for modifier_name, modifier_value in modifiers.items():
         if not isinstance(modifier_value, tuple) or len(modifier_value) != 2:
             continue
         multiplier, end_time = modifier_value
-        remaining_seconds = max(0.0, float(end_time) - current_time)
+        remaining_seconds = max(0.0, _coerce_float(end_time, current_time) - current_time)
         if remaining_seconds <= 0.0:
             continue
         serialized[modifier_name] = {
-            "value": float(multiplier),
+            "value": _coerce_float(multiplier, 1.0),
             "remaining_seconds": round(remaining_seconds, 3),
         }
     return serialized
-
 
 def _serialize_global_climate(global_climate) -> dict[str, Any]:
     """Serialize GlobalClimate epoch drift state for snapshot persistence."""

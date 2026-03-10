@@ -577,8 +577,686 @@ class RunSnapshotTests(unittest.TestCase):
         self.assertEqual(celebration["active_remaining"], 0.0)
         self.assertEqual(celebration["cooldown_remaining"], 0.0)
         self.assertEqual(celebration["center"], {"x": 42.0, "y": 51.0})
+
+    def test_malformed_known_resources_are_skipped_without_crashing(self):
+        """Non-numeric known resource coordinates should be ignored safely."""
+        praxan = SimpleNamespace(
+            id=1,
+            role="gatherer",
+            x=0.0,
+            y=0.0,
+            health=100.0,
+            happiness=50.0,
+            morale=50.0,
+            inspiration=0.0,
+            favorite_biome="plains",
+            age=20.0,
+            diseased=False,
+            resilience=1.0,
+            settlement_prosperity=0.5,
+            inventory={"food": 0, "wood": 0, "stone": 0},
+            needs={"hunger": 50.0, "energy": 50.0, "thirst": 50.0},
+            state="idle",
+            current_action="idle",
+            personal_goal=None,
+            goal_progress=0.0,
+            personality={},
+            genetics={},
+            generation=1,
+            parent_ids=[],
+            lineage_id=1,
+            mutation_count=0,
+            birth_origin="founder",
+            skills={},
+            bonds={},
+            opinions={},
+            relationships={},
+            traits=[],
+            name="Test",
+            faction_id=None,
+            known_resources=[("oops", 20.0), (15.0, "bad"), (30.5, 40.5)],
+            last_reproduction_time=0.0,
+            goal_assigned_time=0.0,
+            episodic_memory=None,
+        )
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [praxan],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+        )
+
+        self.assertEqual(snapshot["praxans"][0]["known_resources"], [{"x": 30.5, "y": 40.5}])
+
+    def test_malformed_active_challenge_timers_fall_back_without_crashing(self):
+        """Malformed active challenge timer fields should not crash snapshot serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[
+                {"type": "bad_start", "start_time": "oops", "duration": 30.0},
+                {"type": "bad_duration", "start_time": 195.0, "duration": "oops"},
+                {"type": "valid", "start_time": 190.0, "duration": 20.0},
+            ],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+        )
+
+        active_challenges = snapshot["advisor"]["active_challenges"]
+        self.assertEqual(len(active_challenges), 2)
+        by_type = {entry["type"]: entry for entry in active_challenges}
+        self.assertAlmostEqual(by_type["bad_start"]["remaining_seconds"], 30.0)
+        self.assertAlmostEqual(by_type["valid"]["remaining_seconds"], 10.0)
+
+
+    def test_malformed_group_task_created_time_falls_back_without_crashing(self):
+        """Malformed group task created_time should not crash snapshot serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[
+                SimpleNamespace(
+                    task_type="build",
+                    description="raise hut",
+                    required_count=2,
+                    target_location=(1.0, 2.0),
+                    target_building_type="hut",
+                    assigned_praxans=[1],
+                    active=True,
+                    faction_id=0,
+                    created_time="bad",
+                )
+            ],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+        )
+
+        group_tasks = snapshot["advisor"]["group_tasks"]
+        self.assertEqual(len(group_tasks), 1)
+        self.assertEqual(group_tasks[0]["task_type"], "build")
+        self.assertEqual(group_tasks[0]["created_elapsed"], 0.0)
+
+    def test_malformed_group_task_required_count_falls_back_without_crashing(self):
+        """Malformed group task required_count should not crash snapshot serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[
+                SimpleNamespace(
+                    task_type="build",
+                    description="raise hut",
+                    required_count="two",
+                    target_location=(1.0, 2.0),
+                    target_building_type="hut",
+                    assigned_praxans=[1],
+                    active=True,
+                    faction_id=0,
+                    created_time=190.0,
+                )
+            ],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+        )
+
+        group_tasks = snapshot["advisor"]["group_tasks"]
+        self.assertEqual(len(group_tasks), 1)
+        self.assertEqual(group_tasks[0]["required_count"], 1)
+        self.assertEqual(group_tasks[0]["created_elapsed"], 10.0)
+
+    def test_malformed_faction_migration_target_falls_back_without_crashing(self):
+        """Malformed faction migration target coordinates should not crash serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+        faction_manager = SimpleNamespace(
+            factions={
+                1: SimpleNamespace(
+                    member_ids=[],
+                    leader_id=None,
+                    shared_goals=[],
+                    ideology={},
+                    cohesion=0.1,
+                    stability=0.2,
+                    schism_pressure=0.0,
+                    migration_pressure=1.0,
+                    primary_doctrine=None,
+                    preferred_biome=None,
+                    migration_target={"x": "bad", "y": object()},
+                    succession_count=0,
+                    last_succession_time=0.0,
+                    last_schism_time=0.0,
+                    last_migration_time=0.0,
+                    last_resource_crisis_time=0.0,
+                    rival_faction_ids=[],
+                    formed_time=0.0,
+                )
+            }
+        )
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+            faction_manager=faction_manager,
+        )
+
+        self.assertEqual(snapshot["factions"][0]["migration_target"], {"x": 0.0, "y": 0.0})
+    def test_malformed_faction_metrics_fall_back_without_crashing(self):
+        """Malformed faction scalar metrics should not crash serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+        faction_manager = SimpleNamespace(
+            factions={
+                1: SimpleNamespace(
+                    member_ids=[],
+                    leader_id=None,
+                    shared_goals=[],
+                    ideology={},
+                    cohesion="bad",
+                    stability=object(),
+                    schism_pressure="oops",
+                    migration_pressure=None,
+                    primary_doctrine=None,
+                    preferred_biome=None,
+                    migration_target=None,
+                    succession_count=0,
+                    last_succession_time=0.0,
+                    last_schism_time=0.0,
+                    last_migration_time=0.0,
+                    last_resource_crisis_time=0.0,
+                    rival_faction_ids=[],
+                    formed_time=0.0,
+                )
+            }
+        )
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+            faction_manager=faction_manager,
+        )
+
+        faction = snapshot["factions"][0]
+        self.assertEqual(faction["cohesion"], 0.0)
+        self.assertEqual(faction["stability"], 0.0)
+        self.assertEqual(faction["schism_pressure"], 0.0)
+        self.assertEqual(faction["migration_pressure"], 0.0)
+
+    def test_malformed_faction_timing_fields_fall_back_without_crashing(self):
+        """Malformed faction timing values should not crash serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+        faction_manager = SimpleNamespace(
+            factions={
+                1: SimpleNamespace(
+                    member_ids=[],
+                    leader_id=None,
+                    shared_goals=[],
+                    ideology={},
+                    cohesion=0.0,
+                    stability=0.0,
+                    schism_pressure=0.0,
+                    migration_pressure=0.0,
+                    primary_doctrine=None,
+                    preferred_biome=None,
+                    migration_target=None,
+                    succession_count=0,
+                    last_succession_time="bad",
+                    last_schism_time=object(),
+                    last_migration_time="oops",
+                    last_resource_crisis_time={},
+                    rival_faction_ids=[],
+                    formed_time="not-a-time",
+                )
+            }
+        )
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+            faction_manager=faction_manager,
+        )
+
+        faction = snapshot["factions"][0]
+        self.assertEqual(faction["last_succession_elapsed"], 0.0)
+        self.assertEqual(faction["last_schism_elapsed"], 0.0)
+        self.assertEqual(faction["last_migration_elapsed"], 0.0)
+        self.assertEqual(faction["last_resource_crisis_elapsed"], 0.0)
+        self.assertEqual(faction["formed_elapsed"], 0.0)
+    def test_malformed_faction_succession_count_falls_back_without_crashing(self):
+        """Malformed faction succession_count values should not crash serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+        faction_manager = SimpleNamespace(
+            factions={
+                1: SimpleNamespace(
+                    member_ids=[],
+                    leader_id=None,
+                    shared_goals=[],
+                    ideology={},
+                    cohesion=0.0,
+                    stability=0.0,
+                    schism_pressure=0.0,
+                    migration_pressure=0.0,
+                    primary_doctrine=None,
+                    preferred_biome=None,
+                    migration_target=None,
+                    succession_count="unknown",
+                    last_succession_time=0.0,
+                    last_schism_time=0.0,
+                    last_migration_time=0.0,
+                    last_resource_crisis_time=0.0,
+                    rival_faction_ids=[],
+                    formed_time=0.0,
+                )
+            }
+        )
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+            faction_manager=faction_manager,
+        )
+
+        faction = snapshot["factions"][0]
+        self.assertEqual(faction["succession_count"], 0)
+
+    def test_malformed_faction_id_falls_back_without_crashing(self):
+        """Malformed faction map keys should not crash serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+        faction_manager = SimpleNamespace(
+            factions={
+                "not-a-number": SimpleNamespace(
+                    id=42,
+                    member_ids=[],
+                    leader_id=None,
+                    shared_goals=[],
+                    ideology={},
+                    cohesion=0.0,
+                    stability=0.0,
+                    schism_pressure=0.0,
+                    migration_pressure=0.0,
+                    primary_doctrine=None,
+                    preferred_biome=None,
+                    migration_target=None,
+                    succession_count=0,
+                    last_succession_time=0.0,
+                    last_schism_time=0.0,
+                    last_migration_time=0.0,
+                    last_resource_crisis_time=0.0,
+                    rival_faction_ids=[],
+                    formed_time=0.0,
+                )
+            }
+        )
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+            faction_manager=faction_manager,
+        )
+
+        faction = snapshot["factions"][0]
+        self.assertEqual(faction["id"], 42)
+    def test_malformed_temporary_modifiers_fall_back_without_crashing(self):
+        """Malformed temporary modifier values should not crash snapshot serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(
+                tech_unlocked=set(),
+                permanent={},
+                temporary={
+                    "bad_end": (1.5, object()),
+                    "bad_multiplier": ("oops", 260.0),
+                    "valid": (1.25, 230.0),
+                },
+            ),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+        )
+
+        temporary_modifiers = snapshot["advisor"]["temporary_modifiers"]
+        self.assertNotIn("bad_end", temporary_modifiers)
+        self.assertEqual(temporary_modifiers["bad_multiplier"]["value"], 1.0)
+        self.assertEqual(temporary_modifiers["bad_multiplier"]["remaining_seconds"], 60.0)
+        self.assertEqual(temporary_modifiers["valid"]["value"], 1.25)
+        self.assertEqual(temporary_modifiers["valid"]["remaining_seconds"], 30.0)
+    def test_malformed_camera_state_falls_back_without_crashing(self):
+        """Malformed camera coordinates and zoom should not crash snapshot serialization."""
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+            camera=SimpleNamespace(x="bad", y=object(), zoom="oops", follow_mode=1),
+        )
+
+        self.assertEqual(snapshot["camera"], {"x": 0.0, "y": 0.0, "zoom": 1.0, "follow_mode": True})
 if __name__ == "__main__":
     unittest.main()
+
+
 
 
 
