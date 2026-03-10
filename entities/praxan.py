@@ -30,7 +30,7 @@ class Praxan:
         self.y = y
         self.vx = 0
         self.vy = 0
-        self.inventory = {'food': 0, 'wood': 0, 'stone': 0}
+        self.inventory = {'food': 50, 'wood': 20, 'stone': 0}
         self.last_damage_type = ""
         self.last_damage_part = ""
         self.last_damage_amount = 0.0
@@ -2489,15 +2489,15 @@ class Praxan:
         damage_taken = 0.0
         
         if self.needs['hunger'] < 30:
-            damage_taken += HEALTH_DECAY_BASE * 3 * delta_time * decay_scale
+            damage_taken += HEALTH_DECAY_BASE * 0.5 * delta_time * decay_scale
         elif self.needs['hunger'] < 50:
-            damage_taken += HEALTH_DECAY_BASE * 1.5 * delta_time * decay_scale
+            damage_taken += HEALTH_DECAY_BASE * 0.25 * delta_time * decay_scale
             
         if self.needs['energy'] < 30:
-            damage_taken += HEALTH_DECAY_BASE * 2 * delta_time * decay_scale
+            damage_taken += HEALTH_DECAY_BASE * 0.3 * delta_time * decay_scale
             
         if self.needs['thirst'] < 30:
-            damage_taken += HEALTH_DECAY_BASE * 2.5 * delta_time * decay_scale
+            damage_taken += HEALTH_DECAY_BASE * 0.4 * delta_time * decay_scale
             
         if self.diseased:
             # Typed disease severity drives damage; fallback flat rate for boolean-only
@@ -2506,9 +2506,9 @@ class Praxan:
                 from systems.disease import STAGE_SYMPTOMATIC
                 for d in typed_diseases:
                     if d.stage == STAGE_SYMPTOMATIC:
-                        damage_taken += HEALTH_DECAY_BASE * (3 + d.severity * 7) * delta_time * decay_scale
+                        damage_taken += HEALTH_DECAY_BASE * (1 + d.severity * 2) * delta_time * decay_scale
             else:
-                damage_taken += HEALTH_DECAY_BASE * 5 * delta_time * decay_scale
+                damage_taken += HEALTH_DECAY_BASE * 1.5 * delta_time * decay_scale
 
         if damage_taken > 0:
             self.take_damage(damage_taken, 'decay')
@@ -2635,9 +2635,8 @@ class Praxan:
         temp_diff = ambient_temp - self.body_temp
         
         # Faster to get cold/hot than to return to normal if efficiency is low
-        rate = 0.05 * delta_time
-        if abs(temp_diff) > 10:
-            rate *= 2.0
+        # Slower stabilization
+        rate = 0.01 * delta_time
             
         # Tending towards 37.0 if ambient is comfortable (15-28)
         if 15.0 <= ambient_temp <= 28.0:
@@ -2649,13 +2648,13 @@ class Praxan:
         if self.body_temp < 35.0:
             # Hypothermia
             severity = (35.0 - self.body_temp) / 5.0  # e.g. 30.0 -> severity 1.0
-            self.take_damage(severity * 5.0 * delta_time, 'cold')
+            self.take_damage(severity * 0.5 * delta_time, 'cold')
             if random.random() < 0.1 * delta_time:
                 self.add_moodlet("Freezing", -20, 30, time.time())
         elif self.body_temp > 38.5:
             # Heatstroke
             severity = (self.body_temp - 38.5) / 3.0  # e.g. 41.5 -> severity 1.0
-            self.take_damage(severity * 5.0 * delta_time, 'heat')
+            self.take_damage(severity * 0.5 * delta_time, 'heat')
             if random.random() < 0.1 * delta_time:
                 self.add_moodlet("Overheating", -15, 30, time.time())
     

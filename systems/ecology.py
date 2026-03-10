@@ -98,6 +98,45 @@ DEGRADATION_HARVEST_THRESHOLD = 20
 
 
 # ---------------------------------------------------------------------------
+# Snapshot parsing helpers
+# ---------------------------------------------------------------------------
+
+def _safe_float(
+    value: Any,
+    default: float,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        result = default
+    if not math.isfinite(result):
+        result = default
+    if minimum is not None:
+        result = max(minimum, result)
+    if maximum is not None:
+        result = min(maximum, result)
+    return result
+
+
+def _safe_int(
+    value: Any,
+    default: int,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> int:
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        result = default
+    if minimum is not None:
+        result = max(minimum, result)
+    if maximum is not None:
+        result = min(maximum, result)
+    return result
+
+# ---------------------------------------------------------------------------
 # Ecology Cell
 # ---------------------------------------------------------------------------
 
@@ -127,12 +166,24 @@ class EcoCell:
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> "EcoCell":
+        if not isinstance(data, dict):
+            return EcoCell()
+
+        biome = str(data.get("biome", "plains"))
+        if biome not in BIOME_FERTILITY_CAP:
+            biome = "plains"
+
         cell = EcoCell(
-            fertility=float(data.get("fertility", DEFAULT_FERTILITY)),
-            biome=str(data.get("biome", "plains")),
+            fertility=_safe_float(
+                data.get("fertility", DEFAULT_FERTILITY),
+                DEFAULT_FERTILITY,
+                MIN_FERTILITY,
+                MAX_FERTILITY,
+            ),
+            biome=biome,
         )
-        cell.harvest_pressure = float(data.get("harvest_pressure", 0.0))
-        cell.total_harvests = int(data.get("total_harvests", 0))
+        cell.harvest_pressure = _safe_float(data.get("harvest_pressure", 0.0), 0.0, 0.0)
+        cell.total_harvests = _safe_int(data.get("total_harvests", 0), 0, 0)
         cell.status = _fertility_status(cell.fertility)
         cell._last_event_fertility = cell.fertility
         return cell
@@ -435,16 +486,26 @@ class EcologyManager:
         world_map: Any = None,
     ) -> "EcologyManager":
         """Restore an EcologyManager from snapshot data."""
-        cell_size = int(data.get("cell_size", DEFAULT_CELL_SIZE))
-        mgr = cls(world_width, world_height, cell_size=cell_size, world_map=world_map)
-        mgr.total_harvests = int(data.get("total_harvests", 0))
-        mgr.degradation_events = int(data.get("degradation_events", 0))
-        mgr.recovery_events = int(data.get("recovery_events", 0))
+        if not isinstance(data, dict):
+            data = {}
 
-        for cell_data in data.get("cells", []):
-            col = int(cell_data.get("col", 0))
-            row = int(cell_data.get("row", 0))
+        cell_size = _safe_int(data.get("cell_size", DEFAULT_CELL_SIZE), DEFAULT_CELL_SIZE, 1)
+        mgr = cls(world_width, world_height, cell_size=cell_size, world_map=world_map)
+        mgr.total_harvests = _safe_int(data.get("total_harvests", 0), 0, 0)
+        mgr.degradation_events = _safe_int(data.get("degradation_events", 0), 0, 0)
+        mgr.recovery_events = _safe_int(data.get("recovery_events", 0), 0, 0)
+
+        cells = data.get("cells", [])
+        if not isinstance(cells, list):
+            cells = []
+
+        for cell_data in cells:
+            if not isinstance(cell_data, dict):
+                continue
+            col = _safe_int(cell_data.get("col", -1), -1)
+            row = _safe_int(cell_data.get("row", -1), -1)
             if 0 <= col < mgr.cols and 0 <= row < mgr.rows:
                 mgr.grid[col][row] = EcoCell.from_dict(cell_data)
 
         return mgr
+

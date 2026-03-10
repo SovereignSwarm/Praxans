@@ -20,6 +20,7 @@ from systems.ecology import (
     EcologyManager,
     EcoCell,
     _fertility_status,
+    DEFAULT_CELL_SIZE,
     DEFAULT_FERTILITY,
     MAX_FERTILITY,
     MIN_FERTILITY,
@@ -389,6 +390,39 @@ class TestEcologySerialization(unittest.TestCase):
         data = mgr.serialize()
         self.assertEqual(len(data["cells"]), 0)
 
+    def test_deserialize_malformed_values_fall_back_without_crashing(self):
+        data = {
+            "cell_size": "oops",
+            "total_harvests": "bad",
+            "degradation_events": None,
+            "recovery_events": -9,
+            "cells": [
+                {
+                    "col": "0",
+                    "row": "0",
+                    "fertility": "bad",
+                    "harvest_pressure": "also-bad",
+                    "total_harvests": "bad",
+                    "biome": None,
+                },
+                {"col": "x", "row": 0, "fertility": 5},
+                "not-a-cell",
+            ],
+        }
+
+        mgr = EcologyManager.deserialize(data, 512, 512)
+
+        self.assertEqual(mgr.cell_size, DEFAULT_CELL_SIZE)
+        self.assertEqual(mgr.total_harvests, 0)
+        self.assertEqual(mgr.degradation_events, 0)
+        self.assertEqual(mgr.recovery_events, 0)
+
+        cell = mgr.grid[0][0]
+        self.assertAlmostEqual(cell.fertility, DEFAULT_FERTILITY, places=1)
+        self.assertAlmostEqual(cell.harvest_pressure, 0.0, places=3)
+        self.assertEqual(cell.total_harvests, 0)
+        self.assertEqual(cell.biome, "plains")
+
 
 # ---------------------------------------------------------------------------
 # GlobalClimate serialization
@@ -492,3 +526,4 @@ class TestAdvisorEnvironmentContext(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

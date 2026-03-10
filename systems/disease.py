@@ -67,16 +67,49 @@ class DiseaseInstance:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DiseaseInstance":
+        if not isinstance(data, dict):
+            raise ValueError("Disease payload must be a dictionary")
+
+        disease_id = str(data.get("disease_id", "")).strip()
+        if not disease_id:
+            raise ValueError("Disease payload missing disease_id")
+
+        try:
+            elapsed = float(data.get("elapsed", 0.0))
+        except (TypeError, ValueError):
+            elapsed = 0.0
+        if not math.isfinite(elapsed) or elapsed < 0.0:
+            elapsed = 0.0
+
         inst = cls(
-            disease_id=data["disease_id"],
-            contracted_at=time.time() - data.get("elapsed", 0.0),
+            disease_id=disease_id,
+            contracted_at=time.time() - elapsed,
         )
-        inst.stage = data.get("stage", STAGE_INCUBATING)
-        inst.severity = data.get("severity", 0.0)
-        inst.immunity = data.get("immunity", 0.0)
-        inst.tended = data.get("tended", False)
-        inst.tend_quality = data.get("tend_quality", 0.0)
-        inst.quarantined = data.get("quarantined", False)
+
+        stage = str(data.get("stage", STAGE_INCUBATING))
+        if stage not in {STAGE_INCUBATING, STAGE_SYMPTOMATIC, STAGE_RECOVERING}:
+            stage = STAGE_INCUBATING
+        inst.stage = stage
+
+        try:
+            severity = float(data.get("severity", 0.0))
+        except (TypeError, ValueError):
+            severity = 0.0
+        inst.severity = max(0.0, min(1.0, severity))
+
+        try:
+            immunity = float(data.get("immunity", 0.0))
+        except (TypeError, ValueError):
+            immunity = 0.0
+        inst.immunity = max(0.0, min(1.0, immunity))
+
+        inst.tended = bool(data.get("tended", False))
+        try:
+            tend_quality = float(data.get("tend_quality", 0.0))
+        except (TypeError, ValueError):
+            tend_quality = 0.0
+        inst.tend_quality = max(0.0, min(1.0, tend_quality))
+        inst.quarantined = bool(data.get("quarantined", False))
         return inst
 
 
@@ -480,11 +513,19 @@ class DiseaseManager:
     @staticmethod
     def deserialize_diseases(praxan: object, data: list[dict]) -> None:
         """Restore diseases from snapshot data."""
-        praxan.diseases = [DiseaseInstance.from_dict(d) for d in data]
+        restored: list[DiseaseInstance] = []
+        for payload in data or []:
+            try:
+                restored.append(DiseaseInstance.from_dict(payload))
+            except (TypeError, ValueError):
+                continue
+        praxan.diseases = restored
         # Update backward compat flag
         praxan.diseased = len(praxan.diseases) > 0
         if praxan.diseases:
             praxan.disease_start_time = min(d.contracted_at for d in praxan.diseases)
+        else:
+            praxan.disease_start_time = 0.0
 
     @staticmethod
     def serialize_immunities(praxan: object) -> dict[str, float]:
@@ -663,3 +704,4 @@ def _on_epidemic(
             ))
         except Exception:
             pass
+

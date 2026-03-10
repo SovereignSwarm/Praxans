@@ -606,6 +606,21 @@ class TestDisasterManagerSerialization(unittest.TestCase):
         """Restoring from None-like empty should not crash."""
         self.mgr.restore({})
 
+    def test_restore_malformed_elapsed_fields(self):
+        """Malformed elapsed-time values should fall back instead of crashing restore."""
+        self.mgr.restore({
+            "history": "not-a-list",
+            "last_disaster_elapsed": "oops",
+            "cooldowns": {"flood": "bad", "": 12, "earthquake": -5},
+        })
+
+        self.assertEqual(self.mgr.history, [])
+        self.assertIn("flood", self.mgr._cooldowns)
+        self.assertNotIn("", self.mgr._cooldowns)
+        self.assertAlmostEqual(time.time() - self.mgr._last_disaster_time, 0.0, delta=1.0)
+        self.assertAlmostEqual(time.time() - self.mgr._cooldowns["flood"], 0.0, delta=1.0)
+
+
     def test_cooldown_elapsed_pattern(self):
         """Cooldown should use elapsed-time pattern for snapshot portability."""
         now = time.time()
@@ -717,3 +732,5 @@ class TestIncidentRobustness(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

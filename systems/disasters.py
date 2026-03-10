@@ -30,6 +30,17 @@ from typing import Any, Optional
 _disaster_def_cache: dict[str, dict[str, Any]] = {}
 
 
+def _safe_non_negative_float(value: Any, default: float = 0.0) -> float:
+    """Best-effort float coercion for snapshot payloads."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(parsed) or parsed < 0.0:
+        return default
+    return parsed
+
+
 def _load_disaster_defs() -> None:
     """Populate cache from DefDatabase."""
     if _disaster_def_cache:
@@ -587,17 +598,23 @@ class DisasterManager:
                 self.active_disasters.append(ActiveDisaster.from_dict(ad_data))
             except Exception:
                 pass
-
         # Restore history
-        self.history = list(data.get("history", []))
+        history_data = data.get("history", [])
+        self.history = list(history_data) if isinstance(history_data, list) else []
 
         # Restore timing
-        elapsed = data.get("last_disaster_elapsed", 0.0)
+        elapsed = _safe_non_negative_float(data.get("last_disaster_elapsed", 0.0))
         self._last_disaster_time = now - elapsed
 
         # Restore cooldowns
-        for did, elapsed_cd in data.get("cooldowns", {}).items():
-            self._cooldowns[did] = now - elapsed_cd
+        self._cooldowns = {}
+        cooldowns = data.get("cooldowns", {})
+        if isinstance(cooldowns, dict):
+            for did, elapsed_cd in cooldowns.items():
+                did_str = str(did).strip()
+                if not did_str:
+                    continue
+                self._cooldowns[did_str] = now - _safe_non_negative_float(elapsed_cd)
 
     # ---- query helpers -----------------------------------------------------
 
@@ -616,3 +633,5 @@ class DisasterManager:
     def recent_history(self, count: int = 5) -> list[dict[str, Any]]:
         """Return the N most recent disaster records."""
         return self.history[-count:]
+
+

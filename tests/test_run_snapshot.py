@@ -1253,8 +1253,73 @@ class RunSnapshotTests(unittest.TestCase):
         )
 
         self.assertEqual(snapshot["camera"], {"x": 0.0, "y": 0.0, "zoom": 1.0, "follow_mode": True})
+
+class RunSnapshotTerritoryRobustnessTests(unittest.TestCase):
+    def test_malformed_territory_fields_fall_back_without_crashing(self):
+        advisor = SimpleNamespace(
+            research_points=0,
+            points_spent=0,
+            stability_counter=0,
+            current_focus="resources",
+            directives=[],
+            json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={},
+            advisory_history=[],
+            session_stats={},
+            current_settlement_state={},
+            query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[],
+            civilization_age=1,
+            total_deaths=0,
+            achievements=[],
+            history=[],
+            events_history=[],
+            last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+        territory_manager = SimpleNamespace(
+            territory_grid={
+                ("bad-x", 7): {
+                    "claim_strength": "unknown",
+                    "claimed_time": "not-a-number",
+                    "center_type": "outpost",
+                }
+            }
+        )
+
+        snapshot = build_run_snapshot(
+            [],
+            [],
+            [],
+            advisor,
+            season,
+            weather_system,
+            current_time=200.0,
+            game_start_time=100.0,
+            territory_manager=territory_manager,
+        )
+
+        self.assertEqual(
+            snapshot["territory"],
+            {
+                "tiles": [
+                    {
+                        "x": 0,
+                        "y": 7,
+                        "claim_strength": 0.0,
+                        "center_type": "outpost",
+                        "claimed_elapsed": 0.0,
+                    }
+                ]
+            },
+        )
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

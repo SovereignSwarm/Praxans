@@ -310,16 +310,29 @@ def _serialize_fog_of_war(fog_of_war) -> dict[str, Any] | None:
 def _serialize_territory(territory_manager, current_time: float) -> dict[str, Any] | None:
     if territory_manager is None:
         return None
+
+    def _coerce_float(value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _coerce_int(value: Any, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
     tiles = []
     for tile_pos, data in getattr(territory_manager, "territory_grid", {}).items():
         if not isinstance(tile_pos, tuple) or len(tile_pos) != 2 or not isinstance(data, dict):
             continue
-        claimed_time = float(data.get("claimed_time", current_time) or current_time)
+        claimed_time = _coerce_float(data.get("claimed_time", current_time) or current_time, current_time)
         tiles.append(
             {
-                "x": int(tile_pos[0]),
-                "y": int(tile_pos[1]),
-                "claim_strength": round(max(0.0, float(data.get("claim_strength", 0.0) or 0.0)), 3),
+                "x": _coerce_int(tile_pos[0], 0),
+                "y": _coerce_int(tile_pos[1], 0),
+                "claim_strength": round(max(0.0, _coerce_float(data.get("claim_strength", 0.0) or 0.0, 0.0)), 3),
                 "center_type": data.get("center_type", "exploration"),
                 "claimed_elapsed": round(max(0.0, current_time - claimed_time), 3),
             }
@@ -710,4 +723,5 @@ def resolve_snapshot_path(log_dir: str, snapshot_file: str | None = None, load_l
         return os.path.abspath(latest_snapshot) if latest_snapshot else None
 
     return None
+
 

@@ -277,6 +277,13 @@ class TestRitualManagerInit(unittest.TestCase):
         rm.restore(None)
         self.assertEqual(rm.total_rituals_held, 0)
 
+    def test_restore_ignores_non_dict_faction_states(self):
+        rm = RitualManager()
+        rm.restore({"total_rituals_held": 3, "faction_states": []})
+        self.assertEqual(rm.total_rituals_held, 3)
+        self.assertEqual(rm.last_eval_time, 0.0)
+        self.assertEqual(rm.faction_states, {})
+
 
 # ---------------------------------------------------------------------------
 # Tests — Ritual Execution
@@ -754,3 +761,4 @@ class TestGatheringPoint(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

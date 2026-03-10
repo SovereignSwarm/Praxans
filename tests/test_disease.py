@@ -459,6 +459,25 @@ class TestDiseaseManagerSerialization(DiseaseDefDatabaseMixin, unittest.TestCase
         self.assertEqual(restored.stage, STAGE_SYMPTOMATIC)
         self.assertTrue(new_praxan.diseased)  # backward compat
 
+    def test_deserialize_skips_malformed_entries(self):
+        new_praxan = _MockPraxan(2)
+        payload = [
+            "not-a-dict",
+            {},
+            {"disease_id": "gut_rot", "elapsed": "bad", "stage": "unknown", "severity": "oops"},
+            {"disease_id": "grey_lung", "elapsed": 8.0, "stage": STAGE_SYMPTOMATIC, "severity": 0.4},
+        ]
+
+        DiseaseManager.deserialize_diseases(new_praxan, payload)
+
+        self.assertTrue(new_praxan.diseased)
+        self.assertEqual(len(new_praxan.diseases), 2)
+        self.assertEqual(new_praxan.diseases[0].disease_id, "gut_rot")
+        self.assertEqual(new_praxan.diseases[0].stage, STAGE_INCUBATING)
+        self.assertEqual(new_praxan.diseases[0].severity, 0.0)
+        self.assertEqual(new_praxan.diseases[1].disease_id, "grey_lung")
+        self.assertEqual(new_praxan.diseases[1].stage, STAGE_SYMPTOMATIC)
+
     def test_immunity_serialization(self):
         praxan = _MockPraxan(0)
         praxan.disease_immunities = {
@@ -576,3 +595,4 @@ class TestEpidemicDetection(DiseaseDefDatabaseMixin, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

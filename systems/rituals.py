@@ -593,11 +593,14 @@ class RitualManager:
 
     def restore(self, data: dict[str, Any]) -> None:
         """Restore ritual manager state from snapshot data."""
-        if not data:
+        if not data or not isinstance(data, dict):
             return
         self.total_rituals_held = data.get("total_rituals_held", 0)
         self.last_eval_time = data.get("last_eval_time", 0.0)
-        for fid_str, state_data in data.get("faction_states", {}).items():
+        faction_states = data.get("faction_states", {})
+        if not isinstance(faction_states, dict):
+            return
+        for fid_str, state_data in faction_states.items():
             try:
                 fid = int(fid_str)
                 self.faction_states[fid] = FactionRitualState.from_dict(state_data)
@@ -611,3 +614,4 @@ class RitualManager:
 
 def _distance(x1: float, y1: float, x2: float, y2: float) -> float:
     return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
