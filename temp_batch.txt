@@ -1,0 +1,100 @@
+pygame 2.6.1 (SDL 2.28.4, Python 3.13.6)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+[DEBUG] Main function entered - logging initialized
+[DEBUG] Screen created: <Surface(1920x1080x32 SW)>
+[DEBUG] Screen size: (1920, 1080)
+[DEBUG] Screen flags: 16
+Display window created
+Window brought to foreground
+Generating Planet Macro-Map...
+[LLM] Error generating world seed: cannot import name 'get_global_ollama_client' from 'llm.client' (D:\Documents\PerseusXR\Thonglets\llm\client.py)
+2026-03-10 19:07:14,593 - INFO - Game session started: 20260310_190714_592633_2421952
+2026-03-10 19:07:14,593 - INFO - Log file location: D:\Documents\PerseusXR\Thonglets\logs\session_20260310_190714_592633_2421952.log
+Detecting fastest available LLM model...
+[LLM] Using model: qwen3.5:9b
+2026-03-10 19:07:14,593 - INFO - [system] Game starting
+
+[LOGGING] Log files will be saved to: D:\Documents\PerseusXR\Thonglets\logs
+[LOGGING] Session log: D:\Documents\PerseusXR\Thonglets\logs\session_20260310_190714_592633_2421952.log
+
+[LOGGING] Session telemetry: D:\Documents\PerseusXR\Thonglets\logs\telemetry_20260310_190714_592633_2421952.jsonl
+[Scenario] Standard Basin (standard)
+Starting Praxans...
+Loading Praxans... Assets
+Asset manager created
+[DEBUG] Asset manager type: <class '__main__.AssetManager'>
+Loading Praxans... World
+[Planet Local Gen] Inheriting traits from planet tile: Biome plains, Temp 0.27
+World map created with 256 chunks
+[DEBUG] Chunks created: 256 (surfaces will be created on first render)
+Loading Praxans... Camera
+Camera initialized at (3136.0, 3556.0)
+Spawn center: (3584.0, 3412.5) - Biome: forest
+Camera positioned at (2624, 2872) with zoom 1.5
+[DEBUG] Camera world size: 8192x8192
+[DEBUG] Window size: 1920x1080
+Loading Praxans... Spawning
+Loading Praxans... Resources
+Loading Praxans... Resources
+Loading Praxans... Resources
+[Legacy] Loaded: Runs=28, Best Pop=8
+[Legacy] Unlocked bonuses: ['prepared']
+2026-03-10 19:07:14,990 - DEBUG - [Cascades] Default narrative cascades attached
+Praxans game started! Observer mode is active - the colony evolves without player commands.
+[DEBUG] Entering main game loop...
+[DEBUG] First frame started
+[DEBUG] First frame - rendered and flipped immediately
+[DEBUG] First frame - rendered first chunk
+[DEBUG] Skipping heavy updates on first frame for faster initial render
+2026-03-10 19:07:15,157 - DEBUG - [Scheduler] Started council job (priority=10, stale_key=council_1773130034)
+2026-03-10 19:07:15,158 - DEBUG - [Scheduler] Started memory_summarizer job (priority=2, stale_key=mem_1773130034)
+[Storyteller] Firing incident: migrant_wave (Cost: 0.0)
+2026-03-10 19:07:15,160 - DEBUG - [telemetry] t=0.0s pop=5 buildings=1 phase=founding
+2026-03-10 19:07:15,161 - INFO - Quest node 'reach_5_pop' completed
+2026-03-10 19:07:15,161 - INFO - Quest 'Growing Community' COMPLETED!
+[Praxan 0] State transition: idle -> gather
+[Praxan 1] State transition: idle -> gather
+New praxan born! Population: 6
+2026-03-10 19:07:15,337 - INFO - [LLM] Selected preferred model: qwen3.5:9b
+2026-03-10 19:07:20,066 - DEBUG - [telemetry] t=5.1s pop=6 buildings=1 phase=founding
+
+[STATUS 10s] 116 resources left, Total inventory: 6 food, 0 wood, Buildings: 1
+   Praxan 0: pos=(3594, 3449), inv={'food': 0, 'wood': 0, 'stone': 0}
+   Praxan 1: pos=(3539, 3422), inv={'food': 0, 'wood': 0, 'stone': 0}
+   Praxan 2: pos=(3571, 3331), inv={'food': 2, 'wood': 0, 'stone': 0}
+   Praxan 3: pos=(3481, 3376), inv={'food': 2, 'wood': 0, 'stone': 0}
+   Praxan 4: pos=(3443, 3491), inv={'food': 2, 'wood': 0, 'stone': 0}
+   Praxan 5: pos=(3542, 3414), inv={'food': 0, 'wood': 0, 'stone': 0}
+
+2026-03-10 19:07:25,092 - DEBUG - [telemetry] t=10.1s pop=6 buildings=1 phase=expansion
+2026-03-10 19:07:29,416 - DEBUG - [Scheduler] Started council job (priority=10, stale_key=council_1773130047)
+2026-03-10 19:07:30,151 - DEBUG - [telemetry] t=15.2s pop=6 buildings=1 phase=expansion
+[Anatomy] Praxan 0 took 36.1 cold damage to head. Health: 89.0%
+[Anatomy] Praxan 1 took 36.1 cold damage to left_leg. Health: 89.0%
+[Anatomy] Praxan 2 took 36.1 cold damage to left_leg. Health: 89.0%
+[Anatomy] Praxan 3 took 36.1 cold damage to left_leg. Health: 89.0%
+[Anatomy] Praxan 4 took 36.1 cold damage to head. Health: 89.0%
+[Anatomy] Praxan 5 took 36.1 cold damage to torso. Health: 89.0%
+2026-03-10 19:07:33,560 - DEBUG - [Scheduler] Started historian job (priority=4, stale_key=hist_1773130049)
+
+[STATUS 20s] 196 resources left, Total inventory: 6 food, 0 wood, Buildings: 1
+   Praxan 0: pos=(3592, 3450), inv={'food': 0, 'wood': 0, 'stone': 0}
+   Praxan 1: pos=(3536, 3425), inv={'food': 0, 'wood': 0, 'stone': 0}
+   Praxan 2: pos=(3573, 3326), inv={'food': 2, 'wood': 0, 'stone': 0}
+   Praxan 3: pos=(3481, 3376), inv={'food': 2, 'wood': 0, 'stone': 0}
+   Praxan 4: pos=(3443, 3491), inv={'food': 2, 'wood': 0, 'stone': 0}
+   Praxan 5: pos=(3534, 3435), inv={'food': 0, 'wood': 0, 'stone': 0}
+
+2026-03-10 19:07:35,161 - DEBUG - [telemetry] t=20.2s pop=6 buildings=1 phase=expansion
+[Praxan 0] *** Gathered food! Inventory now: {'food': 1, 'wood': 0, 'stone': 0}
+[DEBUG] Frame 300, running=True
+[Mental Break] Praxan 5 suffered a minor break: binge
+2026-03-10 19:07:39,888 - DEBUG - [Scheduler] Started council job (priority=10, stale_key=council_1773130059)
+[Group Task] Created: build party of 3
+2026-03-10 19:07:40,221 - DEBUG - [telemetry] t=25.2s pop=6 buildings=1 phase=expansion
+[Praxan 1] State transition: gather -> execute_directive
+[Praxan 1] In EXECUTE_DIRECTIVE state, processing 4 directives
+Praxan 1 chose role: gatherer (scores: {'gatherer': 1.1232303624804205, 'builder': 0.5831355390963455, 'explorer': 0.36132487008431274})
+[Anatomy] Praxan 0 took 68.1 cold damage to left_arm. Health: 74.4%
+A praxan has died. Population: 5
+[Anatomy] Praxan 1 took 68.1 cold damage to head. Health: 72.7%

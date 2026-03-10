@@ -14,6 +14,25 @@ from ui.models import ArchiveCard, build_archive_card, parse_changelog
 from ui.theme import UITheme, build_ui_theme, draw_button, draw_divider, draw_panel, draw_slider, draw_text_input, wrap_text
 
 
+_LOGO_CACHE: pygame.Surface | None = None
+
+def _get_logo() -> pygame.Surface | None:
+    global _LOGO_CACHE
+    if _LOGO_CACHE is None:
+        import os
+        path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "ui", "logo.png"))
+        if os.path.exists(path):
+            try:
+                # We do not use convert_alpha() here directly since display might not be initialized
+                _LOGO_CACHE = pygame.image.load(path)
+                # If display is initialized, we can convert it for performance
+                if pygame.display.get_surface():
+                    _LOGO_CACHE = _LOGO_CACHE.convert_alpha()
+            except Exception as e:
+                print(f"Warning: Could not load logo: {e}")
+    return _LOGO_CACHE
+
+
 def _load_archive_cards(log_dir: str, limit: int = 12) -> list[ArchiveCard]:
     cards: list[ArchiveCard] = []
     for archive_path in find_recent_archives(log_dir, limit=limit):
@@ -49,16 +68,23 @@ def _draw_home(
     latest_snapshot_path: str | None,
 ) -> None:
     draw_panel(surface, layout.hero, theme, fill=(27, 33, 35), alpha=242, radius=theme.radius_large)
-    title = theme.fonts.display.render("PRAXANS", True, theme.palette.parchment)
-    surface.blit(title, (layout.hero.x + 22, layout.hero.y + 20))
+    logo = _get_logo()
+    if logo:
+        surface.blit(logo, (layout.hero.x + 18, layout.hero.y + 12))
+        y_offset = logo.get_height() + 8
+    else:
+        title = theme.fonts.display.render("PRAXANS", True, theme.palette.parchment)
+        surface.blit(title, (layout.hero.x + 22, layout.hero.y + 20))
+        y_offset = 58
+    
     strap = theme.fonts.heading.render("Living Atlas Observer Interface", True, theme.palette.frost)
-    surface.blit(strap, (layout.hero.x + 24, layout.hero.y + 78))
+    surface.blit(strap, (layout.hero.x + 24, layout.hero.y + 20 + y_offset))
     summary = (
         "Watch an autonomous colony mutate, split into factions, survive disasters, "
         "and leave behind a readable social history."
     )
     summary_lines = wrap_text(theme.fonts.body, summary, layout.hero.w - 280)
-    y = layout.hero.y + 122
+    y = layout.hero.y + 64 + y_offset
     for line in summary_lines:
         surface.blit(theme.fonts.body.render(line, True, theme.palette.bright_text), (layout.hero.x + 24, y))
         y += 28

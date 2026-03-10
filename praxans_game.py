@@ -5047,8 +5047,15 @@ def main(runtime_config=RUNTIME_CONFIG):
             debug_log("main:screen_created", "Screen created", {"screen_is_none": screen is None, "screen_type": str(type(screen))}, "H3")
             # #endregion
             
-            # Set window caption
-            pygame.display.set_caption("Praxans - AI Civilization Simulator")
+            # Set window caption and icon
+            pygame.display.set_caption("Praxans")
+            try:
+                icon_path = os.path.join(os.path.dirname(__file__), "assets", "ui", "icon_32.png")
+                if os.path.exists(icon_path):
+                    pygame.display.set_icon(pygame.image.load(icon_path))
+            except Exception as e:
+                print(f"Warning: Could not load window icon: {e}")
+                
             clock = pygame.time.Clock()
             
             # Verify screen was created successfully
