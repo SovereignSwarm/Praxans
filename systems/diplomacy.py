@@ -624,35 +624,70 @@ class DiplomacyManager:
 
     def deserialize(self, data: dict):
         """Restore diplomacy state from snapshot."""
-        if not data:
+        if not data or not isinstance(data, dict):
             return
         now = time.time()
         self.relations.clear()
-        for rel_data in data.get("relations", []):
-            fid_a = int(rel_data.get("faction_a_id", 0))
-            fid_b = int(rel_data.get("faction_b_id", 0))
-            rel = DiplomaticRelation(fid_a, fid_b, float(rel_data.get("standing", 0.0)))
+        relations_data = data.get("relations", [])
+        if not isinstance(relations_data, list):
+            relations_data = []
+
+        for rel_data in relations_data:
+            if not isinstance(rel_data, dict):
+                continue
+            try:
+                fid_a = int(rel_data.get("faction_a_id", 0))
+                fid_b = int(rel_data.get("faction_b_id", 0))
+            except (TypeError, ValueError):
+                continue
+            try:
+                standing = float(rel_data.get("standing", 0.0))
+            except (TypeError, ValueError):
+                standing = 0.0
+            rel = DiplomaticRelation(fid_a, fid_b, standing)
             # Rebase treaty expiry timestamps to current wall clock.
             # Old snapshots stored absolute {expires_at}; new ones store {remaining_seconds}.
             rel.treaties = []
-            for t in rel_data.get("treaties", []):
+            treaties_data = rel_data.get("treaties", [])
+            if not isinstance(treaties_data, list):
+                treaties_data = []
+            for t in treaties_data:
+                if not isinstance(t, dict):
+                    continue
+                treaty_type = t.get("type")
+                if not isinstance(treaty_type, str) or not treaty_type:
+                    continue
                 if "remaining_seconds" in t:
-                    remaining = float(t["remaining_seconds"])
+                    try:
+                        remaining = float(t["remaining_seconds"])
+                    except (TypeError, ValueError):
+                        remaining = 0.0
                 elif "expires_at" in t:
-                    remaining = float(t["expires_at"]) - now  # legacy format
+                    try:
+                        remaining = float(t["expires_at"]) - now  # legacy format
+                    except (TypeError, ValueError):
+                        remaining = 0.0
                 else:
                     remaining = 0.0
                 if remaining > 0:
                     rel.treaties.append({
-                        "type": t["type"],
+                        "type": treaty_type,
                         "started_at": now,
                         "expires_at": now + remaining,
                     })
-            rel.incident_log = list(rel_data.get("incident_log", []))
-            rel.trade_count = int(rel_data.get("trade_count", 0))
+            incidents_data = rel_data.get("incident_log", [])
+            rel.incident_log = list(incidents_data) if isinstance(incidents_data, list) else []
+            try:
+                rel.trade_count = int(rel_data.get("trade_count", 0))
+            except (TypeError, ValueError):
+                rel.trade_count = 0
             # Rebase last_incident_time to prevent a burst of incidents immediately after load.
-            last_incident_elapsed = float(rel_data.get("last_incident_elapsed", 0.0))
+            try:
+                last_incident_elapsed = float(rel_data.get("last_incident_elapsed", 0.0))
+            except (TypeError, ValueError):
+                last_incident_elapsed = 0.0
             if last_incident_elapsed > 0:
                 rel.last_incident_time = now - last_incident_elapsed
             self.relations[self._key(fid_a, fid_b)] = rel
-        self.diplomatic_log = list(data.get("diplomatic_log", []))
+        log_data = data.get("diplomatic_log", [])
+        self.diplomatic_log = list(log_data) if isinstance(log_data, list) else []

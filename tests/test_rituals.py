@@ -284,6 +284,17 @@ class TestRitualManagerInit(unittest.TestCase):
         self.assertEqual(rm.last_eval_time, 0.0)
         self.assertEqual(rm.faction_states, {})
 
+    def test_restore_skips_malformed_faction_state_entries(self):
+        rm = RitualManager()
+        rm.restore({
+            "faction_states": {
+                "1": [],
+                "2": {"faction_id": 2, "last_ritual_times": {"doctrine_renewal": 5.0}},
+            }
+        })
+        self.assertNotIn(1, rm.faction_states)
+        self.assertIn(2, rm.faction_states)
+        self.assertEqual(rm.faction_states[2].last_ritual_times["doctrine_renewal"], 5.0)
 
 # ---------------------------------------------------------------------------
 # Tests — Ritual Execution

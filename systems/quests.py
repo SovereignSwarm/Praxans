@@ -315,11 +315,21 @@ class QuestManager:
 
     def from_dict(self, data: dict):
         """Restore quest state from a saved snapshot. Call after build_default_quests()."""
-        if not data:
+        if not isinstance(data, dict) or not data:
             return
-        self.completed_quest_ids = list(data.get("completed", []))
+
+        completed = data.get("completed", [])
+        self.completed_quest_ids = list(completed) if isinstance(completed, list) else []
+
+        quest_states = data.get("quest_states", {})
+        if not isinstance(quest_states, dict):
+            return
+
         now = time.time()
-        for qid, saved in data.get("quest_states", {}).items():
+        for qid, saved in quest_states.items():
+            if not isinstance(saved, dict):
+                continue
+
             quest = self.quests.get(qid)
             if quest is None:
                 continue
@@ -329,5 +339,9 @@ class QuestManager:
             # elapsed time so timed quests cannot be reset by save/reload.
             if quest.state == QUEST_ACTIVE and quest.current_node_id in quest.nodes:
                 node = quest.nodes[quest.current_node_id]
-                elapsed = float(saved.get("node_elapsed_seconds", 0.0) or 0.0)
+                try:
+                    elapsed = float(saved.get("node_elapsed_seconds", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    elapsed = 0.0
+                elapsed = max(0.0, elapsed)
                 node.started_at = now - elapsed  # Restores effective start time

@@ -31,6 +31,20 @@ STAGE_SYMPTOMATIC = "symptomatic"
 STAGE_RECOVERING = "recovering"
 
 
+def _coerce_bool(value: Any) -> bool:
+    """Parse bool-like persisted values robustly."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off", ""}:
+            return False
+    return bool(value)
+
 class DiseaseInstance:
     """A single active disease on one Praxan."""
 
@@ -50,7 +64,7 @@ class DiseaseInstance:
         self.immunity: float = 0.0   # 0.0-1.0, 1.0 = recovered
         self.tended: bool = False
         self.tend_quality: float = 0.0
-        self.contracted_at: float = contracted_at or time.time()
+        self.contracted_at: float = contracted_at if contracted_at is not None else time.time()
         self.quarantined: bool = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -103,13 +117,13 @@ class DiseaseInstance:
             immunity = 0.0
         inst.immunity = max(0.0, min(1.0, immunity))
 
-        inst.tended = bool(data.get("tended", False))
+        inst.tended = _coerce_bool(data.get("tended", False))
         try:
             tend_quality = float(data.get("tend_quality", 0.0))
         except (TypeError, ValueError):
             tend_quality = 0.0
         inst.tend_quality = max(0.0, min(1.0, tend_quality))
-        inst.quarantined = bool(data.get("quarantined", False))
+        inst.quarantined = _coerce_bool(data.get("quarantined", False))
         return inst
 
 
@@ -704,4 +718,3 @@ def _on_epidemic(
             ))
         except Exception:
             pass
-

@@ -43,6 +43,22 @@ class PraxanGoalTests(unittest.TestCase):
         self.assertIsNotNone(praxan.personal_goal)
         self.assertGreater(praxan.vx, 0.0)
 
+    def test_new_praxan_has_initial_mental_break_grace_period(self):
+        praxan = Praxan(0, 0)
+        praxan.base_mood = 0.0
+        praxan.traits = []
+        praxan.moodlets = []
+        praxan.birth_time = 100.0
+
+        praxan.update_mood(current_time=100.5, delta_time=1.0)
+        self.assertIsNone(praxan.mental_state)
+
+        praxan.update_mood(
+            current_time=100.0 + praxan.INITIAL_MENTAL_BREAK_GRACE_SECONDS + 0.1,
+            delta_time=1.0,
+        )
+        self.assertIsNotNone(praxan.mental_state)
+
     def test_legacy_moodlet_schema_is_normalized(self):
         praxan = Praxan(0, 0)
         praxan.moodlets = [
@@ -62,6 +78,25 @@ class PraxanGoalTests(unittest.TestCase):
         self.assertEqual(praxan.moodlets[0]["start_time"], 100.0)
         self.assertIn("Sick: Fever", [m["name"] for m in praxan.moodlets])
 
+    def test_zero_start_time_is_preserved_when_normalizing_legacy_moodlets(self):
+        praxan = Praxan(0, 0)
+        praxan.moodlets = [
+            {
+                "id": "legacy_zero",
+                "name": "Legacy Zero",
+                "value": -4,
+                "duration": 10.0,
+                "start_time": 0.0,
+                "applied_at": 0.0,
+            }
+        ]
+
+        praxan.update_mood(current_time=20.0, delta_time=1.0)
+
+        self.assertEqual(praxan.moodlets, [])
+
 
 if __name__ == "__main__":
     unittest.main()
+
+

@@ -603,6 +603,8 @@ class RitualManager:
         for fid_str, state_data in faction_states.items():
             try:
                 fid = int(fid_str)
+                if not isinstance(state_data, dict):
+                    continue
                 self.faction_states[fid] = FactionRitualState.from_dict(state_data)
             except (ValueError, TypeError):
                 pass

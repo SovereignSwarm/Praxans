@@ -1,8 +1,10 @@
 {
-  "total_runs": 30,
-  "best_population": 8,
-  "total_days_survived": 31,
+  "total_runs": 31,
+  "best_population": 12,
+  "total_days_survived": 77,
   "unlocked_bonuses": [
-    "prepared"
+    "prepared",
+    "architect",
+    "head_start"
   ]
 }

@@ -127,5 +127,30 @@ class QuestSerializationTests(unittest.TestCase):
                                msg="restored timer should reflect saved elapsed time")
 
 
+    def test_from_dict_ignores_malformed_quest_payloads(self):
+        qm = QuestManager()
+        qm.build_default_quests()
+        qm.make_available("survive_night")
+        qm.start_quest("survive_night")
+
+        qm.from_dict({
+            "completed": "bad-type",
+            "quest_states": {
+                "survive_night": {
+                    "state": QUEST_ACTIVE,
+                    "current_node": "survive_5min",
+                    "node_elapsed_seconds": "not-a-number",
+                },
+                "first_settlement": ["bad-entry"],
+            },
+        })
+
+        self.assertEqual(qm.completed_quest_ids, [])
+        self.assertEqual(qm.quests["survive_night"].state, QUEST_ACTIVE)
+
+        qm.from_dict({"quest_states": []})
+        self.assertEqual(qm.quests["survive_night"].state, QUEST_ACTIVE)
+
 if __name__ == "__main__":
     unittest.main()
+

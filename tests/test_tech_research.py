@@ -2,6 +2,8 @@
 
 import unittest
 import time
+import io
+from contextlib import redirect_stdout
 
 from systems.tech_research import (
     TechResearchManager,
@@ -248,6 +250,18 @@ class TestTechResearchManager(unittest.TestCase):
         self.assertIn("Efficient Farming", panel.messages[0][0])
         self.assertTrue(len(bus.events) > 0)
 
+    def test_update_does_not_write_stdout_on_unlock(self):
+        advisor = StubAdvisor(research_points=150)
+        factions = [StubFaction("growth", 5)]
+
+        stream = io.StringIO()
+        with redirect_stdout(stream):
+            result = self.mgr.update(100.0, advisor, factions, None, None)
+
+        self.assertEqual(result, "agriculture_1")
+        self.assertEqual(stream.getvalue(), "")
+
+
     def test_update_respects_min_points(self):
         advisor = StubAdvisor(research_points=30)  # Below MIN_POINTS_TO_RESEARCH
         result = self.mgr.update(100.0, advisor, [], None, None)
@@ -327,6 +341,31 @@ class TestTechResearchManager(unittest.TestCase):
         new_mgr = TechResearchManager()
         new_mgr.restore({})
         self.assertEqual(new_mgr.last_eval_time, 0.0)
+        self.assertEqual(new_mgr.research_log, [])
+
+
+    def test_restore_ignores_malformed_payloads(self):
+        new_mgr = TechResearchManager()
+
+        new_mgr.restore(None)
+        self.assertEqual(new_mgr.last_eval_time, 0.0)
+        self.assertEqual(new_mgr.last_unlock_time, 0.0)
+        self.assertEqual(new_mgr.research_log, [])
+
+        new_mgr.restore({
+            "last_eval_time": "abc",
+            "last_unlock_time": [],
+            "research_log": [
+                {"tech_id": "agriculture_1", "name": "Efficient Farming"},
+                "bad-entry",
+            ],
+        })
+        self.assertEqual(new_mgr.last_eval_time, 0.0)
+        self.assertEqual(new_mgr.last_unlock_time, 0.0)
+        self.assertEqual(len(new_mgr.research_log), 1)
+        self.assertEqual(new_mgr.research_log[0]["tech_id"], "agriculture_1")
+
+        new_mgr.restore({"research_log": {"not": "a-list"}})
         self.assertEqual(new_mgr.research_log, [])
 
     # --- Research log ---

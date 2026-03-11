@@ -258,6 +258,34 @@ class TestDiplomacyManager(unittest.TestCase):
         self.assertLess(elapsed_since_last, DiplomacyManager.INCIDENT_COOLDOWN,
                         "Incident cooldown must still be active after reload")
 
+    def test_deserialize_skips_malformed_relation_entries(self):
+        dm = DiplomacyManager()
+        dm.deserialize({
+            "relations": [
+                None,
+                {
+                    "faction_a_id": "1",
+                    "faction_b_id": 2,
+                    "standing": "not-a-number",
+                    "treaties": [
+                        None,
+                        {"type": TREATY_TRADE, "remaining_seconds": "bad"},
+                        {"type": TREATY_TRADE, "remaining_seconds": 30},
+                    ],
+                    "incident_log": "not-a-list",
+                    "trade_count": "bad-int",
+                    "last_incident_elapsed": "bad-float",
+                },
+            ],
+            "diplomatic_log": "not-a-list",
+        })
+
+        rel = dm.get_relation(1, 2)
+        self.assertEqual(rel.standing, 0.0)
+        self.assertEqual(rel.trade_count, 0)
+        self.assertEqual(rel.incident_log, [])
+        self.assertTrue(rel.has_treaty(TREATY_TRADE))
+        self.assertEqual(dm.diplomatic_log, [])
     def test_faction_relations_summary(self):
         dm = DiplomacyManager()
         dm.set_initial_standing(0, 1, 30.0)
@@ -306,3 +334,5 @@ class TestDiplomacyManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

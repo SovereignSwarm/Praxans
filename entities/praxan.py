@@ -22,6 +22,7 @@ def _building_has_ingredients(building, job_def):
 class Praxan:
     """A cute AI-powered creature"""
     _next_id = 0  # Class variable to track unique IDs
+    INITIAL_MENTAL_BREAK_GRACE_SECONDS = 30.0
     
     def __init__(self, x, y):
         self.id = Praxan._next_id
@@ -269,13 +270,17 @@ class Praxan:
         
         # Check for mental breaks
         break_threshold = 20 + trait_threshold_mod
+        in_initial_grace = (
+            (current_time - self.birth_time)
+            < self.INITIAL_MENTAL_BREAK_GRACE_SECONDS
+        )
         if self.mental_break_cooldown > 0:
             self.mental_break_cooldown = max(0, self.mental_break_cooldown - delta_time)
             if self.mental_state and self.mental_break_cooldown <= 240:
                 self.mental_state = None
                 self.state = STATE_IDLE
                 self.current_action = "wander"
-        elif self.mental_state is None:
+        elif self.mental_state is None and not in_initial_grace:
             if self.happiness < 5.0:
                 self.trigger_mental_break('extreme', current_time)
             elif self.happiness < 20.0:
@@ -302,7 +307,7 @@ class Praxan:
         applied_at = normalized.get('applied_at', start_time)
 
         try:
-            numeric_value = float(value or 0.0)
+            numeric_value = float(0.0 if value is None else value)
         except (TypeError, ValueError):
             numeric_value = 0.0
         try:
@@ -310,11 +315,11 @@ class Praxan:
         except (TypeError, ValueError):
             numeric_duration = None
         try:
-            numeric_start = float(start_time or current_time)
+            numeric_start = float(current_time if start_time is None else start_time)
         except (TypeError, ValueError):
             numeric_start = float(current_time)
         try:
-            numeric_applied = float(applied_at or numeric_start)
+            numeric_applied = float(numeric_start if applied_at is None else applied_at)
         except (TypeError, ValueError):
             numeric_applied = numeric_start
 

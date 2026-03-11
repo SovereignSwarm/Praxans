@@ -114,6 +114,10 @@ class TestDiseaseInstance(DiseaseDefDatabaseMixin, unittest.TestCase):
         self.assertFalse(inst.tended)
         self.assertFalse(inst.quarantined)
 
+    def test_contracted_at_zero_is_preserved(self):
+        inst = DiseaseInstance("gut_rot", contracted_at=0.0)
+        self.assertEqual(inst.contracted_at, 0.0)
+
     def test_serialization_roundtrip(self):
         inst = DiseaseInstance("grey_lung")
         inst.stage = STAGE_SYMPTOMATIC
@@ -134,6 +138,17 @@ class TestDiseaseInstance(DiseaseDefDatabaseMixin, unittest.TestCase):
         self.assertAlmostEqual(restored.tend_quality, 0.5, places=1)
         self.assertTrue(restored.quarantined)
 
+
+    def test_from_dict_parses_string_booleans(self):
+        restored = DiseaseInstance.from_dict({
+            "disease_id": "gut_rot",
+            "tended": "false",
+            "quarantined": "0",
+            "elapsed": 3.0,
+        })
+
+        self.assertFalse(restored.tended)
+        self.assertFalse(restored.quarantined)
 
 class TestDiseaseManagerInfection(DiseaseDefDatabaseMixin, unittest.TestCase):
     """Test DiseaseManager infection mechanics."""
@@ -595,4 +610,3 @@ class TestEpidemicDetection(DiseaseDefDatabaseMixin, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

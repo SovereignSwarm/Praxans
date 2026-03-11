@@ -13,9 +13,13 @@ Usage:
 
 from __future__ import annotations
 
+import math
 import time
 import random
+import logging
 from typing import Any
+
+logger = logging.getLogger('TechResearch')
 
 # Doctrine -> ordered tech priority.  Each faction tries to unlock techs
 # in this order, falling back to any affordable tech if none match.
@@ -106,10 +110,20 @@ class TechResearchManager:
         }
 
     def restore(self, data: dict[str, Any]) -> None:
-        self.last_eval_time = float(data.get("last_eval_time", 0.0))
-        self.last_unlock_time = float(data.get("last_unlock_time", 0.0))
-        self.research_log = list(data.get("research_log", []))
+        if not isinstance(data, dict):
+            self.last_eval_time = 0.0
+            self.last_unlock_time = 0.0
+            self.research_log = []
+            return
 
+        self.last_eval_time = _safe_non_negative_float(data.get("last_eval_time", 0.0))
+        self.last_unlock_time = _safe_non_negative_float(data.get("last_unlock_time", 0.0))
+
+        raw_log = data.get("research_log", [])
+        if not isinstance(raw_log, list):
+            self.research_log = []
+            return
+        self.research_log = [entry for entry in raw_log if isinstance(entry, dict)]
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
@@ -251,7 +265,14 @@ class TechResearchManager:
         except Exception:
             pass
 
-        print(f"[TechResearch] Unlocked {name} (doctrine={doctrine}, cost={cost}, remaining={advisor.research_points})")
+        logger.info(
+            "Unlocked %s (doctrine=%s, cost=%s, remaining=%s)",
+            name,
+            doctrine,
+            cost,
+            advisor.research_points,
+        )
+
 
     def get_research_progress(self, advisor) -> dict[str, Any]:
         """Return a summary of research state for UI display."""
@@ -279,3 +300,13 @@ class TechResearchManager:
             "next_cost": next_cost,
             "recent": [e["name"] for e in self.research_log[-3:]],
         }
+
+
+def _safe_non_negative_float(value: Any) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(parsed) or parsed < 0.0:
+        return 0.0
+    return parsed
