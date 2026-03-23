@@ -534,6 +534,7 @@ def build_run_snapshot(
                 "y": round(praxan.y, 2),
                 "health": round(praxan.health, 2),
                 "happiness": round(getattr(praxan, "happiness", 0.0), 2),
+                "base_mood": round(getattr(praxan, "base_mood", 50.0), 2),
                 "morale": round(getattr(praxan, "morale", 0.0), 2),
                 "inspiration": round(getattr(praxan, "inspiration", 0.0), 2),
                 "favorite_biome": getattr(praxan, "favorite_biome", None),

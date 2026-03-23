@@ -4342,7 +4342,15 @@ def restore_session_from_snapshot(
 
         praxan.role = praxan_data.get("role")
         praxan.health = clamp(float(praxan_data.get("health", 100.0)), 0.0, 100.0)
-        praxan.base_mood = clamp(float(praxan_data.get("happiness", praxan.base_mood)), 0.0, 100.0)
+        # Restore the personality baseline (base_mood), NOT the moodlet-affected happiness.
+        # Old snapshots only have "happiness" (moodlet-inflated/deflated), which was incorrectly
+        # baked into base_mood, causing spurious mental breaks post-load for grieving/sick praxans.
+        # New snapshots include "base_mood" as a separate field; fall back to "happiness" for compat.
+        _saved_base_mood = praxan_data.get("base_mood")
+        if _saved_base_mood is not None:
+            praxan.base_mood = clamp(float(_saved_base_mood), 0.0, 100.0)
+        else:
+            praxan.base_mood = clamp(float(praxan_data.get("happiness", praxan.base_mood)), 0.0, 100.0)
         praxan.morale = clamp(float(praxan_data.get("morale", praxan.morale)), 0.0, 100.0)
         praxan.inspiration = clamp(float(praxan_data.get("inspiration", praxan.inspiration)), 0.0, 100.0)
         praxan.favorite_biome = praxan_data.get("favorite_biome") if praxan_data.get("favorite_biome") in BIOME_TYPES else praxan.favorite_biome

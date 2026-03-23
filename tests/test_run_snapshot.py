@@ -1317,6 +1317,142 @@ class RunSnapshotTerritoryRobustnessTests(unittest.TestCase):
                 ]
             },
         )
+    def test_base_mood_serialized_separately_from_happiness(self):
+        """base_mood must be saved independently so moodlet-affected happiness is not
+        baked permanently into the personality baseline on reload, which would cause
+        grieving or sick praxans to trigger spurious mental breaks post-load."""
+        advisor = SimpleNamespace(
+            research_points=0, points_spent=0, stability_counter=0,
+            current_focus="resources",
+            directives=[], json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={}, advisory_history=[], session_stats={},
+            current_settlement_state={}, query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[], civilization_age=1, total_deaths=0,
+            achievements=[], history=[], events_history=[], last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        # Simulate a praxan whose grief moodlets have dragged happiness well below base_mood.
+        # base_mood=55 (stable personality baseline), happiness=20 (dragged down by -35 moodlets).
+        praxan = SimpleNamespace(
+            id=42,
+            role="gatherer",
+            x=200.0, y=200.0,
+            health=95.0,
+            base_mood=55.0,   # stable baseline
+            happiness=20.0,   # depressed by grief moodlets — should NOT become the new base_mood
+            morale=50.0, inspiration=0.0,
+            favorite_biome="plains", age=180.0,
+            diseased=False, resilience=1.0, settlement_prosperity=0.5,
+            inventory={"food": 0, "wood": 0, "stone": 0},
+            needs={"hunger": 75.0, "energy": 70.0, "thirst": 80.0},
+            state="idle", current_action="wander",
+            personal_goal=None, goal_progress=0.0,
+            personality={"curiosity": 0.5, "sociability": 0.5, "diligence": 0.5},
+            genetics={},
+            generation=1, parent_ids=[], lineage_id=42, mutation_count=0,
+            birth_origin="founder",
+            skills={},
+            bonds={},
+            opinions={},
+            relationships={}, traits=[], name="GriefTest", faction_id=None,
+            known_resources=[],
+            last_reproduction_time=0.0, goal_assigned_time=0.0,
+            episodic_memory=None,
+        )
+
+        snapshot = build_run_snapshot(
+            [praxan], [], [], advisor, season, weather_system,
+            current_time=300.0, game_start_time=100.0,
+        )
+
+        praxan_snap = snapshot["praxans"][0]
+        # Both fields must be present
+        self.assertIn("base_mood", praxan_snap, "base_mood must be serialized in snapshot")
+        self.assertIn("happiness", praxan_snap, "happiness must be serialized in snapshot")
+        # base_mood must reflect the stable baseline, NOT the moodlet-affected happiness
+        self.assertAlmostEqual(praxan_snap["base_mood"], 55.0, places=1)
+        self.assertAlmostEqual(praxan_snap["happiness"], 20.0, places=1)
+
+        # After a round-trip, base_mood and happiness are still correct
+        with workspace_tempdir() as temp_dir:
+            path = write_run_snapshot(temp_dir, "base_mood_test", snapshot)
+            loaded = load_run_snapshot(path)
+
+        loaded_praxan = loaded["praxans"][0]
+        self.assertAlmostEqual(loaded_praxan["base_mood"], 55.0, places=1,
+                               msg="base_mood must survive round-trip unchanged")
+        self.assertAlmostEqual(loaded_praxan["happiness"], 20.0, places=1)
+
+    def test_old_snapshot_without_base_mood_falls_back_to_happiness(self):
+        """Snapshots from before this fix lack 'base_mood'; restore must fall back to
+        'happiness' for backward compatibility rather than crashing or using default."""
+        advisor = SimpleNamespace(
+            research_points=0, points_spent=0, stability_counter=0,
+            current_focus="resources",
+            directives=[], json_directives={"individual": {}, "communal": "", "conditions": {}},
+            council_state={}, advisory_history=[], session_stats={},
+            current_settlement_state={}, query_count=0,
+            intervention_stats={"total_queries": 0, "interventions": 0, "no_changes": 0, "crisis_interventions": 0},
+            active_challenges=[], civilization_age=1, total_deaths=0,
+            achievements=[], history=[], events_history=[], last_model_used="",
+            group_tasks=[],
+            game_modifiers=SimpleNamespace(tech_unlocked=set(), permanent={}, temporary={}),
+        )
+        season = SimpleNamespace(current="summer")
+        weather_system = SimpleNamespace(current_weather="clear", next_event_time=999.0)
+
+        praxan = SimpleNamespace(
+            id=5,
+            role="gatherer",
+            x=100.0, y=100.0,
+            health=100.0,
+            base_mood=55.0,
+            happiness=42.0,
+            morale=50.0, inspiration=0.0,
+            favorite_biome="plains", age=120.0,
+            diseased=False, resilience=1.0, settlement_prosperity=0.5,
+            inventory={"food": 0, "wood": 0, "stone": 0},
+            needs={"hunger": 80.0, "energy": 80.0, "thirst": 80.0},
+            state="idle", current_action="wander",
+            personal_goal=None, goal_progress=0.0,
+            personality={"curiosity": 0.5, "sociability": 0.5, "diligence": 0.5},
+            genetics={},
+            generation=1, parent_ids=[], lineage_id=5, mutation_count=0,
+            birth_origin="founder",
+            skills={},
+            bonds={},
+            opinions={},
+            relationships={}, traits=[], name="OldSnap", faction_id=None,
+            known_resources=[],
+            last_reproduction_time=0.0, goal_assigned_time=0.0,
+            episodic_memory=None,
+        )
+
+        snapshot = build_run_snapshot(
+            [praxan], [], [], advisor, season, weather_system,
+            current_time=200.0, game_start_time=100.0,
+        )
+
+        # Simulate an old snapshot that lacks 'base_mood'
+        del snapshot["praxans"][0]["base_mood"]
+        self.assertNotIn("base_mood", snapshot["praxans"][0])
+        # happiness=42 is still present
+        self.assertAlmostEqual(snapshot["praxans"][0]["happiness"], 42.0, places=1)
+
+        # The snapshot should serialize/load without error even without base_mood
+        with workspace_tempdir() as temp_dir:
+            path = write_run_snapshot(temp_dir, "old_snap_compat_test", snapshot)
+            loaded = load_run_snapshot(path)
+
+        # After removing base_mood from the dict, happiness should still be preserved
+        self.assertAlmostEqual(loaded["praxans"][0]["happiness"], 42.0, places=1)
+
+
 if __name__ == "__main__":
     unittest.main()
 
