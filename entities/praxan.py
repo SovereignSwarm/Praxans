@@ -350,6 +350,10 @@ class Praxan:
             f"{self.name} suffered a {severity} mental break: {self.mental_state}",
             timestamp=current_time,
         )
+        # Queue reputation penalty for public breakdown
+        if not hasattr(self, '_pending_reputation_events'):
+            self._pending_reputation_events = []
+        self._pending_reputation_events.append("mental_break")
         print(f"[Mental Break] Praxan {self.id} suffered a {severity} break: {self.mental_state}")
 
     def execute_mental_break(self, resources, buildings, delta_time, current_time):
@@ -609,6 +613,15 @@ class Praxan:
                     "masterwork",
                     f"{self.name} created a {qual} {output_item}",
                 )
+                # Queue reputation event for masterwork crafting
+                if not hasattr(self, '_pending_reputation_events'):
+                    self._pending_reputation_events = []
+                self._pending_reputation_events.append("crafted_masterwork")
+            else:
+                # Queue reputation event for normal crafting
+                if not hasattr(self, '_pending_reputation_events'):
+                    self._pending_reputation_events = []
+                self._pending_reputation_events.append("crafted_item")
 
             self.build_message_time = time.time()
             self.gain_skill_xp(skill_type, 35)

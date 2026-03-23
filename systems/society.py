@@ -114,11 +114,11 @@ class Faction:
         if praxan_id in self.member_ids:
             self.member_ids.remove(praxan_id)
     
-    def update_leader(self, praxans):
-        """Update leader to highest skill praxan"""
+    def update_leader(self, praxans, reputation_manager=None):
+        """Update leader to highest skill praxan, weighted by reputation."""
         best_skill = -1.0
         best_id = None
-        
+
         for praxan_id in self.member_ids:
             praxan = next((t for t in praxans if t.id == praxan_id), None)
             if praxan:
@@ -132,11 +132,14 @@ class Faction:
                 total_skill += float(getattr(praxan, "genetics", {}).get("social_cohesion", 1.0)) * 7.5
                 if praxan.id == self.leader_id:
                     total_skill += 5.0
-                
+                # Reputation bonus: luminaries get up to +15, outcasts get -5
+                if reputation_manager is not None:
+                    total_skill += reputation_manager.leadership_score_bonus(praxan_id)
+
                 if total_skill > best_skill:
                     best_skill = total_skill
                     best_id = praxan_id
-        
+
         self.leader_id = best_id if best_id else (self.member_ids[0] if self.member_ids else None)
     
     def get_bond_strength(self, praxans):
@@ -237,7 +240,7 @@ class FactionManager:
         self.last_update = 0
         self.update_interval = 10.0  # Update every 10 seconds
     
-    def update_factions(self, praxans, advisor=None, diplomacy_manager=None, event_bus=None, ecology_manager=None):
+    def update_factions(self, praxans, advisor=None, diplomacy_manager=None, event_bus=None, ecology_manager=None, reputation_manager=None):
         """Auto-form and update factions based on bonds > 70"""
         current_time = time.time()
 
@@ -300,7 +303,7 @@ class FactionManager:
                 # Update existing faction
                 previous_leader_id = faction.leader_id
                 faction.member_ids = list(best_match)
-                faction.update_leader(praxans)
+                faction.update_leader(praxans, reputation_manager=reputation_manager)
                 faction.refresh_identity(praxans, context=self._build_resource_context(faction, praxans, ecology_manager))
                 self._register_leadership_change(faction, previous_leader_id, advisor, current_time)
                 used_groups.add(id(best_match))
@@ -326,7 +329,7 @@ class FactionManager:
         for group in bond_groups:
             if id(group) not in used_groups:
                 new_faction = Faction(group)
-                new_faction.update_leader(praxans)
+                new_faction.update_leader(praxans, reputation_manager=reputation_manager)
                 new_faction.refresh_identity(praxans, context=self._build_resource_context(new_faction, praxans, ecology_manager))
                 self.factions[new_faction.id] = new_faction
                 
@@ -392,7 +395,8 @@ class FactionManager:
         else:
             self._update_rivalries()
         self._evaluate_schisms(praxans, advisor, current_time,
-                               diplomacy_manager=diplomacy_manager)
+                               diplomacy_manager=diplomacy_manager,
+                               reputation_manager=reputation_manager)
         if diplomacy_manager is None:
             self._update_rivalries()
     def _build_resource_context(self, faction, praxans, ecology_manager=None):
@@ -506,7 +510,7 @@ class FactionManager:
                     other.bonds[member.id] = min(other.bonds[member.id], 42.0)
 
     def _evaluate_schisms(self, praxans, advisor, current_time,
-                          diplomacy_manager=None):
+                          diplomacy_manager=None, reputation_manager=None):
         for faction in list(self.factions.values()):
             if len(faction.member_ids) < max(4, FACTION_DYNAMICS["minimum_schism_size"] * 2):
                 continue
@@ -558,9 +562,9 @@ class FactionManager:
                 member.faction_id = faction.id
 
             self._soften_cross_faction_bonds(split_members, remaining_members)
-            faction.update_leader(praxans)
+            faction.update_leader(praxans, reputation_manager=reputation_manager)
             faction.refresh_identity(praxans)
-            new_faction.update_leader(praxans)
+            new_faction.update_leader(praxans, reputation_manager=reputation_manager)
             new_faction.refresh_identity(praxans)
             new_goal = AUTONOMOUS_DOCTRINE_GOALS.get(new_faction.primary_doctrine)
             if new_goal:

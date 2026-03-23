@@ -99,6 +99,36 @@
             "id": "CelebratedVictory",
             "mood_offset": 15,
             "duration": 420
+        },
+        {
+            "id": "Luminary",
+            "mood_offset": 8,
+            "duration": 600
+        },
+        {
+            "id": "Respected",
+            "mood_offset": 4,
+            "duration": 600
+        },
+        {
+            "id": "Overlooked",
+            "mood_offset": -3,
+            "duration": 600
+        },
+        {
+            "id": "Outcast",
+            "mood_offset": -8,
+            "duration": 600
+        },
+        {
+            "id": "GainedReputation",
+            "mood_offset": 3,
+            "duration": 180
+        },
+        {
+            "id": "LostReputation",
+            "mood_offset": -3,
+            "duration": 180
         }
     ]
 }

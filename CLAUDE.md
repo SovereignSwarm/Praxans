@@ -82,6 +82,7 @@ python -m py_compile praxans_game.py runtime_config.py
 | `rituals.py` | **Rituals & Gatherings.** 6 data-driven faction rituals (Doctrine Renewal, Harvest Thanksgiving, Mourning Ceremony, Naming Day, Seasonal Rite, Victory Celebration) at shrines with moodlets, bond changes, episodic memories, cohesion boosts. Periodic and condition-triggered. Defs in `defs/core/rituals.json`. |
 | `spatial.py` | Spatial indexing |
 | `ecology.py` | **Regional fertility grid.** Per-512px-cell fertility (0-100) responds to harvesting pressure, season, weather, biome. Drives resource spawn multipliers, EventBus degradation/recovery events. Serialized in snapshots. |
+| `reputation.py` | **Reputation & Social Hierarchy.** Per-Praxan reputation (0-100, default 50) rises from building, crafting masterworks, healing, teaching, combat victories, ritual leadership — falls from insults, mental breaks, fleeing combat. 5 tiers (Luminary/Respected/Established/Marginal/Outcast) with moodlets, episodic memories, EventBus events. Weights leader elections, modifies social target selection. Natural drift toward 50. Defs in `defs/core/reputation.json`. |
 | `storyteller.py` | Event/crisis storytelling |
 | `tech_research.py` | **Autonomous tech research.** Factions spend accumulated research points on techs guided by doctrine priority (growth→agriculture, security→medicine, harmony→social, etc.). Evaluates every 30s, respects prerequisites and cooldowns. Publishes EventBus milestones. Serialized in snapshots. |
 
@@ -103,7 +104,8 @@ Four async channels processed by `LLMScheduler`:
 | `technologies.json` | `TechDef` |
 | `items.json` | `ArmorDef`, `WeaponDef` |
 | `jobs.json` | `JobDef` — CookMeal, SmithArmor, CraftWeapon |
-| `moods.json` | `MoodDef` — AteRawFood, AteFineFood, Catharsis, FoughtOffInfection, + 7 social moodlets + 6 ritual moodlets (AttendedDoctrineRenewal, AttendedHarvestFeast, MournedTogether, CelebratedNamingDay, AttendedSeasonalRite, CelebratedVictory) |
+| `moods.json` | `MoodDef` — AteRawFood, AteFineFood, Catharsis, FoughtOffInfection, + 7 social moodlets + 6 ritual moodlets + 6 reputation moodlets (Luminary, Respected, Overlooked, Outcast, GainedReputation, LostReputation) |
+| `reputation.json` | `ReputationEventDef` — 20 event types (built_structure, crafted_masterwork, healed_other, taught_skill, combat_victory, led_ritual, insult_given, fled_combat, mental_break, etc.) + `ReputationTierDef` — 5 tiers (Luminary/Respected/Established/Marginal/Outcast) with moodlets |
 | `interactions.json` | `InteractionDef` — 8 social interaction types with preconditions, outcomes, drama weights, memory events |
 | `diseases.json` | `DiseaseDef` — 5 named diseases with severity rates, incubation periods, transmission vectors, biome/season weights, capacity penalties, lethality |
 | `rituals.json` | `RitualDef` — 6 faction ritual types with triggers (periodic/condition), effects, moodlets, gathering requirements |

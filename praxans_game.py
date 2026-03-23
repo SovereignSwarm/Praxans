@@ -945,6 +945,7 @@ def attempt_bootstrap_construction(
     particle_system,
     narrative_panel,
     current_time,
+    reputation_manager=None,
 ):
     if advisor is None or city_planner is None or not praxans:
         return None
@@ -1018,6 +1019,9 @@ def attempt_bootstrap_construction(
             f"Built {building_type}",
             f"Bootstrap construction completed near colony center by #{getattr(builder, 'id', 'unknown')}.",
         )
+        # Reputation boost for the builder
+        if reputation_manager is not None:
+            reputation_manager.record_event(getattr(builder, 'id', -1), "built_structure")
         return new_building
 
     return None
@@ -5506,6 +5510,11 @@ def main(runtime_config=RUNTIME_CONFIG):
     from systems.rituals import RitualManager
     ritual_manager = RitualManager()
     ritual_manager.attach_event_bus(event_bus)
+
+    # Initialize reputation & social hierarchy system
+    from systems.reputation import ReputationManager
+    reputation_manager = ReputationManager()
+    reputation_manager.attach_event_bus(event_bus)
     
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
@@ -5596,6 +5605,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             ritual_data = snapshot_payload.get("rituals", {})
             if ritual_data:
                 ritual_manager.restore(ritual_data)
+            # Restore reputation & social hierarchy state
+            reputation_data = snapshot_payload.get("reputation", {})
+            if reputation_data:
+                reputation_manager.restore(reputation_data)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -6421,6 +6434,14 @@ def main(runtime_config=RUNTIME_CONFIG):
                 season=season.current,
             )
 
+            # Reputation & social hierarchy — evaluate tiers, apply moodlets, drift
+            reputation_manager.update(
+                praxans=praxans,
+                faction_manager=faction_manager,
+                event_bus=event_bus,
+                current_time=current_time,
+            )
+
             advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
             # NOTE: season.update() already called above (line ~5857) with elapsed time.
             # Do NOT call season.update(current_time) again — that passes wall-clock time
@@ -6515,6 +6536,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 particle_system=particle_system,
                 narrative_panel=narrative_panel,
                 current_time=current_time,
+                reputation_manager=reputation_manager,
             )
             if bootstrap_building is not None:
                 settlement_state = compute_settlement_snapshot(praxans, buildings, world_map, season, weather_system)
@@ -6701,7 +6723,8 @@ def main(runtime_config=RUNTIME_CONFIG):
             faction_manager.update_factions(praxans, advisor,
                                             diplomacy_manager=diplomacy_manager,
                                             event_bus=event_bus,
-                                            ecology_manager=ecology_manager)
+                                            ecology_manager=ecology_manager,
+                                            reputation_manager=reputation_manager)
             trade_system.update(
                 faction_manager,
                 praxans,
@@ -7763,6 +7786,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     tech_research_manager=tech_research_manager if "tech_research_manager" in local_names else None,
                     disaster_manager=disaster_manager if "disaster_manager" in local_names else None,
                     ritual_manager=ritual_manager if "ritual_manager" in local_names else None,
+                    reputation_manager=reputation_manager if "reputation_manager" in local_names else None,
                     ecology_manager=ecology_manager if "ecology_manager" in local_names else None,
                     global_climate=global_climate if "global_climate" in local_names else None,
                 )

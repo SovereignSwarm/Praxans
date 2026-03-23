@@ -494,6 +494,7 @@ def build_run_snapshot(
     ritual_manager=None,
     ecology_manager=None,
     global_climate=None,
+    reputation_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -524,6 +525,7 @@ def build_run_snapshot(
         "tech_research": tech_research_manager.serialize() if tech_research_manager is not None else {},
         "disasters": disaster_manager.serialize() if disaster_manager is not None else {},
         "rituals": ritual_manager.serialize() if ritual_manager is not None else {},
+        "reputation": reputation_manager.serialize() if reputation_manager is not None else {},
         "ecology": ecology_manager.serialize() if ecology_manager is not None and hasattr(ecology_manager, "serialize") else {},
         "global_climate": _serialize_global_climate(global_climate),
         "praxans": [

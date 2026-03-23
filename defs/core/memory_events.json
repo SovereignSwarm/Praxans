@@ -107,6 +107,24 @@
             "base_weight": 4,
             "personality_factor": "sociability",
             "label": "Attended a Ritual"
+        },
+        {
+            "id": "became_luminary",
+            "base_weight": 7,
+            "personality_factor": "sociability",
+            "label": "Became a Luminary"
+        },
+        {
+            "id": "became_outcast",
+            "base_weight": 6,
+            "personality_factor": null,
+            "label": "Became an Outcast"
+        },
+        {
+            "id": "reputation_milestone",
+            "base_weight": 4,
+            "personality_factor": "sociability",
+            "label": "Reputation Changed"
         }
     ]
 }
