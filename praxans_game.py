@@ -5534,6 +5534,17 @@ def main(runtime_config=RUNTIME_CONFIG):
     warfare_manager = WarfareManager()
     warfare_manager.attach_event_bus(event_bus)
 
+    # Initialize event cascade system (cross-system reactive chain reactions)
+    from systems.event_cascades import EventCascadeManager
+    cascade_manager = EventCascadeManager()
+    cascade_manager.set_systems(
+        disease_manager=disease_manager,
+        ritual_manager=ritual_manager,
+        diplomacy_manager=diplomacy_manager,
+        faction_manager=faction_manager,
+    )
+    cascade_manager.attach_event_bus(event_bus)
+
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
     global_climate = GlobalClimate()
@@ -5636,6 +5647,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             warfare_data = snapshot_payload.get("warfare", {})
             if warfare_data:
                 warfare_manager.restore(warfare_data, current_time=now)
+            # Restore event cascade state
+            cascade_data = snapshot_payload.get("cascades", {})
+            if cascade_data:
+                cascade_manager.restore(cascade_data)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -7238,7 +7253,10 @@ def main(runtime_config=RUNTIME_CONFIG):
                 event_bus=event_bus,
                 narrative_panel=narrative_panel,
             )
-            
+
+            # Apply pending cascade effects (moodlets, memory, resilience from cross-system reactions)
+            cascade_manager.apply_pending_effects(praxans, current_time)
+
             # Check for NPC interactions
             for npc in world_map.npcs:
                 if npc.visible:
@@ -7841,6 +7859,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     ecology_manager=ecology_manager if "ecology_manager" in local_names else None,
                     global_climate=global_climate if "global_climate" in local_names else None,
                     warfare_manager=warfare_manager if "warfare_manager" in local_names else None,
+                    cascade_manager=cascade_manager if "cascade_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

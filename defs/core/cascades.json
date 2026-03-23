@@ -1,0 +1,169 @@
+{
+    "CascadeDef": [
+        {
+            "id": "mass_death_trauma",
+            "label": "Collective Trauma",
+            "description": "When multiple praxans die within a short window, all survivors suffer collective trauma — a wave of grief and anxiety.",
+            "trigger_category": "death",
+            "trigger_filter": {},
+            "effect_type": "collective_moodlet",
+            "parameters": {
+                "death_threshold": 3,
+                "window_seconds": 60.0,
+                "moodlet_id": "CollectiveTrauma",
+                "mood_offset": -12,
+                "duration": 360,
+                "cohesion_penalty": 5.0,
+                "signal_mourning": true,
+                "memory_event": "collective_trauma",
+                "memory_text": "A wave of death shook the colony"
+            },
+            "cooldown_seconds": 120.0,
+            "probability": 1.0,
+            "drama_weight": 7
+        },
+        {
+            "id": "combat_death_mourning",
+            "label": "Fallen Comrade Mourning",
+            "description": "When a praxan dies in combat, their faction is signaled for a mourning ritual and faction-mates receive a grief moodlet.",
+            "trigger_category": "death",
+            "trigger_filter": {"cause": "combat"},
+            "effect_type": "faction_mourning",
+            "parameters": {
+                "moodlet_id": "FallenInBattle",
+                "mood_offset": -8,
+                "duration": 300,
+                "signal_mourning": true,
+                "reputation_event": "defended_colony",
+                "memory_event": "comrade_fallen_battle",
+                "memory_text": "A comrade fell in battle"
+            },
+            "cooldown_seconds": 30.0,
+            "probability": 1.0,
+            "drama_weight": 6
+        },
+        {
+            "id": "epidemic_anxiety",
+            "label": "Epidemic Anxiety",
+            "description": "When an epidemic is declared, all faction members receive anxiety and faction cohesion drops.",
+            "trigger_category": "disaster",
+            "trigger_filter": {"type": "epidemic"},
+            "effect_type": "epidemic_fear",
+            "parameters": {
+                "moodlet_id": "EpidemicFear",
+                "mood_offset": -10,
+                "duration": 240,
+                "cohesion_penalty": 8.0,
+                "morale_penalty": 10.0,
+                "memory_event": "epidemic_fear",
+                "memory_text": "A plague spread through the colony"
+            },
+            "cooldown_seconds": 90.0,
+            "probability": 1.0,
+            "drama_weight": 7
+        },
+        {
+            "id": "disaster_resource_stress",
+            "label": "Post-Disaster Scarcity",
+            "description": "After a disaster damages buildings, affected factions suffer a resource stress spike that can trigger emergency trade.",
+            "trigger_category": "disaster",
+            "trigger_filter": {"type": "disaster"},
+            "effect_type": "resource_stress_spike",
+            "parameters": {
+                "stress_increase": 25.0,
+                "min_affected_buildings": 1,
+                "moodlet_id": "PostDisasterScarcity",
+                "mood_offset": -6,
+                "duration": 180,
+                "memory_event": "resource_scarcity",
+                "memory_text": "Resources grew scarce after a disaster"
+            },
+            "cooldown_seconds": 60.0,
+            "probability": 0.8,
+            "drama_weight": 5
+        },
+        {
+            "id": "ecology_famine_warning",
+            "label": "Famine Warning",
+            "description": "When regional fertility crashes below a critical threshold, nearby factions feel migration pressure and anxiety about food supply.",
+            "trigger_category": "disaster",
+            "trigger_filter": {"type": "ecology_degradation"},
+            "effect_type": "famine_pressure",
+            "parameters": {
+                "fertility_threshold": 25.0,
+                "migration_pressure_boost": 15.0,
+                "moodlet_id": "FamineWarning",
+                "mood_offset": -8,
+                "duration": 300,
+                "memory_event": "famine_warning",
+                "memory_text": "The land grew barren and food became scarce"
+            },
+            "cooldown_seconds": 120.0,
+            "probability": 0.7,
+            "drama_weight": 6
+        },
+        {
+            "id": "crisis_resilience",
+            "label": "Hardened by Crisis",
+            "description": "Praxans who survive a major disaster gain a temporary resilience boost and a small positive moodlet from overcoming adversity.",
+            "trigger_category": "disaster",
+            "trigger_filter": {"type": "disaster"},
+            "effect_type": "survivor_resilience",
+            "parameters": {
+                "min_severity": 0.5,
+                "resilience_boost": 0.15,
+                "moodlet_id": "HardenedByCrisis",
+                "mood_offset": 4,
+                "duration": 600,
+                "reputation_event": "survived_disaster",
+                "memory_event": "survived_crisis",
+                "memory_text": "Survived a devastating crisis and grew stronger"
+            },
+            "cooldown_seconds": 90.0,
+            "probability": 0.6,
+            "drama_weight": 4
+        },
+        {
+            "id": "warfare_escalation",
+            "label": "Cycle of Violence",
+            "description": "After a raid, the losing faction's standing toward the aggressor drops further, creating a spiral of hostility.",
+            "trigger_category": "warfare",
+            "trigger_filter": {},
+            "effect_type": "diplomacy_spiral",
+            "parameters": {
+                "standing_shift_loser": -5,
+                "standing_shift_winner": -3,
+                "moodlet_loser": "DesireForRevenge",
+                "mood_offset_loser": -6,
+                "moodlet_winner": "WarWeariness",
+                "mood_offset_winner": -3,
+                "duration": 300,
+                "memory_event": "warfare_escalation",
+                "memory_text": "The cycle of violence between factions deepened"
+            },
+            "cooldown_seconds": 60.0,
+            "probability": 0.7,
+            "drama_weight": 6
+        },
+        {
+            "id": "birth_celebration",
+            "label": "New Life Joy",
+            "description": "When a child is born, nearby faction members receive a small morale boost, reinforcing communal bonds.",
+            "trigger_category": "birth",
+            "trigger_filter": {},
+            "effect_type": "faction_celebration",
+            "parameters": {
+                "moodlet_id": "NewLifeJoy",
+                "mood_offset": 4,
+                "duration": 180,
+                "bond_boost": 2.0,
+                "signal_birth": true,
+                "memory_event": "new_birth_joy",
+                "memory_text": "A new life brought joy to the community"
+            },
+            "cooldown_seconds": 45.0,
+            "probability": 0.8,
+            "drama_weight": 2
+        }
+    ]
+}

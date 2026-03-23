@@ -497,6 +497,7 @@ def build_run_snapshot(
     reputation_manager=None,
     aspiration_manager=None,
     warfare_manager=None,
+    cascade_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -532,6 +533,7 @@ def build_run_snapshot(
         "ecology": ecology_manager.serialize() if ecology_manager is not None and hasattr(ecology_manager, "serialize") else {},
         "global_climate": _serialize_global_climate(global_climate),
         "warfare": warfare_manager.serialize(current_time=current_time) if warfare_manager is not None else {},
+        "cascades": cascade_manager.serialize() if cascade_manager is not None else {},
         "praxans": [
             {
                 "id": praxan.id,
