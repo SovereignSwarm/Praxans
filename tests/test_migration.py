@@ -584,6 +584,86 @@ class TestDefectionExecution(unittest.TestCase):
         self.assertEqual(record["source_faction_id"], 0)
         self.assertEqual(record["target_faction_id"], 1)
 
+    def test_family_reunion_defector_gets_positive_mood(self):
+        """Regression: FamilyReunion moodlet must use MoodDef offset (+8), not
+        the hardcoded -5 that was incorrectly applied to all migration types."""
+        mdef = get_migration_def("family_reunion")
+        praxan = MockPraxan(1, faction_id=0, happiness=60.0, name="TestPraxan")
+        source = MockFaction(0, member_ids=[1, 2, 3, 4], cohesion=50.0)
+        target = MockFaction(1, member_ids=[10, 11, 12, 13], cohesion=60.0)
+        praxans = [
+            praxan,
+            MockPraxan(2, faction_id=0), MockPraxan(3, faction_id=0),
+            MockPraxan(4, faction_id=0),
+            MockPraxan(10, faction_id=1), MockPraxan(11, faction_id=1),
+            MockPraxan(12, faction_id=1), MockPraxan(13, faction_id=1),
+        ]
+        self.manager._execute_defection(
+            praxan, source, 0, target, 1, mdef, self.now, praxans
+        )
+        defector_moodlets = [m for m in praxan.moodlets if m["name"] == "FamilyReunion"]
+        self.assertEqual(len(defector_moodlets), 1)
+        # Must be positive (+8 per MoodDef), not the old hardcoded -5
+        self.assertGreater(defector_moodlets[0]["value"], 0,
+                           "FamilyReunion defector moodlet must be positive")
+
+    def test_moodlet_offsets_match_mooddefs(self):
+        """All migration types' moodlets must use the offset from MoodDef."""
+        from systems.def_database import DefDatabase
+        mood_defs = DefDatabase.get_all("MoodDef")
+
+        migration_moodlet_pairs = [
+            ("discontent_defection", "moodlet_defector"),
+            ("war_refugee",          "moodlet_defector"),
+            ("plague_flight",        "moodlet_defector"),
+            ("family_reunion",       "moodlet_defector"),
+            ("ideological_exile",    "moodlet_defector"),
+            ("family_reunion",       "moodlet_source_faction"),
+            ("family_reunion",       "moodlet_target_faction"),
+        ]
+
+        for mdef_id, moodlet_key in migration_moodlet_pairs:
+            mdef = get_migration_def(mdef_id)
+            moodlet_id = mdef.get(moodlet_key)
+            if moodlet_id not in mood_defs:
+                continue
+            expected_offset = mood_defs[moodlet_id].get("mood_offset")
+            if expected_offset is None:
+                continue
+
+            praxan = MockPraxan(1, faction_id=0, name="TestPraxan")
+            source = MockFaction(0, member_ids=[1, 2, 3, 4], cohesion=50.0)
+            target = MockFaction(1, member_ids=[10, 11, 12, 13], cohesion=60.0)
+            praxans = [
+                praxan,
+                MockPraxan(2, faction_id=0), MockPraxan(3, faction_id=0),
+                MockPraxan(4, faction_id=0),
+                MockPraxan(10, faction_id=1), MockPraxan(11, faction_id=1),
+                MockPraxan(12, faction_id=1), MockPraxan(13, faction_id=1),
+            ]
+            self.manager._execute_defection(
+                praxan, source, 0, target, 1, mdef, self.now, praxans
+            )
+
+            if moodlet_key == "moodlet_defector":
+                applied = [m for m in praxan.moodlets if m["name"] == moodlet_id]
+            elif moodlet_key == "moodlet_source_faction":
+                p2 = next(p for p in praxans if p.id == 2)
+                applied = [m for m in p2.moodlets if m["name"] == moodlet_id]
+            else:
+                p10 = next(p for p in praxans if p.id == 10)
+                applied = [m for m in p10.moodlets if m["name"] == moodlet_id]
+
+            self.assertTrue(
+                len(applied) > 0,
+                f"{mdef_id}.{moodlet_key} ({moodlet_id}) produced no moodlet"
+            )
+            self.assertAlmostEqual(
+                applied[0]["value"], expected_offset, places=3,
+                msg=(f"{mdef_id}.{moodlet_key} ({moodlet_id}): "
+                     f"expected offset {expected_offset}, got {applied[0]['value']}")
+            )
+
 
 # ---------------------------------------------------------------------------
 # Test: Update Guards (cooldowns, leader, min size, life stage)

@@ -80,6 +80,19 @@ def clear_cache() -> None:
     _migration_def_cache.clear()
 
 
+def _lookup_moodlet(moodlet_id: str, default_offset: float, default_duration: float) -> tuple[float, float]:
+    """Return (mood_offset, duration) from MoodDef, falling back to defaults."""
+    try:
+        from systems.def_database import DefDatabase
+        mood_defs = DefDatabase.get_all("MoodDef")
+        if moodlet_id in mood_defs:
+            m = mood_defs[moodlet_id]
+            return float(m.get("mood_offset", default_offset)), float(m.get("duration", default_duration))
+    except Exception:
+        pass
+    return default_offset, default_duration
+
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -582,27 +595,30 @@ class MigrationManager:
         target_faction.add_member(pid)
         praxan.faction_id = target_fid
 
-        # 2. Moodlets
+        # 2. Moodlets — offsets/durations read from MoodDef to avoid hardcoding
         try:
             # Defector: anxiety/relief moodlet
             defector_mood = mdef.get("moodlet_defector", "DefectorAnxiety")
-            praxan.add_moodlet(defector_mood, -5, 180, now)
+            d_offset, d_dur = _lookup_moodlet(defector_mood, -5, 180)
+            praxan.add_moodlet(defector_mood, d_offset, d_dur, now)
 
             # Source faction: loss moodlet
             source_mood = mdef.get("moodlet_source_faction", "MemberDefected")
+            s_offset, s_dur = _lookup_moodlet(source_mood, -4, 120)
             for mid in source_faction.member_ids:
                 member = next((p for p in praxans if p.id == mid), None)
                 if member is not None:
-                    member.add_moodlet(source_mood, -4, 120, now)
+                    member.add_moodlet(source_mood, s_offset, s_dur, now)
 
             # Target faction: welcome moodlet
             target_mood = mdef.get("moodlet_target_faction", "NewcomerArrival")
+            t_offset, t_dur = _lookup_moodlet(target_mood, 3, 120)
             for mid in target_faction.member_ids:
                 if mid == pid:
                     continue
                 member = next((p for p in praxans if p.id == mid), None)
                 if member is not None:
-                    member.add_moodlet(target_mood, 3, 120, now)
+                    member.add_moodlet(target_mood, t_offset, t_dur, now)
         except Exception:
             pass
 
