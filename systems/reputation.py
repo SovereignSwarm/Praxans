@@ -304,8 +304,10 @@ class ReputationManager:
 
     def _apply_leadership_tenure(self, faction_manager: Any) -> None:
         """Grant small reputation bonus to current faction leaders."""
-        factions = getattr(faction_manager, "factions", [])
-        for faction in factions:
+        factions = getattr(faction_manager, "factions", {})
+        # factions is a dict {faction_id: Faction} — iterate values, not keys
+        faction_iter = factions.values() if isinstance(factions, dict) else factions
+        for faction in faction_iter:
             leader_id = getattr(faction, "leader_id", None)
             if leader_id is not None:
                 self.record_event(leader_id, "leadership_tenure")

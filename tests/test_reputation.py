@@ -84,10 +84,12 @@ class StubFaction:
 
 class StubFactionManager:
     def __init__(self, factions=None):
-        self.factions = factions or []
-
-    def __iter__(self):
-        return iter(self.factions)
+        # Accept list for convenience but store as dict {faction.id: faction}
+        # to match the real FactionManager.factions structure.
+        if isinstance(factions, list):
+            self.factions = {f.id: f for f in factions}
+        else:
+            self.factions = factions or {}
 
 
 class StubEventBus:
