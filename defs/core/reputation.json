@@ -195,6 +195,20 @@
             "delta": 3,
             "category": "combat",
             "description": "Respect for aggression against hostile factions"
+        },
+        {
+            "id": "defected_faction",
+            "label": "Defected from Faction",
+            "delta": -4,
+            "category": "social",
+            "description": "Reputation loss for abandoning one's community"
+        },
+        {
+            "id": "welcomed_newcomer",
+            "label": "Welcomed a Newcomer",
+            "delta": 2,
+            "category": "social",
+            "description": "Reputation gain for accepting an outsider into the community"
         }
     ],
     "ReputationTierDef": [

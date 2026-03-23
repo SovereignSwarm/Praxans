@@ -1,0 +1,164 @@
+{
+    "MigrationDef": [
+        {
+            "id": "discontent_defection",
+            "name": "Discontent Defection",
+            "description": "A deeply unhappy praxan abandons their faction for a more appealing one.",
+            "trigger": "low_happiness",
+            "push_factors": {
+                "low_happiness": {"threshold": 35, "weight": 2.0},
+                "low_cohesion": {"threshold": 30, "weight": 1.5},
+                "outcast_reputation": {"threshold": 25, "weight": 1.8},
+                "no_friends": {"threshold": 0, "weight": 1.2},
+                "many_rivals": {"threshold": 2, "weight": 1.0}
+            },
+            "pull_factors": {
+                "high_cohesion": {"threshold": 60, "weight": 1.5},
+                "friendly_standing": {"threshold": 20, "weight": 2.0},
+                "family_present": {"weight": 3.0},
+                "friends_present": {"weight": 2.0},
+                "doctrine_match": {"weight": 1.0}
+            },
+            "discontent_threshold": 5.0,
+            "attraction_threshold": 4.0,
+            "cooldown_seconds": 120,
+            "moodlet_defector": "DefectorAnxiety",
+            "moodlet_source_faction": "MemberDefected",
+            "moodlet_target_faction": "NewcomerArrival",
+            "reputation_loss_defector": -5,
+            "reputation_gain_welcomed": 2,
+            "cohesion_loss_source": -3.0,
+            "cohesion_gain_target": 1.5,
+            "diplomacy_penalty": -5,
+            "memory_event_defector": "defected_from_faction",
+            "memory_text_defector": "I left my people to seek a better life",
+            "memory_event_welcomed": "welcomed_newcomer",
+            "memory_text_welcomed": "A stranger joined our community"
+        },
+        {
+            "id": "war_refugee",
+            "name": "War Refugee",
+            "description": "A praxan flees their faction after devastating warfare.",
+            "trigger": "recent_warfare",
+            "push_factors": {
+                "recent_warfare_loss": {"threshold": 1, "weight": 3.0},
+                "low_happiness": {"threshold": 45, "weight": 1.5},
+                "low_health": {"threshold": 50, "weight": 1.0},
+                "comrades_fallen": {"threshold": 1, "weight": 2.0}
+            },
+            "pull_factors": {
+                "no_active_warfare": {"weight": 2.5},
+                "friendly_standing": {"threshold": 0, "weight": 1.5},
+                "family_present": {"weight": 3.0},
+                "high_cohesion": {"threshold": 50, "weight": 1.0}
+            },
+            "discontent_threshold": 4.0,
+            "attraction_threshold": 3.5,
+            "cooldown_seconds": 90,
+            "moodlet_defector": "WarRefugee",
+            "moodlet_source_faction": "MemberFledWar",
+            "moodlet_target_faction": "RefugeeWelcomed",
+            "reputation_loss_defector": -2,
+            "reputation_gain_welcomed": 3,
+            "cohesion_loss_source": -2.0,
+            "cohesion_gain_target": 2.0,
+            "diplomacy_penalty": -3,
+            "memory_event_defector": "fled_warfare",
+            "memory_text_defector": "I fled the horrors of war to find peace",
+            "memory_event_welcomed": "sheltered_refugee",
+            "memory_text_welcomed": "We sheltered a refugee fleeing conflict"
+        },
+        {
+            "id": "plague_flight",
+            "name": "Plague Flight",
+            "description": "A praxan escapes an epidemic-ravaged faction.",
+            "trigger": "active_epidemic",
+            "push_factors": {
+                "active_epidemic": {"weight": 3.0},
+                "low_health": {"threshold": 60, "weight": 1.5},
+                "faction_deaths_recent": {"threshold": 2, "weight": 2.0}
+            },
+            "pull_factors": {
+                "no_epidemic": {"weight": 3.0},
+                "friendly_standing": {"threshold": -20, "weight": 1.0},
+                "family_present": {"weight": 2.5}
+            },
+            "discontent_threshold": 4.5,
+            "attraction_threshold": 3.0,
+            "cooldown_seconds": 90,
+            "moodlet_defector": "PlagueFlight",
+            "moodlet_source_faction": "MemberFledPlague",
+            "moodlet_target_faction": "PlagueSurvivorArrived",
+            "reputation_loss_defector": -3,
+            "reputation_gain_welcomed": 1,
+            "cohesion_loss_source": -2.5,
+            "cohesion_gain_target": 0.5,
+            "diplomacy_penalty": -2,
+            "memory_event_defector": "fled_plague",
+            "memory_text_defector": "I fled the plague that ravaged my people",
+            "memory_event_welcomed": "plague_survivor_arrived",
+            "memory_text_welcomed": "A survivor of the plague came seeking refuge"
+        },
+        {
+            "id": "family_reunion",
+            "name": "Family Reunion",
+            "description": "A praxan migrates to join family members in another faction.",
+            "trigger": "family_separation",
+            "push_factors": {
+                "family_in_other_faction": {"weight": 4.0},
+                "no_friends": {"threshold": 0, "weight": 1.0},
+                "low_happiness": {"threshold": 50, "weight": 0.8}
+            },
+            "pull_factors": {
+                "family_present": {"weight": 5.0},
+                "friendly_standing": {"threshold": -20, "weight": 1.0}
+            },
+            "discontent_threshold": 3.0,
+            "attraction_threshold": 4.0,
+            "cooldown_seconds": 180,
+            "moodlet_defector": "FamilyReunion",
+            "moodlet_source_faction": "MemberLeftForFamily",
+            "moodlet_target_faction": "FamilyReunited",
+            "reputation_loss_defector": 0,
+            "reputation_gain_welcomed": 1,
+            "cohesion_loss_source": -1.0,
+            "cohesion_gain_target": 2.0,
+            "diplomacy_penalty": 0,
+            "memory_event_defector": "reunited_with_family",
+            "memory_text_defector": "I crossed faction lines to be with my family again",
+            "memory_event_welcomed": "family_reunited",
+            "memory_text_welcomed": "A family was reunited in our community"
+        },
+        {
+            "id": "ideological_exile",
+            "name": "Ideological Exile",
+            "description": "A praxan whose personality clashes with their faction's doctrine seeks a more compatible community.",
+            "trigger": "doctrine_mismatch",
+            "push_factors": {
+                "doctrine_mismatch": {"weight": 2.5},
+                "low_happiness": {"threshold": 45, "weight": 1.5},
+                "low_cohesion": {"threshold": 40, "weight": 1.0}
+            },
+            "pull_factors": {
+                "doctrine_match": {"weight": 3.0},
+                "friendly_standing": {"threshold": 0, "weight": 1.5},
+                "high_cohesion": {"threshold": 55, "weight": 1.0}
+            },
+            "discontent_threshold": 4.5,
+            "attraction_threshold": 4.0,
+            "cooldown_seconds": 150,
+            "moodlet_defector": "IdeologicalExile",
+            "moodlet_source_faction": "MemberExiled",
+            "moodlet_target_faction": "IdeologicalRefugee",
+            "reputation_loss_defector": -3,
+            "reputation_gain_welcomed": 2,
+            "cohesion_loss_source": -1.5,
+            "cohesion_gain_target": 1.0,
+            "diplomacy_penalty": -4,
+            "memory_event_defector": "ideological_exile",
+            "memory_text_defector": "I could no longer live under their doctrine",
+            "memory_event_welcomed": "ideological_refugee",
+            "memory_text_welcomed": "A seeker of truth joined us, sharing our values"
+        }
+    ]
+}
