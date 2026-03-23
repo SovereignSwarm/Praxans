@@ -810,6 +810,78 @@ class TestSerialization(unittest.TestCase):
         mgr.restore(data)
         self.assertEqual(len(mgr.active_raids), 0)
 
+    def test_restore_started_at_uses_total_duration(self):
+        """Regression: started_at must be ends_at - total_duration, not now - remaining.
+
+        The old code set started_at = now - remaining.  When remaining >
+        total_duration/2 (early-stage raid), this made started_at appear
+        further in the past than it really was, causing expected_round to
+        jump past current_round on the first post-restore frame and
+        triggering _finalize_raid while skipping rounds.
+        """
+        # setUp already initialized DefDatabase; use get_raid_def directly.
+        # pillage_raid has duration_seconds = 25, combat_rounds = 4
+        raid_def = get_raid_def("pillage_raid")
+        self.assertIsNotNone(raid_def, "pillage_raid def must load")
+        total_dur = float(raid_def.get("duration_seconds", 25))
+        max_rounds = int(raid_def.get("combat_rounds", 4))
+        round_dur = total_dur / max(1, max_rounds)
+
+        now = 5000.0
+        # Raid saved early: only 1 round done, most time remaining
+        remaining = total_dur * 0.8  # 80% of duration left
+        current_round = 1
+
+        data = {
+            "raid_history": [],
+            "active_raids": [{
+                "raid_id": "r_early",
+                "raid_def_id": "pillage_raid",
+                "attacker_faction_id": 0,
+                "defender_faction_id": 1,
+                "attacker_ids": [10, 11],
+                "defender_ids": [20, 21],
+                "remaining_seconds": remaining,
+                "current_round": current_round,
+                "max_rounds": max_rounds,
+                "resolved": False,
+                "outcome": "",
+                "casualties_attacker": [],
+                "casualties_defender": [],
+                "fled_attacker": [],
+                "fled_defender": [],
+                "loot_taken": {},
+                "buildings_damaged": 0,
+            }],
+            "pair_cooldowns": {},
+        }
+        mgr = WarfareManager()
+        mgr.restore(data, current_time=now)
+
+        self.assertEqual(len(mgr.active_raids), 1)
+        raid = mgr.active_raids[0]
+
+        # ends_at must be correct
+        self.assertAlmostEqual(raid.ends_at, now + remaining, delta=0.01)
+
+        # started_at must equal ends_at - total_duration (not now - remaining)
+        expected_started_at = raid.ends_at - total_dur
+        self.assertAlmostEqual(raid.started_at, expected_started_at, delta=0.01)
+
+        # Verify expected_round at restore time does NOT exceed current_round,
+        # so no extra combat fires immediately (old bug caused early finalization).
+        elapsed_at_restore = now - raid.started_at
+        expected_round_at_restore = min(
+            max_rounds,
+            int(elapsed_at_restore / round_dur) + 1,
+        )
+        self.assertLessEqual(
+            expected_round_at_restore,
+            current_round,
+            "expected_round must not exceed current_round right after restore "
+            "(old started_at=now-remaining bug caused early finalization)",
+        )
+
 
 class TestEdgeCases(unittest.TestCase):
     def setUp(self):

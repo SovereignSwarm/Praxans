@@ -1118,6 +1118,14 @@ class WarfareManager:
                     remaining = 0
                 if remaining <= 0:
                     continue  # expired during save
+                # Derive started_at from ends_at and the raid def's total
+                # duration.  Using (now - remaining) was wrong: it sets
+                # started_at too late when remaining > duration/2, causing
+                # expected_round to jump past current_round on the first
+                # frame and triggering _finalize_raid while skipping rounds.
+                _raid_def_data = get_raid_def(str(rd.get("raid_def_id", ""))) or {}
+                _total_dur = float(_raid_def_data.get("duration_seconds", 25.0))
+                _ends_at = now + remaining
                 raid = ActiveRaid(
                     raid_id=str(rd.get("raid_id", "")),
                     raid_def_id=str(rd.get("raid_def_id", "")),
@@ -1125,8 +1133,8 @@ class WarfareManager:
                     defender_faction_id=int(rd.get("defender_faction_id", 0)),
                     attacker_ids=list(rd.get("attacker_ids", [])),
                     defender_ids=list(rd.get("defender_ids", [])),
-                    started_at=now - (float(rd.get("remaining_seconds", 0))),
-                    ends_at=now + remaining,
+                    started_at=_ends_at - _total_dur,
+                    ends_at=_ends_at,
                     current_round=int(rd.get("current_round", 0)),
                     max_rounds=int(rd.get("max_rounds", 4)),
                     resolved=bool(rd.get("resolved", False)),
