@@ -149,6 +149,81 @@
             "id": "AspirationAssigned",
             "mood_offset": 2,
             "duration": 120
+        },
+        {
+            "id": "RaidVictory",
+            "mood_offset": 8,
+            "duration": 300
+        },
+        {
+            "id": "RaidSurvived",
+            "mood_offset": 5,
+            "duration": 240
+        },
+        {
+            "id": "RaidDefeated",
+            "mood_offset": -12,
+            "duration": 360
+        },
+        {
+            "id": "WonSkirmish",
+            "mood_offset": 5,
+            "duration": 200
+        },
+        {
+            "id": "DefendedBorder",
+            "mood_offset": 4,
+            "duration": 200
+        },
+        {
+            "id": "LostSkirmish",
+            "mood_offset": -6,
+            "duration": 240
+        },
+        {
+            "id": "SabotageSuccess",
+            "mood_offset": 6,
+            "duration": 240
+        },
+        {
+            "id": "RepelledSaboteurs",
+            "mood_offset": 5,
+            "duration": 200
+        },
+        {
+            "id": "SabotageSuffered",
+            "mood_offset": -10,
+            "duration": 300
+        },
+        {
+            "id": "ConquestVictory",
+            "mood_offset": 15,
+            "duration": 420
+        },
+        {
+            "id": "DefendedColony",
+            "mood_offset": 10,
+            "duration": 360
+        },
+        {
+            "id": "ConquestDefeated",
+            "mood_offset": -18,
+            "duration": 480
+        },
+        {
+            "id": "ComradeWounded",
+            "mood_offset": -5,
+            "duration": 180
+        },
+        {
+            "id": "ComradeFallen",
+            "mood_offset": -10,
+            "duration": 300
+        },
+        {
+            "id": "BattleHardened",
+            "mood_offset": 3,
+            "duration": 600
         }
     ]
 }

@@ -5529,6 +5529,11 @@ def main(runtime_config=RUNTIME_CONFIG):
     aspiration_manager = AspirationManager()
     aspiration_manager.attach_event_bus(event_bus)
 
+    # Initialize warfare & raiding system
+    from systems.warfare import WarfareManager
+    warfare_manager = WarfareManager()
+    warfare_manager.attach_event_bus(event_bus)
+
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
     global_climate = GlobalClimate()
@@ -5627,6 +5632,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             if aspirations_data:
                 aspiration_manager.restore(aspirations_data, now=now)
                 aspiration_manager.restore_praxan_aspirations(praxans)
+            # Restore warfare & raiding state
+            warfare_data = snapshot_payload.get("warfare", {})
+            if warfare_data:
+                warfare_manager.restore(warfare_data, current_time=now)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -6410,6 +6419,9 @@ def main(runtime_config=RUNTIME_CONFIG):
                 'praxan_class': Praxan,
                 'resource_class': Resource,
                 'disaster_manager': disaster_manager,
+                'warfare_manager': warfare_manager,
+                'diplomacy_manager': diplomacy_manager,
+                'faction_manager': faction_manager,
                 'season': season,
                 'weather_system': weather_system,
                 'world_map': world_map,
@@ -6467,6 +6479,17 @@ def main(runtime_config=RUNTIME_CONFIG):
                 reputation_manager=reputation_manager,
                 event_bus=event_bus,
                 current_time=current_time,
+            )
+
+            # Warfare & raiding — evaluate hostile factions, resolve combat
+            warfare_manager.update(
+                praxans=praxans,
+                buildings=buildings,
+                faction_manager=faction_manager,
+                diplomacy_manager=diplomacy_manager,
+                reputation_manager=reputation_manager,
+                current_time=current_time,
+                advisor=advisor,
             )
 
             advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
@@ -7817,6 +7840,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     aspiration_manager=aspiration_manager if "aspiration_manager" in local_names else None,
                     ecology_manager=ecology_manager if "ecology_manager" in local_names else None,
                     global_climate=global_climate if "global_climate" in local_names else None,
+                    warfare_manager=warfare_manager if "warfare_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

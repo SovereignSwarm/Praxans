@@ -149,6 +149,36 @@
             "base_weight": 3,
             "personality_factor": "diligence",
             "label": "Made Progress on Goal"
+        },
+        {
+            "id": "raid_defended",
+            "base_weight": 7,
+            "personality_factor": null,
+            "label": "Defended Against a Raid"
+        },
+        {
+            "id": "raid_participated",
+            "base_weight": 6,
+            "personality_factor": null,
+            "label": "Fought in a Raid"
+        },
+        {
+            "id": "comrade_fell_in_battle",
+            "base_weight": 8,
+            "personality_factor": "sociability",
+            "label": "Lost a Comrade in Battle"
+        },
+        {
+            "id": "battle_wound",
+            "base_weight": 5,
+            "personality_factor": null,
+            "label": "Wounded in Battle"
+        },
+        {
+            "id": "colony_raided",
+            "base_weight": 7,
+            "personality_factor": null,
+            "label": "Colony Was Raided"
         }
     ]
 }

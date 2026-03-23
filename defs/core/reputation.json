@@ -153,6 +153,48 @@
             "delta": -2,
             "category": "personal",
             "description": "Loses minor respect for giving up on personal goals"
+        },
+        {
+            "id": "defended_colony",
+            "label": "Defended the Colony",
+            "delta": 6,
+            "category": "combat",
+            "description": "Great respect for standing against raiders"
+        },
+        {
+            "id": "raid_kill",
+            "label": "Slew a Raider",
+            "delta": 4,
+            "category": "combat",
+            "description": "Respect for eliminating an attacker"
+        },
+        {
+            "id": "led_defense",
+            "label": "Led the Defense",
+            "delta": 7,
+            "category": "combat",
+            "description": "Faction leader who commanded a successful defense"
+        },
+        {
+            "id": "wounded_in_battle",
+            "label": "Wounded in Battle",
+            "delta": 2,
+            "category": "combat",
+            "description": "Minor respect for taking wounds in defense of the colony"
+        },
+        {
+            "id": "fled_battle",
+            "label": "Fled from Battle",
+            "delta": -6,
+            "category": "combat",
+            "description": "Heavy standing loss for abandoning comrades in combat"
+        },
+        {
+            "id": "raided_enemy",
+            "label": "Raided an Enemy",
+            "delta": 3,
+            "category": "combat",
+            "description": "Respect for aggression against hostile factions"
         }
     ],
     "ReputationTierDef": [

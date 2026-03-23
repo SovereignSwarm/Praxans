@@ -199,10 +199,57 @@ def incident_natural_disaster(game_state: dict):
                 )
 
 
+def incident_faction_raid(game_state: dict):
+    """Storyteller-triggered raid — forces an aggressive faction to attack a rival."""
+    warfare_manager = game_state.get('warfare_manager')
+    diplomacy_manager = game_state.get('diplomacy_manager')
+    faction_manager = game_state.get('faction_manager')
+    if warfare_manager is None or diplomacy_manager is None or faction_manager is None:
+        return
+
+    import time as _time
+    now = _time.time()
+    praxans = game_state.get('praxans', [])
+    factions = getattr(faction_manager, 'factions', {})
+    faction_ids = list(factions.keys())
+
+    if len(faction_ids) < 2:
+        return
+
+    # Find the most hostile pair
+    worst_pair = None
+    worst_standing = 0
+    for i, fid_a in enumerate(faction_ids):
+        for fid_b in faction_ids[i + 1:]:
+            rel = diplomacy_manager.get_relation(fid_a, fid_b)
+            if rel.standing < worst_standing:
+                worst_standing = rel.standing
+                worst_pair = (fid_a, fid_b)
+
+    if worst_pair is None or worst_standing > -30:
+        return  # no hostile factions
+
+    fid_a, fid_b = worst_pair
+    # Force-initiate a raid (bypass cooldown by manipulating internal state)
+    pair_key = (min(fid_a, fid_b), max(fid_a, fid_b))
+    warfare_manager._pair_cooldowns.pop(pair_key, None)
+    raid = warfare_manager._initiate_raid(
+        fid_a, fid_b, worst_standing, factions, praxans, now,
+    )
+
+    narrative_panel = game_state.get('narrative_panel')
+    if narrative_panel and raid:
+        narrative_panel.add_message(
+            f"War! F{raid.attacker_faction_id} launches a raid against F{raid.defender_faction_id}!",
+            "Crisis",
+        )
+
+
 def register_all_incidents(storyteller):
     storyteller.add_incident("crop_blight", INCIDENT_BAD, 40.0, incident_crop_blight)
     storyteller.add_incident("animal_attack", INCIDENT_BAD, 60.0, incident_animal_attack)
     storyteller.add_incident("disease_outbreak", INCIDENT_BAD, 80.0, incident_disease_outbreak)
     storyteller.add_incident("natural_disaster", INCIDENT_BAD, 90.0, incident_natural_disaster)
+    storyteller.add_incident("faction_raid", INCIDENT_BAD, 70.0, incident_faction_raid)
     storyteller.add_incident("migrant_wave", INCIDENT_GOOD, 0.0, incident_migrant_wave)
     storyteller.add_incident("resource_pod", INCIDENT_NEUTRAL, 0.0, incident_resource_pod)
