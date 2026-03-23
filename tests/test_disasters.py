@@ -730,6 +730,54 @@ class TestIncidentRobustness(unittest.TestCase):
         self.assertEqual(farm.stored_resources.get("food"), 0)
 
 
+class TestDisasterEventMetadata(unittest.TestCase):
+    """Regression tests: disaster EventBus events must include a survivors list
+    so that the reputation system can award 'survived_disaster' events."""
+
+    def setUp(self):
+        clear_cache()
+        from systems.def_database import DefDatabase
+        DefDatabase.clear()
+        DefDatabase.initialize("defs")
+        clear_cache()
+        self.mgr = DisasterManager()
+
+    def test_survivors_list_present_in_event_metadata(self):
+        """CATEGORY_DISASTER event must contain 'survivors' key with praxan IDs."""
+        bus = StubEventBus()
+        # blizzard radius is 400 — place two praxans well inside, one far outside
+        p1 = StubPraxan(x=100, y=100)
+        p2 = StubPraxan(x=200, y=100)
+        p_far = StubPraxan(x=9000, y=9000)
+
+        ad = ActiveDisaster("blizzard", 100, 100, 0.8, time.time(), 30.0)
+        self.mgr._apply_effects(ad, [p1, p2, p_far], [], None, bus, None)
+
+        self.assertTrue(bus.published, "Expected at least one event to be published")
+        event = bus.published[-1]
+        meta = getattr(event, "metadata", {})
+        self.assertIn("survivors", meta,
+                      "Event metadata must include 'survivors' key for reputation system")
+        survivors = meta["survivors"]
+        self.assertIsInstance(survivors, list)
+        self.assertIn(p1.id, survivors)
+        self.assertIn(p2.id, survivors)
+        self.assertNotIn(p_far.id, survivors)
+
+    def test_survivors_list_empty_when_no_praxans_in_radius(self):
+        """No praxans in radius → survivors list must be empty (not missing)."""
+        bus = StubEventBus()
+        p_far = StubPraxan(x=9000, y=9000)
+
+        ad = ActiveDisaster("blizzard", 100, 100, 0.8, time.time(), 30.0)
+        self.mgr._apply_effects(ad, [p_far], [], None, bus, None)
+
+        if bus.published:
+            meta = getattr(bus.published[-1], "metadata", {})
+            self.assertEqual(meta.get("survivors", []), [],
+                             "No praxans in radius → survivors list must be empty")
+
+
 if __name__ == "__main__":
     unittest.main()
 

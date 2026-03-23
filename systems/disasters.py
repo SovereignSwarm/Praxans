@@ -375,6 +375,7 @@ class DisasterManager:
 
         affected_praxans = 0
         affected_buildings = 0
+        survivor_ids: list[int] = []
 
         # --- Building damage ---
         building_damage_pct = effects.get("building_damage_pct", 0.0) * severity
@@ -425,6 +426,7 @@ class DisasterManager:
                 continue
 
             affected_praxans += 1
+            survivor_ids.append(p.id)
             falloff = max(0.0, 1.0 - (dist / radius))
 
             # Health damage
@@ -498,6 +500,7 @@ class DisasterManager:
                         "severity": round(severity, 2),
                         "affected_praxans": affected_praxans,
                         "affected_buildings": affected_buildings,
+                        "survivors": survivor_ids,
                     },
                 ))
             except Exception:
