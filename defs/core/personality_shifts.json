@@ -1,0 +1,172 @@
+{
+    "PersonalityShiftDef": [
+        {
+            "id": "deep_conversation_sociability",
+            "trait": "sociability",
+            "shift": 0.012,
+            "trigger": "interaction:deep_conversation",
+            "target": "both",
+            "description": "Meaningful conversation builds openness"
+        },
+        {
+            "id": "comfort_sociability",
+            "trait": "sociability",
+            "shift": 0.010,
+            "trigger": "interaction:comfort",
+            "target": "initiator",
+            "description": "Helping others builds connection"
+        },
+        {
+            "id": "share_meal_sociability",
+            "trait": "sociability",
+            "shift": 0.008,
+            "trigger": "interaction:share_meal",
+            "target": "both",
+            "description": "Eating together brings warmth"
+        },
+        {
+            "id": "argument_sociability",
+            "trait": "sociability",
+            "shift": -0.012,
+            "trigger": "interaction:argument",
+            "target": "both",
+            "description": "Conflict breeds withdrawal"
+        },
+        {
+            "id": "insult_target_sociability",
+            "trait": "sociability",
+            "shift": -0.015,
+            "trigger": "interaction:insult",
+            "target": "target",
+            "description": "Being insulted chills social warmth"
+        },
+        {
+            "id": "play_sociability",
+            "trait": "sociability",
+            "shift": 0.006,
+            "trigger": "interaction:play",
+            "target": "both",
+            "description": "Play strengthens social bonds"
+        },
+        {
+            "id": "teach_curiosity",
+            "trait": "curiosity",
+            "shift": 0.008,
+            "trigger": "interaction:teach",
+            "target": "both",
+            "description": "Teaching and learning sparks curiosity"
+        },
+        {
+            "id": "teach_diligence",
+            "trait": "diligence",
+            "shift": 0.006,
+            "trigger": "interaction:teach",
+            "target": "target",
+            "description": "Being taught reinforces discipline"
+        },
+        {
+            "id": "skill_level_up_curiosity",
+            "trait": "curiosity",
+            "shift": 0.010,
+            "trigger": "entity:skill_level_up",
+            "target": "self",
+            "description": "Mastering skills feeds curiosity"
+        },
+        {
+            "id": "skill_level_up_diligence",
+            "trait": "diligence",
+            "shift": 0.008,
+            "trigger": "entity:skill_level_up",
+            "target": "self",
+            "description": "Leveling up rewards hard work"
+        },
+        {
+            "id": "built_structure_diligence",
+            "trait": "diligence",
+            "shift": 0.012,
+            "trigger": "entity:built_structure",
+            "target": "self",
+            "description": "Completing builds reinforces discipline"
+        },
+        {
+            "id": "crafted_masterwork_diligence",
+            "trait": "diligence",
+            "shift": 0.020,
+            "trigger": "entity:crafted_masterwork",
+            "target": "self",
+            "description": "Excellence breeds excellence"
+        },
+        {
+            "id": "mental_break_diligence",
+            "trait": "diligence",
+            "shift": -0.020,
+            "trigger": "entity:mental_break",
+            "target": "self",
+            "description": "Breaking down erodes resolve"
+        },
+        {
+            "id": "mental_break_sociability",
+            "trait": "sociability",
+            "shift": -0.010,
+            "trigger": "entity:mental_break",
+            "target": "self",
+            "description": "Mental collapse strains social instinct"
+        },
+        {
+            "id": "partner_death_sociability",
+            "trait": "sociability",
+            "shift": -0.025,
+            "trigger": "event:partner_death",
+            "target": "self",
+            "description": "Loss of a loved one chills the heart"
+        },
+        {
+            "id": "child_death_sociability",
+            "trait": "sociability",
+            "shift": -0.020,
+            "trigger": "event:child_death",
+            "target": "self",
+            "description": "Losing a child leaves deep scars"
+        },
+        {
+            "id": "ritual_sociability",
+            "trait": "sociability",
+            "shift": 0.010,
+            "trigger": "event:ritual_participation",
+            "target": "self",
+            "description": "Communal gatherings build connection"
+        },
+        {
+            "id": "combat_victory_diligence",
+            "trait": "diligence",
+            "shift": 0.010,
+            "trigger": "entity:combat_victory",
+            "target": "self",
+            "description": "Victory in battle steels resolve"
+        },
+        {
+            "id": "exploration_discovery_curiosity",
+            "trait": "curiosity",
+            "shift": 0.015,
+            "trigger": "entity:exploration_discovery",
+            "target": "self",
+            "description": "Discovery fuels wonder"
+        },
+        {
+            "id": "mentorship_session_curiosity",
+            "trait": "curiosity",
+            "shift": 0.008,
+            "trigger": "entity:mentorship_session",
+            "target": "self",
+            "description": "Guided learning opens the mind"
+        },
+        {
+            "id": "aspiration_completed_diligence",
+            "trait": "diligence",
+            "shift": 0.025,
+            "trigger": "entity:aspiration_completed",
+            "target": "self",
+            "description": "Achieving a life goal affirms work ethic"
+        }
+    ]
+}

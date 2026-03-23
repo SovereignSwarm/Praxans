@@ -389,6 +389,16 @@
             "id": "MentorshipBroken",
             "mood_offset": -3,
             "duration": 90
+        },
+        {
+            "id": "PersonalityGrowth",
+            "mood_offset": 3,
+            "duration": 120
+        },
+        {
+            "id": "PersonalityDecline",
+            "mood_offset": -3,
+            "duration": 120
         }
     ]
 }

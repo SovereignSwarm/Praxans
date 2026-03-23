@@ -218,6 +218,7 @@ class Praxan:
         self.aspiration = None  # {id, label, progress, assigned_time} or None
         self._completed_aspirations = []  # list of aspiration_ids achieved in this life
         self._pending_reputation_events = []  # shared queue for reputation system
+        self._pending_personality_shifts = []  # shared queue for personality evolution
 
         # Mentorship (managed by MentorshipManager)
         self.mentorship = None  # {mentor_id, skill, def_id} or None when apprentice
@@ -362,6 +363,9 @@ class Praxan:
         if not hasattr(self, '_pending_reputation_events'):
             self._pending_reputation_events = []
         self._pending_reputation_events.append("mental_break")
+        # Queue personality shift — mental breaks erode diligence and sociability
+        if hasattr(self, '_pending_personality_shifts'):
+            self._pending_personality_shifts.append("entity:mental_break")
         print(f"[Mental Break] Praxan {self.id} suffered a {severity} break: {self.mental_state}")
 
     def execute_mental_break(self, resources, buildings, delta_time, current_time):
@@ -625,6 +629,9 @@ class Praxan:
                 if not hasattr(self, '_pending_reputation_events'):
                     self._pending_reputation_events = []
                 self._pending_reputation_events.append("crafted_masterwork")
+                # Queue personality shift — masterwork excellence reinforces diligence
+                if hasattr(self, '_pending_personality_shifts'):
+                    self._pending_personality_shifts.append("entity:crafted_masterwork")
             else:
                 # Queue reputation event for normal crafting
                 if not hasattr(self, '_pending_reputation_events'):
@@ -2697,6 +2704,9 @@ class Praxan:
             if self.skills[skill_type]['xp'] >= SKILL_LEVEL_THRESHOLD * self.skills[skill_type]['level']:
                 self.skills[skill_type]['level'] += 1
                 self.skills[skill_type]['xp'] = 0
+                # Queue personality shift — skill mastery feeds curiosity and diligence
+                if hasattr(self, '_pending_personality_shifts'):
+                    self._pending_personality_shifts.append("entity:skill_level_up")
                 print(f"Praxan leveled up {skill_type} to level {self.skills[skill_type]['level']}!")
     
     def _should_socialize(self):

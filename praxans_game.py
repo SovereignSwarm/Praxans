@@ -1022,6 +1022,10 @@ def attempt_bootstrap_construction(
         # Reputation boost for the builder
         if reputation_manager is not None:
             reputation_manager.record_event(getattr(builder, 'id', -1), "built_structure")
+        # Queue personality shift for the builder
+        pending = getattr(builder, '_pending_personality_shifts', None)
+        if pending is not None:
+            pending.append("entity:built_structure")
         return new_building
 
     return None
@@ -5566,6 +5570,11 @@ def main(runtime_config=RUNTIME_CONFIG):
     mentorship_manager = MentorshipManager()
     mentorship_manager.attach_event_bus(event_bus)
 
+    # Initialize personality evolution system
+    from systems.personality_evolution import PersonalityEvolutionManager
+    personality_evolution_manager = PersonalityEvolutionManager()
+    personality_evolution_manager.attach_event_bus(event_bus)
+
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
     global_climate = GlobalClimate()
@@ -5685,6 +5694,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             if mentorship_data:
                 mentorship_manager.restore(mentorship_data, current_time=now)
                 mentorship_manager.restore_praxan_mentorships(praxans)
+            # Restore personality evolution state
+            pe_data = snapshot_payload.get("personality_evolution", {})
+            if pe_data:
+                personality_evolution_manager.restore(pe_data, current_time=now)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -6604,6 +6617,15 @@ def main(runtime_config=RUNTIME_CONFIG):
                     if not hasattr(_app, '_mentorship_xp_mult'):
                         _app._mentorship_xp_mult = {}
                     _app._mentorship_xp_mult[_skill] = _mult
+            except Exception:
+                pass
+
+            # Personality evolution — drain queued shifts, apply drift, detect thresholds
+            try:
+                personality_evolution_manager.update(
+                    praxans=praxans,
+                    current_time=current_time,
+                )
             except Exception:
                 pass
 
@@ -7963,6 +7985,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     tradition_manager=tradition_manager if "tradition_manager" in local_names else None,
                     migration_manager=migration_manager if "migration_manager" in local_names else None,
                     mentorship_manager=mentorship_manager if "mentorship_manager" in local_names else None,
+                    personality_evolution_manager=personality_evolution_manager if "personality_evolution_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

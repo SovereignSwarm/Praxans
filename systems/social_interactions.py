@@ -335,6 +335,13 @@ def execute_interaction(
         except Exception:
             pass
 
+    # Queue personality shifts from this interaction
+    try:
+        from systems.personality_evolution import queue_interaction_shifts
+        queue_interaction_shifts(initiator, target, iid)
+    except Exception:
+        pass
+
     return {
         "interaction": iid,
         "label": label,

@@ -203,6 +203,42 @@
             "base_weight": 4,
             "personality_factor": null,
             "label": "Mentorship Ended"
+        },
+        {
+            "id": "personality_curiosity_grew",
+            "base_weight": 4,
+            "personality_factor": "curiosity",
+            "label": "Curiosity Grew"
+        },
+        {
+            "id": "personality_curiosity_faded",
+            "base_weight": 4,
+            "personality_factor": "curiosity",
+            "label": "Curiosity Faded"
+        },
+        {
+            "id": "personality_sociability_grew",
+            "base_weight": 4,
+            "personality_factor": "sociability",
+            "label": "Became More Social"
+        },
+        {
+            "id": "personality_sociability_faded",
+            "base_weight": 4,
+            "personality_factor": "sociability",
+            "label": "Became More Withdrawn"
+        },
+        {
+            "id": "personality_diligence_grew",
+            "base_weight": 4,
+            "personality_factor": "diligence",
+            "label": "Drive Strengthened"
+        },
+        {
+            "id": "personality_diligence_faded",
+            "base_weight": 4,
+            "personality_factor": "diligence",
+            "label": "Drive Weakened"
         }
     ]
 }
