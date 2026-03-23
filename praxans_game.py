@@ -5551,6 +5551,12 @@ def main(runtime_config=RUNTIME_CONFIG):
     tradition_manager.set_systems(diplomacy_manager=diplomacy_manager)
     tradition_manager.attach_event_bus(event_bus)
 
+    # Initialize individual migration & faction defection system
+    from systems.migration import MigrationManager
+    migration_manager = MigrationManager()
+    migration_manager.set_systems(diplomacy_manager=diplomacy_manager)
+    migration_manager.attach_event_bus(event_bus)
+
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
     global_climate = GlobalClimate()
@@ -5661,6 +5667,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             traditions_data = snapshot_payload.get("traditions", {})
             if traditions_data:
                 tradition_manager.restore(traditions_data, current_time=now)
+            # Restore individual migration & defection state
+            migration_data = snapshot_payload.get("migration", {})
+            if migration_data:
+                migration_manager.restore(migration_data, current_time=now)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -6534,9 +6544,26 @@ def main(runtime_config=RUNTIME_CONFIG):
                     for _p in praxans:
                         if getattr(_p, 'alive', True) and getattr(_p, 'faction_id', None) == _fid:
                             try:
-                                _p.add_moodlet(_tm["id"], _tm["mood_offset"], _tm["duration"])
+                                _p.add_moodlet(_tm["id"], _tm["mood_offset"], _tm["duration"], current_time)
                             except Exception:
                                 pass
+
+            # Individual migration & faction defection — push/pull evaluation
+            try:
+                _disease_mgr = disease_manager if "disease_manager" in local_names else None
+                migration_manager.update(
+                    faction_manager=faction_manager,
+                    diplomacy_manager=diplomacy_manager,
+                    praxans=praxans,
+                    current_time=current_time,
+                    event_bus=event_bus,
+                    advisor=advisor,
+                    narrative_panel=narrative_panel,
+                    reputation_manager=reputation_manager,
+                    disease_manager=_disease_mgr,
+                )
+            except Exception:
+                pass
 
             advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
             # NOTE: season.update() already called above (line ~5857) with elapsed time.
@@ -7892,6 +7919,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     warfare_manager=warfare_manager if "warfare_manager" in local_names else None,
                     cascade_manager=cascade_manager if "cascade_manager" in local_names else None,
                     tradition_manager=tradition_manager if "tradition_manager" in local_names else None,
+                    migration_manager=migration_manager if "migration_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

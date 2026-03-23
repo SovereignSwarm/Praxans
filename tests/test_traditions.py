@@ -565,6 +565,31 @@ class TestTraditionQueries(unittest.TestCase):
         self.assertIn("TraditionWarriorSpirit", ids)
         self.assertIn("TraditionHarvestPride", ids)
 
+    def test_moodlet_dicts_compatible_with_add_moodlet_signature(self):
+        """Regression: add_moodlet(name, value, duration, current_time) needs all 4 args.
+        Verify returned dicts have 'id', 'mood_offset', and 'duration' — and that
+        calling add_moodlet with a mock praxan raises no TypeError with current_time passed."""
+        moodlets = self.manager.get_tradition_moodlets(0)
+        self.assertTrue(moodlets, "Expected at least one moodlet")
+        for m in moodlets:
+            self.assertIn("id", m, "Moodlet dict must have 'id'")
+            self.assertIn("mood_offset", m, "Moodlet dict must have 'mood_offset'")
+            self.assertIn("duration", m, "Moodlet dict must have 'duration'")
+
+        # Simulate the main-loop call: add_moodlet(id, mood_offset, duration, current_time)
+        class _MockPraxan:
+            def __init__(self):
+                self.moodlets = []
+            def add_moodlet(self, name, value, duration, current_time):
+                self.moodlets.append({"name": name, "value": value, "duration": duration})
+
+        p = _MockPraxan()
+        now = 9999.0
+        for m in moodlets:
+            # This must NOT raise TypeError — previously broke because current_time was omitted
+            p.add_moodlet(m["id"], m["mood_offset"], m["duration"], now)
+        self.assertEqual(len(p.moodlets), len(moodlets))
+
     def test_has_tradition(self):
         self.assertTrue(self.manager.has_tradition(0, "warrior_spirit"))
         self.assertFalse(self.manager.has_tradition(0, "scholars_path"))

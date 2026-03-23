@@ -274,6 +274,81 @@
             "id": "TraditionAncestralRemembrance",
             "mood_offset": 2,
             "duration": 120
+        },
+        {
+            "id": "DefectorAnxiety",
+            "mood_offset": -5,
+            "duration": 180
+        },
+        {
+            "id": "MemberDefected",
+            "mood_offset": -4,
+            "duration": 120
+        },
+        {
+            "id": "NewcomerArrival",
+            "mood_offset": 3,
+            "duration": 120
+        },
+        {
+            "id": "WarRefugee",
+            "mood_offset": -6,
+            "duration": 180
+        },
+        {
+            "id": "MemberFledWar",
+            "mood_offset": -3,
+            "duration": 120
+        },
+        {
+            "id": "RefugeeWelcomed",
+            "mood_offset": 4,
+            "duration": 120
+        },
+        {
+            "id": "PlagueFlight",
+            "mood_offset": -5,
+            "duration": 180
+        },
+        {
+            "id": "MemberFledPlague",
+            "mood_offset": -3,
+            "duration": 120
+        },
+        {
+            "id": "PlagueSurvivorArrived",
+            "mood_offset": 2,
+            "duration": 120
+        },
+        {
+            "id": "FamilyReunion",
+            "mood_offset": 8,
+            "duration": 240
+        },
+        {
+            "id": "MemberLeftForFamily",
+            "mood_offset": -2,
+            "duration": 120
+        },
+        {
+            "id": "FamilyReunited",
+            "mood_offset": 5,
+            "duration": 180
+        },
+        {
+            "id": "IdeologicalExile",
+            "mood_offset": -4,
+            "duration": 180
+        },
+        {
+            "id": "MemberExiled",
+            "mood_offset": -3,
+            "duration": 120
+        },
+        {
+            "id": "IdeologicalRefugee",
+            "mood_offset": 2,
+            "duration": 120
         }
     ]
 }

@@ -935,16 +935,39 @@ class TestEdgeCases(unittest.TestCase):
         self.assertEqual(len(mgr.active_raids), 0)
 
     def test_no_double_raid_same_pair(self):
-        """Only one raid at a time per faction pair."""
+        """Only one raid at a time per faction pair.
+
+        Uses a deterministic random mock so morale checks never cause early
+        resolution and combat damage is always minimal — guaranteeing the
+        first raid stays active during the second update call.
+        """
+        from unittest.mock import patch
+
         praxans, fm, dm = _make_hostile_pair(n_attackers=4, n_defenders=4, standing=-80.0)
         mgr = WarfareManager()
         mgr.RAID_CHANCE_BASE = 1.0
         mgr.EVAL_INTERVAL = 0
-        mgr.update(praxans, [], fm, dm, current_time=1000.0)
-        first_count = len(mgr.active_raids)
-        mgr.update(praxans, [], fm, dm, current_time=1005.0)
-        # Should not have added another
-        self.assertEqual(len(mgr.active_raids), first_count)
+
+        with patch("systems.warfare.random") as mock_rng:
+            # random() = 0.0: morale check (0.0 < threshold) always holds, raid chance
+            # check (0.0 < RAID_CHANCE_BASE=1.0) always fires.
+            mock_rng.random.return_value = 0.0
+            # uniform returns minimum: damage stays low, nobody gets downed
+            mock_rng.uniform.side_effect = lambda a, b: float(a)
+            # Deterministic combatant/target selection
+            mock_rng.choice.side_effect = lambda seq: seq[0]
+            mock_rng.choices.side_effect = lambda seq, weights=None, k=1: [seq[0]] * k
+            mock_rng.randint.side_effect = lambda a, b: int(a)
+            mock_rng.sample.side_effect = lambda seq, k: list(seq)[:k]
+
+            mgr.update(praxans, [], fm, dm, current_time=1000.0)
+            first_count = len(mgr.active_raids)
+            self.assertEqual(first_count, 1, "First update should start exactly one raid")
+
+            mgr.update(praxans, [], fm, dm, current_time=1005.0)
+            # Raid should still be active (nobody fled due to deterministic random)
+            # and the skip-if-already-raiding guard should block a second raid
+            self.assertEqual(len(mgr.active_raids), 1)
 
     def test_downed_praxan_not_selected(self):
         """Downed praxans should not be selected as combatants."""

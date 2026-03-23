@@ -499,6 +499,7 @@ def build_run_snapshot(
     warfare_manager=None,
     cascade_manager=None,
     tradition_manager=None,
+    migration_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -536,6 +537,7 @@ def build_run_snapshot(
         "warfare": warfare_manager.serialize(current_time=current_time) if warfare_manager is not None else {},
         "cascades": cascade_manager.serialize() if cascade_manager is not None else {},
         "traditions": tradition_manager.serialize(current_time=current_time) if tradition_manager is not None else {},
+        "migration": migration_manager.serialize(current_time=current_time) if migration_manager is not None else {},
         "praxans": [
             {
                 "id": praxan.id,
