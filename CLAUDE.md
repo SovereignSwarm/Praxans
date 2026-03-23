@@ -83,6 +83,7 @@ python -m py_compile praxans_game.py runtime_config.py
 | `spatial.py` | Spatial indexing |
 | `ecology.py` | **Regional fertility grid.** Per-512px-cell fertility (0-100) responds to harvesting pressure, season, weather, biome. Drives resource spawn multipliers, EventBus degradation/recovery events. Serialized in snapshots. |
 | `reputation.py` | **Reputation & Social Hierarchy.** Per-Praxan reputation (0-100, default 50) rises from building, crafting masterworks, healing, teaching, combat victories, ritual leadership — falls from insults, mental breaks, fleeing combat. 5 tiers (Luminary/Respected/Established/Marginal/Outcast) with moodlets, episodic memories, EventBus events. Weights leader elections, modifies social target selection. Natural drift toward 50. Defs in `defs/core/reputation.json`. |
+| `aspirations.py` | **Personal Aspirations & Life Goals.** Each adult Praxan receives a personality-driven aspiration (master crafter, social butterfly, colony leader, bold explorer, etc.). Progress tracked on rare-tick with milestone moodlets at 25/50/75%. Completion yields mood boost (+15), reputation gain, episodic memory. Elder transition = graceful expiry (no penalty). Death = cleanup. One aspiration at a time with 30s reassignment cooldown. Personality-weighted selection prevents identical assignments. Defs in `defs/core/aspirations.json`. |
 | `storyteller.py` | Event/crisis storytelling |
 | `tech_research.py` | **Autonomous tech research.** Factions spend accumulated research points on techs guided by doctrine priority (growth→agriculture, security→medicine, harmony→social, etc.). Evaluates every 30s, respects prerequisites and cooldowns. Publishes EventBus milestones. Serialized in snapshots. |
 
@@ -104,8 +105,9 @@ Four async channels processed by `LLMScheduler`:
 | `technologies.json` | `TechDef` |
 | `items.json` | `ArmorDef`, `WeaponDef` |
 | `jobs.json` | `JobDef` — CookMeal, SmithArmor, CraftWeapon |
-| `moods.json` | `MoodDef` — AteRawFood, AteFineFood, Catharsis, FoughtOffInfection, + 7 social moodlets + 6 ritual moodlets + 6 reputation moodlets (Luminary, Respected, Overlooked, Outcast, GainedReputation, LostReputation) |
-| `reputation.json` | `ReputationEventDef` — 20 event types (built_structure, crafted_masterwork, healed_other, taught_skill, combat_victory, led_ritual, insult_given, fled_combat, mental_break, etc.) + `ReputationTierDef` — 5 tiers (Luminary/Respected/Established/Marginal/Outcast) with moodlets |
+| `moods.json` | `MoodDef` — AteRawFood, AteFineFood, Catharsis, FoughtOffInfection, + 7 social moodlets + 6 ritual moodlets + 6 reputation moodlets + 4 aspiration moodlets (AspirationAchieved, AspirationProgress, AspirationFailed, AspirationAssigned) |
+| `reputation.json` | `ReputationEventDef` — 22 event types (built_structure, crafted_masterwork, healed_other, taught_skill, combat_victory, led_ritual, insult_given, fled_combat, mental_break, aspiration_achieved, aspiration_abandoned, etc.) + `ReputationTierDef` — 5 tiers (Luminary/Respected/Established/Marginal/Outcast) with moodlets |
+| `aspirations.json` | `AspirationDef` — 10 personality-weighted life goals (master_crafter, social_butterfly, colony_leader, bold_explorer, skilled_healer, master_builder, devoted_parent, luminary_path, knowledge_seeker, prosperous_provider) with progress checks, rewards, moodlets |
 | `interactions.json` | `InteractionDef` — 8 social interaction types with preconditions, outcomes, drama weights, memory events |
 | `diseases.json` | `DiseaseDef` — 5 named diseases with severity rates, incubation periods, transmission vectors, biome/season weights, capacity penalties, lethality |
 | `rituals.json` | `RitualDef` — 6 faction ritual types with triggers (periodic/condition), effects, moodlets, gathering requirements |

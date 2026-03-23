@@ -214,6 +214,11 @@ class Praxan:
         self._social_target = None
         self._interaction_timer = 0.0
 
+        # Aspiration / Life Goals (managed by AspirationManager)
+        self.aspiration = None  # {id, label, progress, assigned_time} or None
+        self._completed_aspirations = []  # list of aspiration_ids achieved in this life
+        self._pending_reputation_events = []  # shared queue for reputation system
+
         # Autobiographical / Episodic Memory
         self.episodic_memory = EpisodicMemory(personality=self.personality)
         self.episodic_memory.record(

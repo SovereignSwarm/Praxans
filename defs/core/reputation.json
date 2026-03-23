@@ -139,6 +139,20 @@
             "delta": 2,
             "category": "social",
             "description": "Minor respect for generosity"
+        },
+        {
+            "id": "aspiration_achieved",
+            "label": "Achieved a Life Goal",
+            "delta": 5,
+            "category": "personal",
+            "description": "Gains respect for fulfilling a personal aspiration"
+        },
+        {
+            "id": "aspiration_abandoned",
+            "label": "Abandoned a Life Goal",
+            "delta": -2,
+            "category": "personal",
+            "description": "Loses minor respect for giving up on personal goals"
         }
     ],
     "ReputationTierDef": [

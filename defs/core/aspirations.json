@@ -1,0 +1,160 @@
+{
+    "AspirationDef": [
+        {
+            "id": "master_crafter",
+            "label": "Master Crafter",
+            "description": "Reach crafting skill level 4 or higher",
+            "category": "skill",
+            "personality_weights": {"diligence": 0.6, "curiosity": 0.2, "sociability": -0.1},
+            "trait_affinities": ["Industrious", "Perfectionist"],
+            "life_stages": ["adult"],
+            "check": {"type": "skill_level", "skill": "crafting", "threshold": 4},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 6},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} dreams of becoming a master crafter"
+        },
+        {
+            "id": "social_butterfly",
+            "label": "Social Butterfly",
+            "description": "Befriend 3 or more Praxans",
+            "category": "social",
+            "personality_weights": {"sociability": 0.7, "curiosity": 0.1, "diligence": -0.1},
+            "trait_affinities": ["Gregarious", "Kind"],
+            "life_stages": ["adult", "elder"],
+            "check": {"type": "friend_count", "threshold": 3},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 5},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} longs to build lasting friendships"
+        },
+        {
+            "id": "colony_leader",
+            "label": "Colony Leader",
+            "description": "Become the leader of a faction",
+            "category": "governance",
+            "personality_weights": {"diligence": 0.4, "sociability": 0.4, "curiosity": 0.1},
+            "trait_affinities": ["Steadfast", "Charismatic"],
+            "life_stages": ["adult"],
+            "check": {"type": "is_faction_leader"},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 8},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} aspires to lead the colony"
+        },
+        {
+            "id": "bold_explorer",
+            "label": "Bold Explorer",
+            "description": "Discover 10 or more resource locations",
+            "category": "exploration",
+            "personality_weights": {"curiosity": 0.7, "diligence": 0.1, "sociability": -0.2},
+            "trait_affinities": ["Adventurous", "Restless"],
+            "life_stages": ["adult", "youth"],
+            "check": {"type": "known_resources", "threshold": 10},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 5},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} yearns to chart the unknown"
+        },
+        {
+            "id": "skilled_healer",
+            "label": "Skilled Healer",
+            "description": "Reach medical skill level 3 or higher",
+            "category": "skill",
+            "personality_weights": {"sociability": 0.4, "diligence": 0.4, "curiosity": 0.1},
+            "trait_affinities": ["Kind", "Careful"],
+            "life_stages": ["adult"],
+            "check": {"type": "skill_level", "skill": "medical", "threshold": 3},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 6},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} wants to master the healing arts"
+        },
+        {
+            "id": "master_builder",
+            "label": "Master Builder",
+            "description": "Reach building skill level 4 or higher",
+            "category": "skill",
+            "personality_weights": {"diligence": 0.7, "curiosity": 0.1, "sociability": -0.1},
+            "trait_affinities": ["Industrious", "Perfectionist"],
+            "life_stages": ["adult"],
+            "check": {"type": "skill_level", "skill": "building", "threshold": 4},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 6},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} envisions great constructions"
+        },
+        {
+            "id": "devoted_parent",
+            "label": "Devoted Parent",
+            "description": "Have 2 or more living children",
+            "category": "family",
+            "personality_weights": {"sociability": 0.5, "diligence": 0.2, "curiosity": -0.1},
+            "trait_affinities": ["Kind", "Optimist"],
+            "life_stages": ["adult"],
+            "check": {"type": "living_children", "threshold": 2},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 5},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} dreams of raising a family"
+        },
+        {
+            "id": "luminary_path",
+            "label": "Path to Luminance",
+            "description": "Reach the Luminary reputation tier",
+            "category": "prestige",
+            "personality_weights": {"sociability": 0.3, "diligence": 0.3, "curiosity": 0.3},
+            "trait_affinities": ["Steadfast", "Charismatic"],
+            "life_stages": ["adult"],
+            "check": {"type": "reputation_tier", "tier": "Luminary"},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 10},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} strives for legendary standing"
+        },
+        {
+            "id": "knowledge_seeker",
+            "label": "Knowledge Seeker",
+            "description": "Reach level 3 or higher in 3 different skills",
+            "category": "skill",
+            "personality_weights": {"curiosity": 0.6, "diligence": 0.3, "sociability": 0.0},
+            "trait_affinities": ["Perfectionist", "Adventurous"],
+            "life_stages": ["adult", "youth"],
+            "check": {"type": "multi_skill", "threshold_level": 3, "threshold_count": 3},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 7},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} hungers for knowledge across all fields"
+        },
+        {
+            "id": "prosperous_provider",
+            "label": "Prosperous Provider",
+            "description": "Accumulate 200 or more total resources in personal inventory",
+            "category": "economy",
+            "personality_weights": {"diligence": 0.5, "curiosity": 0.2, "sociability": 0.0},
+            "trait_affinities": ["Industrious", "Careful"],
+            "life_stages": ["adult"],
+            "check": {"type": "total_inventory", "threshold": 200},
+            "reward": {"mood": "AspirationAchieved", "reputation_event": "aspiration_achieved", "reputation_bonus": 5},
+            "progress_mood": "AspirationProgress",
+            "failure_mood": "AspirationFailed",
+            "narrative": "{name} wants to amass great wealth for the colony"
+        }
+    ],
+    "AspirationReputationEventDef": [
+        {
+            "id": "aspiration_achieved",
+            "label": "Achieved a Life Goal",
+            "delta": 5,
+            "category": "personal",
+            "description": "Gains respect for fulfilling a personal aspiration"
+        },
+        {
+            "id": "aspiration_abandoned",
+            "label": "Abandoned a Life Goal",
+            "delta": -2,
+            "category": "personal",
+            "description": "Loses respect for giving up on personal goals"
+        }
+    ]
+}

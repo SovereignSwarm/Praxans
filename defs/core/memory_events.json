@@ -125,6 +125,30 @@
             "base_weight": 4,
             "personality_factor": "sociability",
             "label": "Reputation Changed"
+        },
+        {
+            "id": "aspiration_assigned",
+            "base_weight": 3,
+            "personality_factor": "curiosity",
+            "label": "Set a Life Goal"
+        },
+        {
+            "id": "aspiration_achieved",
+            "base_weight": 8,
+            "personality_factor": "diligence",
+            "label": "Achieved a Life Goal"
+        },
+        {
+            "id": "aspiration_failed",
+            "base_weight": 5,
+            "personality_factor": null,
+            "label": "Failed a Life Goal"
+        },
+        {
+            "id": "aspiration_progress",
+            "base_weight": 3,
+            "personality_factor": "diligence",
+            "label": "Made Progress on Goal"
         }
     ]
 }

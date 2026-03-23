@@ -4482,6 +4482,14 @@ def restore_session_from_snapshot(
         praxan.personal_goal = praxan_data.get("personal_goal")
         praxan.goal_progress = clamp(float(praxan_data.get("goal_progress", 0.0)), 0.0, 1.0)
 
+        # Restore aspiration / life goals state
+        saved_aspiration = praxan_data.get("aspiration")
+        if isinstance(saved_aspiration, dict) and saved_aspiration.get("id"):
+            praxan.aspiration = saved_aspiration
+        else:
+            praxan.aspiration = None
+        praxan._completed_aspirations = list(praxan_data.get("completed_aspirations", []))
+
         age_seconds = max(0.0, float(praxan_data.get("age_seconds", elapsed_seconds)))
         praxan.birth_time = now - age_seconds
         praxan.age = age_seconds
@@ -5515,7 +5523,12 @@ def main(runtime_config=RUNTIME_CONFIG):
     from systems.reputation import ReputationManager
     reputation_manager = ReputationManager()
     reputation_manager.attach_event_bus(event_bus)
-    
+
+    # Initialize aspiration / life goals system
+    from systems.aspirations import AspirationManager
+    aspiration_manager = AspirationManager()
+    aspiration_manager.attach_event_bus(event_bus)
+
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
     global_climate = GlobalClimate()
@@ -5609,6 +5622,11 @@ def main(runtime_config=RUNTIME_CONFIG):
             reputation_data = snapshot_payload.get("reputation", {})
             if reputation_data:
                 reputation_manager.restore(reputation_data)
+            # Restore aspiration / life goals state
+            aspirations_data = snapshot_payload.get("aspirations", {})
+            if aspirations_data:
+                aspiration_manager.restore(aspirations_data, now=now)
+                aspiration_manager.restore_praxan_aspirations(praxans)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -6438,6 +6456,15 @@ def main(runtime_config=RUNTIME_CONFIG):
             reputation_manager.update(
                 praxans=praxans,
                 faction_manager=faction_manager,
+                event_bus=event_bus,
+                current_time=current_time,
+            )
+
+            # Aspirations / life goals — assign, track progress, complete/fail
+            aspiration_manager.update(
+                praxans=praxans,
+                faction_manager=faction_manager,
+                reputation_manager=reputation_manager,
                 event_bus=event_bus,
                 current_time=current_time,
             )
@@ -7787,6 +7814,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     disaster_manager=disaster_manager if "disaster_manager" in local_names else None,
                     ritual_manager=ritual_manager if "ritual_manager" in local_names else None,
                     reputation_manager=reputation_manager if "reputation_manager" in local_names else None,
+                    aspiration_manager=aspiration_manager if "aspiration_manager" in local_names else None,
                     ecology_manager=ecology_manager if "ecology_manager" in local_names else None,
                     global_climate=global_climate if "global_climate" in local_names else None,
                 )

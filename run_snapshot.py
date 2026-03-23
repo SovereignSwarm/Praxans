@@ -495,6 +495,7 @@ def build_run_snapshot(
     ecology_manager=None,
     global_climate=None,
     reputation_manager=None,
+    aspiration_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -526,6 +527,7 @@ def build_run_snapshot(
         "disasters": disaster_manager.serialize() if disaster_manager is not None else {},
         "rituals": ritual_manager.serialize() if ritual_manager is not None else {},
         "reputation": reputation_manager.serialize() if reputation_manager is not None else {},
+        "aspirations": aspiration_manager.serialize() if aspiration_manager is not None else {},
         "ecology": ecology_manager.serialize() if ecology_manager is not None and hasattr(ecology_manager, "serialize") else {},
         "global_climate": _serialize_global_climate(global_climate),
         "praxans": [
@@ -591,6 +593,8 @@ def build_run_snapshot(
                     3,
                 ),
                 "equipment": getattr(praxan, "equipment", {'armor': None, 'weapon': None}),
+                "aspiration": _sanitize_json_value(getattr(praxan, "aspiration", None)),
+                "completed_aspirations": list(getattr(praxan, "_completed_aspirations", [])),
             }
             for praxan in praxans
         ],
