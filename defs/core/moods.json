@@ -224,6 +224,56 @@
             "id": "BattleHardened",
             "mood_offset": 3,
             "duration": 600
+        },
+        {
+            "id": "TraditionWarriorSpirit",
+            "mood_offset": 3,
+            "duration": 120
+        },
+        {
+            "id": "TraditionHarvestPride",
+            "mood_offset": 4,
+            "duration": 120
+        },
+        {
+            "id": "TraditionHealersOath",
+            "mood_offset": 3,
+            "duration": 120
+        },
+        {
+            "id": "TraditionBuildersLegacy",
+            "mood_offset": 3,
+            "duration": 120
+        },
+        {
+            "id": "TraditionExplorersCall",
+            "mood_offset": 3,
+            "duration": 120
+        },
+        {
+            "id": "TraditionScholarsPath",
+            "mood_offset": 3,
+            "duration": 120
+        },
+        {
+            "id": "TraditionPeacekeepersWay",
+            "mood_offset": 4,
+            "duration": 120
+        },
+        {
+            "id": "TraditionSurvivorsGrit",
+            "mood_offset": 2,
+            "duration": 120
+        },
+        {
+            "id": "TraditionArtisansMark",
+            "mood_offset": 4,
+            "duration": 120
+        },
+        {
+            "id": "TraditionAncestralRemembrance",
+            "mood_offset": 2,
+            "duration": 120
         }
     ]
 }
