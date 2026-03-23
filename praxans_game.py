@@ -4490,6 +4490,10 @@ def restore_session_from_snapshot(
             praxan.aspiration = None
         praxan._completed_aspirations = list(praxan_data.get("completed_aspirations", []))
 
+        # Mentorship state (relationship managed by MentorshipManager.restore_praxan_mentorships)
+        saved_mentorship = praxan_data.get("mentorship")
+        praxan.mentorship = saved_mentorship if isinstance(saved_mentorship, dict) else None
+
         age_seconds = max(0.0, float(praxan_data.get("age_seconds", elapsed_seconds)))
         praxan.birth_time = now - age_seconds
         praxan.age = age_seconds
@@ -5557,6 +5561,11 @@ def main(runtime_config=RUNTIME_CONFIG):
     migration_manager.set_systems(diplomacy_manager=diplomacy_manager)
     migration_manager.attach_event_bus(event_bus)
 
+    # Initialize mentorship & apprenticeship system
+    from systems.mentorship import MentorshipManager
+    mentorship_manager = MentorshipManager()
+    mentorship_manager.attach_event_bus(event_bus)
+
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
     global_climate = GlobalClimate()
@@ -5671,6 +5680,11 @@ def main(runtime_config=RUNTIME_CONFIG):
             migration_data = snapshot_payload.get("migration", {})
             if migration_data:
                 migration_manager.restore(migration_data, current_time=now)
+            # Restore mentorship & apprenticeship state
+            mentorship_data = snapshot_payload.get("mentorship", {})
+            if mentorship_data:
+                mentorship_manager.restore(mentorship_data, current_time=now)
+                mentorship_manager.restore_praxan_mentorships(praxans)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -6562,6 +6576,34 @@ def main(runtime_config=RUNTIME_CONFIG):
                     reputation_manager=reputation_manager,
                     disease_manager=_disease_mgr,
                 )
+            except Exception:
+                pass
+
+            # Mentorship & apprenticeship — sessions, graduations, new pairs
+            try:
+                mentorship_manager.update(
+                    praxans=praxans,
+                    faction_manager=faction_manager,
+                    reputation_manager=reputation_manager,
+                    event_bus=event_bus,
+                    current_time=current_time,
+                    advisor=advisor,
+                    narrative_panel=narrative_panel,
+                )
+                # Set proximity XP multipliers on apprentice praxans
+                _alive_map = {p.id: p for p in praxans if getattr(p, 'alive', True)}
+                for _app_id, _mstate in mentorship_manager.get_all_active().items():
+                    _app = _alive_map.get(_app_id)
+                    if _app is None:
+                        continue
+                    _skill = _mstate.get("skill", "")
+                    if mentorship_manager.is_near_mentor(_app_id, _alive_map):
+                        _mult = mentorship_manager.get_xp_multiplier(_app_id, _skill)
+                    else:
+                        _mult = 1.0
+                    if not hasattr(_app, '_mentorship_xp_mult'):
+                        _app._mentorship_xp_mult = {}
+                    _app._mentorship_xp_mult[_skill] = _mult
             except Exception:
                 pass
 
@@ -7920,6 +7962,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     cascade_manager=cascade_manager if "cascade_manager" in local_names else None,
                     tradition_manager=tradition_manager if "tradition_manager" in local_names else None,
                     migration_manager=migration_manager if "migration_manager" in local_names else None,
+                    mentorship_manager=mentorship_manager if "mentorship_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

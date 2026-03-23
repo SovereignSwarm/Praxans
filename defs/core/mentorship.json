@@ -1,0 +1,148 @@
+{
+    "MentorshipDef": [
+        {
+            "id": "gathering_apprentice",
+            "label": "Gathering Apprentice",
+            "skill": "gathering",
+            "description": "An experienced forager passes on knowledge of the land — where to find food, how to read the seasons, and which plants to avoid.",
+            "mentor_min_level": 3,
+            "apprentice_max_level": 2,
+            "xp_multiplier": 2.5,
+            "graduation_level": 3,
+            "proximity_radius": 120,
+            "personality_weights": {
+                "diligence": 0.8,
+                "curiosity": 0.5
+            },
+            "trait_affinities": ["Industrious"],
+            "mentor_mood_offset": 3,
+            "apprentice_mood_offset": 4,
+            "graduation_mood_offset": 10,
+            "bond_per_session": 2,
+            "max_apprentices_per_mentor": 2,
+            "session_xp": 20,
+            "session_interval": 8.0,
+            "life_stages": ["adult", "elder"]
+        },
+        {
+            "id": "building_apprentice",
+            "label": "Building Apprentice",
+            "skill": "building",
+            "description": "A master builder trains the next generation in construction techniques, structural design, and material efficiency.",
+            "mentor_min_level": 3,
+            "apprentice_max_level": 2,
+            "xp_multiplier": 2.5,
+            "graduation_level": 3,
+            "proximity_radius": 100,
+            "personality_weights": {
+                "diligence": 1.2,
+                "curiosity": 0.3
+            },
+            "trait_affinities": ["Industrious"],
+            "mentor_mood_offset": 3,
+            "apprentice_mood_offset": 4,
+            "graduation_mood_offset": 10,
+            "bond_per_session": 2,
+            "max_apprentices_per_mentor": 2,
+            "session_xp": 18,
+            "session_interval": 10.0,
+            "life_stages": ["adult", "elder"]
+        },
+        {
+            "id": "medical_apprentice",
+            "label": "Medical Apprentice",
+            "skill": "medical",
+            "description": "A skilled healer teaches wound care, herb lore, and disease treatment — knowledge that can save lives.",
+            "mentor_min_level": 3,
+            "apprentice_max_level": 2,
+            "xp_multiplier": 3.0,
+            "graduation_level": 3,
+            "proximity_radius": 80,
+            "personality_weights": {
+                "sociability": 0.8,
+                "diligence": 0.6
+            },
+            "trait_affinities": ["Optimist"],
+            "mentor_mood_offset": 4,
+            "apprentice_mood_offset": 5,
+            "graduation_mood_offset": 12,
+            "bond_per_session": 3,
+            "max_apprentices_per_mentor": 1,
+            "session_xp": 22,
+            "session_interval": 12.0,
+            "life_stages": ["adult", "elder"]
+        },
+        {
+            "id": "crafting_apprentice",
+            "label": "Crafting Apprentice",
+            "skill": "crafting",
+            "description": "A master artisan takes on an apprentice, teaching the secrets of the forge, the loom, and the workbench.",
+            "mentor_min_level": 3,
+            "apprentice_max_level": 2,
+            "xp_multiplier": 2.5,
+            "graduation_level": 3,
+            "proximity_radius": 90,
+            "personality_weights": {
+                "diligence": 1.5,
+                "curiosity": 0.4
+            },
+            "trait_affinities": ["Industrious"],
+            "mentor_mood_offset": 4,
+            "apprentice_mood_offset": 5,
+            "graduation_mood_offset": 12,
+            "bond_per_session": 2,
+            "max_apprentices_per_mentor": 1,
+            "session_xp": 20,
+            "session_interval": 10.0,
+            "life_stages": ["adult", "elder"]
+        },
+        {
+            "id": "cooking_apprentice",
+            "label": "Cooking Apprentice",
+            "skill": "cooking",
+            "description": "An experienced cook teaches recipes, ingredient preparation, and the art of turning raw food into fine meals.",
+            "mentor_min_level": 3,
+            "apprentice_max_level": 2,
+            "xp_multiplier": 2.5,
+            "graduation_level": 3,
+            "proximity_radius": 80,
+            "personality_weights": {
+                "diligence": 0.7,
+                "sociability": 0.6
+            },
+            "trait_affinities": ["Gourmand"],
+            "mentor_mood_offset": 3,
+            "apprentice_mood_offset": 4,
+            "graduation_mood_offset": 8,
+            "bond_per_session": 2,
+            "max_apprentices_per_mentor": 2,
+            "session_xp": 18,
+            "session_interval": 8.0,
+            "life_stages": ["adult", "elder"]
+        },
+        {
+            "id": "exploration_apprentice",
+            "label": "Exploration Apprentice",
+            "skill": "exploring",
+            "description": "A seasoned explorer teaches wayfinding, terrain reading, and survival skills for venturing into the unknown.",
+            "mentor_min_level": 3,
+            "apprentice_max_level": 2,
+            "xp_multiplier": 2.0,
+            "graduation_level": 3,
+            "proximity_radius": 150,
+            "personality_weights": {
+                "curiosity": 1.5,
+                "diligence": 0.3
+            },
+            "trait_affinities": ["Fast Walker"],
+            "mentor_mood_offset": 3,
+            "apprentice_mood_offset": 5,
+            "graduation_mood_offset": 10,
+            "bond_per_session": 3,
+            "max_apprentices_per_mentor": 1,
+            "session_xp": 16,
+            "session_interval": 8.0,
+            "life_stages": ["adult", "elder"]
+        }
+    ]
+}

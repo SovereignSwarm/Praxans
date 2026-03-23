@@ -179,6 +179,30 @@
             "base_weight": 7,
             "personality_factor": null,
             "label": "Colony Was Raided"
+        },
+        {
+            "id": "mentorship_began",
+            "base_weight": 5,
+            "personality_factor": "diligence",
+            "label": "Began a Mentorship"
+        },
+        {
+            "id": "mentorship_graduated",
+            "base_weight": 7,
+            "personality_factor": "diligence",
+            "label": "Graduated from Mentorship"
+        },
+        {
+            "id": "mentored_graduate",
+            "base_weight": 7,
+            "personality_factor": "sociability",
+            "label": "Trained a Graduate"
+        },
+        {
+            "id": "mentorship_broken",
+            "base_weight": 4,
+            "personality_factor": null,
+            "label": "Mentorship Ended"
         }
     ]
 }

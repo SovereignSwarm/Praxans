@@ -349,6 +349,46 @@
             "id": "IdeologicalRefugee",
             "mood_offset": 2,
             "duration": 120
+        },
+        {
+            "id": "TeachingApprentice",
+            "mood_offset": 3,
+            "duration": 120
+        },
+        {
+            "id": "LearningFromMentor",
+            "mood_offset": 5,
+            "duration": 120
+        },
+        {
+            "id": "ApprenticeGraduated",
+            "mood_offset": 10,
+            "duration": 180
+        },
+        {
+            "id": "MentorProud",
+            "mood_offset": 8,
+            "duration": 180
+        },
+        {
+            "id": "MentorshipFormed",
+            "mood_offset": 4,
+            "duration": 90
+        },
+        {
+            "id": "LostMentor",
+            "mood_offset": -6,
+            "duration": 180
+        },
+        {
+            "id": "LostApprentice",
+            "mood_offset": -4,
+            "duration": 120
+        },
+        {
+            "id": "MentorshipBroken",
+            "mood_offset": -3,
+            "duration": 90
         }
     ]
 }

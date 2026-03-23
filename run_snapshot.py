@@ -500,6 +500,7 @@ def build_run_snapshot(
     cascade_manager=None,
     tradition_manager=None,
     migration_manager=None,
+    mentorship_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -538,6 +539,7 @@ def build_run_snapshot(
         "cascades": cascade_manager.serialize() if cascade_manager is not None else {},
         "traditions": tradition_manager.serialize(current_time=current_time) if tradition_manager is not None else {},
         "migration": migration_manager.serialize(current_time=current_time) if migration_manager is not None else {},
+        "mentorship": mentorship_manager.serialize(current_time=current_time) if mentorship_manager is not None else {},
         "praxans": [
             {
                 "id": praxan.id,
@@ -603,6 +605,7 @@ def build_run_snapshot(
                 "equipment": getattr(praxan, "equipment", {'armor': None, 'weapon': None}),
                 "aspiration": _sanitize_json_value(getattr(praxan, "aspiration", None)),
                 "completed_aspirations": list(getattr(praxan, "_completed_aspirations", [])),
+                "mentorship": _sanitize_json_value(getattr(praxan, "mentorship", None)),
             }
             for praxan in praxans
         ],

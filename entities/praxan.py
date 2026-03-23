@@ -219,6 +219,9 @@ class Praxan:
         self._completed_aspirations = []  # list of aspiration_ids achieved in this life
         self._pending_reputation_events = []  # shared queue for reputation system
 
+        # Mentorship (managed by MentorshipManager)
+        self.mentorship = None  # {mentor_id, skill, def_id} or None when apprentice
+
         # Autobiographical / Episodic Memory
         self.episodic_memory = EpisodicMemory(personality=self.personality)
         self.episodic_memory.record(
@@ -2682,11 +2685,13 @@ class Praxan:
                 self.add_moodlet("Overheating", -15, 30, time.time())
     
     def gain_skill_xp(self, skill_type, amount):
-        """Level up skills, modified by life stage XP multiplier"""
+        """Level up skills, modified by life stage XP multiplier and mentorship bonus"""
         if skill_type in self.skills:
             learning_affinity = getattr(self, "genetics", {}).get("learning_affinity", 1.0)
             xp_mult = self.life_stage_modifiers.get('xp_mult', 1.0)
-            self.skills[skill_type]['xp'] += amount * learning_affinity * xp_mult
+            # Mentorship proximity bonus (set by MentorshipManager on praxan)
+            mentorship_mult = getattr(self, "_mentorship_xp_mult", {}).get(skill_type, 1.0)
+            self.skills[skill_type]['xp'] += amount * learning_affinity * xp_mult * mentorship_mult
             
             # Check for level up
             if self.skills[skill_type]['xp'] >= SKILL_LEVEL_THRESHOLD * self.skills[skill_type]['level']:

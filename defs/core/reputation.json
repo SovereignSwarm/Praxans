@@ -209,6 +209,20 @@
             "delta": 2,
             "category": "social",
             "description": "Reputation gain for accepting an outsider into the community"
+        },
+        {
+            "id": "graduated_apprentice",
+            "label": "Graduated an Apprentice",
+            "delta": 6,
+            "category": "social",
+            "description": "Great respect for training the next generation"
+        },
+        {
+            "id": "mentorship_session",
+            "label": "Mentored Another",
+            "delta": 1,
+            "category": "social",
+            "description": "Minor standing gain from ongoing mentorship"
         }
     ],
     "ReputationTierDef": [
