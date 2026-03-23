@@ -686,14 +686,12 @@ class EventCascadeManager:
         standing_winner = params.get("standing_shift_winner", -3)
 
         if self._diplomacy_manager:
-            # Both sides lose standing with each other (war is costly)
+            # Both sides lose standing with each other (war is costly).
+            # Diplomatic standing is symmetric — one relation object per pair.
+            # Apply the larger (loser's) penalty as the cascade standing shift.
             try:
-                self._diplomacy_manager.modify_standing(
-                    attacker_fid, defender_fid, standing_winner
-                )
-                self._diplomacy_manager.modify_standing(
-                    defender_fid, attacker_fid, standing_loser
-                )
+                rel = self._diplomacy_manager.get_relation(attacker_fid, defender_fid)
+                rel.shift_standing(standing_loser, now)
             except Exception:
                 pass
 

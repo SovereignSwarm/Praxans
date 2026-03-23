@@ -97,12 +97,29 @@ class MockRitualManager:
         self.crisis_signals.append((fid, t))
 
 
+class MockRelation:
+    def __init__(self):
+        self.standing = 0.0
+        self.shift_calls = []
+
+    def shift_standing(self, delta, current_time=0.0):
+        self.standing += delta
+        self.shift_calls.append(delta)
+
+
 class MockDiplomacyManager:
     def __init__(self):
-        self.standing_changes = []
+        self._relations = {}
 
-    def modify_standing(self, fid_a, fid_b, delta):
-        self.standing_changes.append((fid_a, fid_b, delta))
+    def get_relation(self, fid_a, fid_b):
+        key = (min(fid_a, fid_b), max(fid_a, fid_b))
+        if key not in self._relations:
+            self._relations[key] = MockRelation()
+        return self._relations[key]
+
+    def all_shift_calls(self):
+        """Flatten all shift_standing calls across all relations."""
+        return [d for rel in self._relations.values() for d in rel.shift_calls]
 
 
 # ---------------------------------------------------------------------------
@@ -519,8 +536,10 @@ class TestWarfareEscalation(unittest.TestCase):
             timestamp=now,
             metadata={"attacker_faction_id": 0, "defender_faction_id": 1, "outcome": "victory"},
         ))
-        # Should modify standings for both factions
-        self.assertGreater(len(self.dm.standing_changes), 0)
+        # Should shift diplomatic standing via get_relation().shift_standing()
+        self.assertGreater(len(self.dm.all_shift_calls()), 0)
+        # The shift should be negative (deepening hostility)
+        self.assertLess(sum(self.dm.all_shift_calls()), 0)
         # Should queue effects for both factions
         escalation_effects = [e for e in self.mgr._pending_effects
                               if e.get("cascade_type") == "warfare_escalation"]
