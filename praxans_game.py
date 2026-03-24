@@ -5575,6 +5575,11 @@ def main(runtime_config=RUNTIME_CONFIG):
     personality_evolution_manager = PersonalityEvolutionManager()
     personality_evolution_manager.attach_event_bus(event_bus)
 
+    # Initialize heirloom & legacy artifact system
+    from systems.heirlooms import HeirloomManager
+    heirloom_manager = HeirloomManager()
+    heirloom_manager.attach_event_bus(event_bus)
+
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
     global_climate = GlobalClimate()
@@ -5698,6 +5703,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             pe_data = snapshot_payload.get("personality_evolution", {})
             if pe_data:
                 personality_evolution_manager.restore(pe_data, current_time=now)
+            # Restore heirloom & legacy artifact state
+            heirloom_data = snapshot_payload.get("heirlooms", {})
+            if heirloom_data:
+                heirloom_manager.restore(heirloom_data, current_time=now)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -6629,6 +6638,46 @@ def main(runtime_config=RUNTIME_CONFIG):
             except Exception:
                 pass
 
+            # Heirloom & legacy artifacts — inheritance, relic ascension, bearer effects
+            try:
+                heirloom_manager.update(
+                    praxans=praxans,
+                    faction_manager=faction_manager,
+                    reputation_manager=reputation_manager,
+                    current_time=current_time,
+                    advisor=advisor,
+                    narrative_panel=narrative_panel,
+                )
+                # Drain pending heirloom creation events from praxans
+                for _p in praxans:
+                    if not getattr(_p, 'alive', True):
+                        continue
+                    _hevents = getattr(_p, '_pending_heirloom_events', [])
+                    while _hevents:
+                        _he = _hevents.pop(0)
+                        if _he.get('action') == 'create':
+                            _h = heirloom_manager.create_heirloom(
+                                type_id=_he.get('type_id', 'masterwork_tool'),
+                                creator_id=_p.id,
+                                creator_name=getattr(_p, 'name', f'#{_p.id}'),
+                                faction_id=getattr(_p, 'faction_id', None),
+                                current_time=current_time,
+                                base_item=_he.get('base_item'),
+                                owner_id=_p.id,
+                            )
+                            if _h:
+                                from systems.heirlooms import _get_mood_def
+                                _mood = _get_mood_def("CreatedHeirloom")
+                                if _mood:
+                                    _p.add_moodlet("CreatedHeirloom", _mood.get("mood_offset", 12), _mood.get("duration", 360), current_time)
+                                if hasattr(_p, 'episodic_memory'):
+                                    _p.episodic_memory.record("heirloom_created", f"{_p.name} forged {_h.name}")
+                                if hasattr(_p, '_pending_reputation_events'):
+                                    _p._pending_reputation_events.append("created_heirloom")
+                                narrative_panel.add_message(f"{_p.name} forged {_h.name}!", 'Achievement')
+            except Exception:
+                pass
+
             advisor.challenge_difficulty = advisor.calculate_difficulty(praxans, buildings, resources)
             # NOTE: season.update() already called above (line ~5857) with elapsed time.
             # Do NOT call season.update(current_time) again — that passes wall-clock time
@@ -6905,6 +6954,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                         # Signal death to ritual system for mourning ceremonies
                         if getattr(praxan, 'faction_id', None) is not None:
                             ritual_manager.signal_death(praxan.faction_id, current_time)
+                        # Remove dead praxan from personality evolution zone tracking
+                        personality_evolution_manager.cleanup_praxan(praxan.id)
             
             # Update factions outside the loop for efficiency
             faction_manager.update_factions(praxans, advisor,
@@ -7986,6 +8037,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     migration_manager=migration_manager if "migration_manager" in local_names else None,
                     mentorship_manager=mentorship_manager if "mentorship_manager" in local_names else None,
                     personality_evolution_manager=personality_evolution_manager if "personality_evolution_manager" in local_names else None,
+                    heirloom_manager=heirloom_manager if "heirloom_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

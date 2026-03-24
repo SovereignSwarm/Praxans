@@ -219,6 +219,7 @@ class Praxan:
         self._completed_aspirations = []  # list of aspiration_ids achieved in this life
         self._pending_reputation_events = []  # shared queue for reputation system
         self._pending_personality_shifts = []  # shared queue for personality evolution
+        self._pending_heirloom_events = []  # shared queue for heirloom system
 
         # Mentorship (managed by MentorshipManager)
         self.mentorship = None  # {mentor_id, skill, def_id} or None when apprentice
@@ -632,6 +633,20 @@ class Praxan:
                 # Queue personality shift — masterwork excellence reinforces diligence
                 if hasattr(self, '_pending_personality_shifts'):
                     self._pending_personality_shifts.append("entity:crafted_masterwork")
+                # Queue heirloom creation for masterwork+ equipment
+                if output_item not in ('meal',) and hasattr(self, '_pending_heirloom_events'):
+                    heirloom_type = None
+                    if equipment_type == 'weapon':
+                        heirloom_type = 'named_weapon'
+                    elif equipment_type == 'armor':
+                        heirloom_type = 'named_armor'
+                    else:
+                        heirloom_type = 'masterwork_tool'
+                    self._pending_heirloom_events.append({
+                        'action': 'create',
+                        'type_id': heirloom_type,
+                        'base_item': self.equipment.get(equipment_type),
+                    })
             else:
                 # Queue reputation event for normal crafting
                 if not hasattr(self, '_pending_reputation_events'):

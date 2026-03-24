@@ -223,6 +223,20 @@
             "delta": 1,
             "category": "social",
             "description": "Minor standing gain from ongoing mentorship"
+        },
+        {
+            "id": "created_heirloom",
+            "label": "Created an Heirloom",
+            "delta": 7,
+            "category": "building",
+            "description": "Great respect for crafting an item worthy of legend"
+        },
+        {
+            "id": "holds_faction_relic",
+            "label": "Keeper of a Faction Relic",
+            "delta": 3,
+            "category": "leadership",
+            "description": "Respect for bearing a treasured artifact of the faction"
         }
     ],
     "ReputationTierDef": [

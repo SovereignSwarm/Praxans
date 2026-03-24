@@ -1,0 +1,139 @@
+{
+    "HeirloomTypeDef": [
+        {
+            "id": "named_weapon",
+            "label": "Named Weapon",
+            "category": "weapon",
+            "description": "A weapon of exceptional make that earns a name",
+            "min_quality": "Masterwork",
+            "legend_base": 10,
+            "stat_bonus_per_legend": 0.002,
+            "max_stat_bonus": 0.30,
+            "inheritance_priority": ["partner", "child", "faction_leader"],
+            "faction_relic_threshold": 80,
+            "mood_on_receive": "ReceivedHeirloom",
+            "mood_on_lose": "LostHeirloom"
+        },
+        {
+            "id": "named_armor",
+            "label": "Named Armor",
+            "category": "armor",
+            "description": "Armor that has proven its worth in battle or craft",
+            "min_quality": "Masterwork",
+            "legend_base": 10,
+            "stat_bonus_per_legend": 0.001,
+            "max_stat_bonus": 0.20,
+            "inheritance_priority": ["child", "partner", "faction_leader"],
+            "faction_relic_threshold": 80,
+            "mood_on_receive": "ReceivedHeirloom",
+            "mood_on_lose": "LostHeirloom"
+        },
+        {
+            "id": "founders_banner",
+            "label": "Founder's Banner",
+            "category": "relic",
+            "description": "A banner raised at the founding of a faction — symbol of unity",
+            "min_quality": null,
+            "legend_base": 25,
+            "stat_bonus_per_legend": 0.0,
+            "max_stat_bonus": 0.0,
+            "inheritance_priority": ["faction_leader"],
+            "faction_relic_threshold": 0,
+            "mood_on_receive": "ReceivedHeirloom",
+            "mood_on_lose": "LostHeirloom",
+            "cohesion_bonus": 5.0
+        },
+        {
+            "id": "masterwork_tool",
+            "label": "Masterwork Tool",
+            "category": "tool",
+            "description": "A tool of surpassing quality that aids its wielder's craft",
+            "min_quality": "Masterwork",
+            "legend_base": 8,
+            "stat_bonus_per_legend": 0.003,
+            "max_stat_bonus": 0.25,
+            "inheritance_priority": ["child", "partner", "faction_leader"],
+            "faction_relic_threshold": 60,
+            "mood_on_receive": "ReceivedHeirloom",
+            "mood_on_lose": "LostHeirloom",
+            "skill_xp_bonus": 0.15
+        },
+        {
+            "id": "memorial_stone",
+            "label": "Memorial Stone",
+            "category": "memorial",
+            "description": "A carved stone commemorating a beloved leader or hero who died",
+            "min_quality": null,
+            "legend_base": 20,
+            "stat_bonus_per_legend": 0.0,
+            "max_stat_bonus": 0.0,
+            "inheritance_priority": ["faction_leader"],
+            "faction_relic_threshold": 0,
+            "mood_on_receive": "ReceivedHeirloom",
+            "mood_on_lose": "LostHeirloom",
+            "cohesion_bonus": 3.0
+        }
+    ],
+    "HeirloomEventDef": [
+        {
+            "id": "created",
+            "label": "Forged",
+            "legend_value": 5,
+            "description": "The heirloom was created"
+        },
+        {
+            "id": "inherited",
+            "label": "Inherited",
+            "legend_value": 3,
+            "description": "Passed down to a new bearer"
+        },
+        {
+            "id": "used_in_battle",
+            "label": "Blooded in Battle",
+            "legend_value": 8,
+            "description": "The heirloom was carried into combat"
+        },
+        {
+            "id": "owner_died_heroically",
+            "label": "Bearer Fell in Battle",
+            "legend_value": 12,
+            "description": "The bearer died in combat — the weapon's legend grows"
+        },
+        {
+            "id": "defended_colony",
+            "label": "Defended the Colony",
+            "legend_value": 10,
+            "description": "The heirloom was carried while the colony was successfully defended"
+        },
+        {
+            "id": "looted",
+            "label": "Seized as Spoils",
+            "legend_value": 6,
+            "description": "Taken by a raider — a dark chapter in its history"
+        },
+        {
+            "id": "owner_became_luminary",
+            "label": "Bearer Became Luminary",
+            "legend_value": 7,
+            "description": "The bearer rose to the highest honor"
+        },
+        {
+            "id": "survived_disaster",
+            "label": "Survived Calamity",
+            "legend_value": 5,
+            "description": "Endured a disaster alongside its bearer"
+        },
+        {
+            "id": "faction_relic_ascended",
+            "label": "Declared Faction Relic",
+            "legend_value": 15,
+            "description": "The heirloom's legend became so great it was declared a faction treasure"
+        },
+        {
+            "id": "generation_passed",
+            "label": "Another Generation",
+            "legend_value": 4,
+            "description": "The heirloom has been held across multiple generations"
+        }
+    ]
+}

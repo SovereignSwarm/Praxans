@@ -239,6 +239,36 @@
             "base_weight": 4,
             "personality_factor": "diligence",
             "label": "Drive Weakened"
+        },
+        {
+            "id": "heirloom_created",
+            "base_weight": 7,
+            "personality_factor": "diligence",
+            "label": "Created an Heirloom"
+        },
+        {
+            "id": "heirloom_received",
+            "base_weight": 6,
+            "personality_factor": "sociability",
+            "label": "Received an Heirloom"
+        },
+        {
+            "id": "heirloom_inherited",
+            "base_weight": 7,
+            "personality_factor": "sociability",
+            "label": "Inherited a Family Heirloom"
+        },
+        {
+            "id": "heirloom_lost",
+            "base_weight": 6,
+            "personality_factor": null,
+            "label": "Lost an Heirloom"
+        },
+        {
+            "id": "heirloom_became_relic",
+            "base_weight": 8,
+            "personality_factor": "sociability",
+            "label": "Heirloom Declared Faction Relic"
         }
     ]
 }

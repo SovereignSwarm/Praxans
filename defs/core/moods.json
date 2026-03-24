@@ -399,6 +399,41 @@
             "id": "PersonalityDecline",
             "mood_offset": -3,
             "duration": 120
+        },
+        {
+            "id": "ReceivedHeirloom",
+            "mood_offset": 10,
+            "duration": 300
+        },
+        {
+            "id": "LostHeirloom",
+            "mood_offset": -8,
+            "duration": 240
+        },
+        {
+            "id": "CreatedHeirloom",
+            "mood_offset": 12,
+            "duration": 360
+        },
+        {
+            "id": "HeirloomBecameRelic",
+            "mood_offset": 8,
+            "duration": 300
+        },
+        {
+            "id": "AncestralHeirloom",
+            "mood_offset": 5,
+            "duration": 600
+        },
+        {
+            "id": "FactionRelicNearby",
+            "mood_offset": 3,
+            "duration": 120
+        },
+        {
+            "id": "HeirloomLooted",
+            "mood_offset": -12,
+            "duration": 360
         }
     ]
 }

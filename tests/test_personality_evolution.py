@@ -660,6 +660,23 @@ class TestCleanup(unittest.TestCase):
         self.assertNotIn(0, mgr._prev_zones)
         self.assertIn(1, mgr._prev_zones)
 
+    def test_cleanup_noop_for_unknown_id(self):
+        """cleanup_praxan on an untracked id doesn't raise."""
+        mgr = PersonalityEvolutionManager()
+        mgr._prev_zones = {0: {"curiosity": 2}}
+        mgr.cleanup_praxan(999)  # id not in _prev_zones — should not raise
+        self.assertIn(0, mgr._prev_zones)
+
+    def test_dead_praxan_zones_not_retained_after_update(self):
+        """After cleanup_praxan is called for a dead entity, its zone data is gone."""
+        mgr = PersonalityEvolutionManager()
+        # Seed zone data for praxan 0 as if it had been tracked
+        mgr._prev_zones = {0: {"curiosity": 2, "sociability": 1, "diligence": 3}}
+        mgr.cleanup_praxan(0)
+        # After cleanup the serialized snapshot must not contain the dead praxan's zones
+        snapshot = mgr.serialize()
+        self.assertNotIn("0", snapshot["prev_zones"])
+
 
 # ---------------------------------------------------------------------------
 # Tests — End-to-End Integration
