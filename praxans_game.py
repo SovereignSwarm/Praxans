@@ -5580,6 +5580,11 @@ def main(runtime_config=RUNTIME_CONFIG):
     heirloom_manager = HeirloomManager()
     heirloom_manager.attach_event_bus(event_bus)
 
+    # Initialize governance & edicts system
+    from systems.governance import GovernanceManager
+    governance_manager = GovernanceManager()
+    governance_manager.attach_event_bus(event_bus)
+
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
     global_climate = GlobalClimate()
@@ -5707,6 +5712,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             heirloom_data = snapshot_payload.get("heirlooms", {})
             if heirloom_data:
                 heirloom_manager.restore(heirloom_data, current_time=now)
+            # Restore governance & edicts state
+            governance_data = snapshot_payload.get("governance", {})
+            if governance_data:
+                governance_manager.restore(governance_data, current_time=now)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -6583,6 +6592,23 @@ def main(runtime_config=RUNTIME_CONFIG):
                                 _p.add_moodlet(_tm["id"], _tm["mood_offset"], _tm["duration"], current_time)
                             except Exception:
                                 pass
+
+            # Governance & edicts — leader AI issues faction-wide policies
+            try:
+                _disease_mgr_gov = disease_manager if "disease_manager" in local_names else None
+                _warfare_mgr_gov = warfare_manager if "warfare_manager" in local_names else None
+                governance_manager.update(
+                    faction_manager=faction_manager,
+                    diplomacy_manager=diplomacy_manager,
+                    disease_manager=_disease_mgr_gov,
+                    warfare_manager=_warfare_mgr_gov,
+                    praxans=praxans,
+                    current_time=current_time,
+                    advisor=advisor,
+                    narrative_panel=narrative_panel,
+                )
+            except Exception:
+                pass
 
             # Individual migration & faction defection — push/pull evaluation
             try:
@@ -8038,6 +8064,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     mentorship_manager=mentorship_manager if "mentorship_manager" in local_names else None,
                     personality_evolution_manager=personality_evolution_manager if "personality_evolution_manager" in local_names else None,
                     heirloom_manager=heirloom_manager if "heirloom_manager" in local_names else None,
+                    governance_manager=governance_manager if "governance_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

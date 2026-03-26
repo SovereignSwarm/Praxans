@@ -269,6 +269,24 @@
             "base_weight": 8,
             "personality_factor": "sociability",
             "label": "Heirloom Declared Faction Relic"
+        },
+        {
+            "id": "edict_issued",
+            "base_weight": 5,
+            "personality_factor": null,
+            "label": "Lived Under Edict"
+        },
+        {
+            "id": "edict_festival",
+            "base_weight": 6,
+            "personality_factor": "sociability",
+            "label": "Celebrated a Festival Decree"
+        },
+        {
+            "id": "edict_martial_law",
+            "base_weight": 7,
+            "personality_factor": "bravery",
+            "label": "Endured Martial Law"
         }
     ]
 }

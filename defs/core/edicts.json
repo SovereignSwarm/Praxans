@@ -1,0 +1,203 @@
+{
+  "EdictDef": [
+  {
+    "id": "conscription",
+    "defType": "EdictDef",
+    "name": "Conscription",
+    "description": "All able-bodied adults are called to arms. Defense is bolstered but morale suffers.",
+    "doctrine_affinity": "security",
+    "personality_weights": {"bravery": 0.4, "diligence": 0.3, "sociability": -0.2},
+    "duration": 180,
+    "cooldown": 300,
+    "effects": {
+      "combat_power_mult": 1.25,
+      "cohesion_per_tick": -0.3,
+      "work_speed_mult": 0.85
+    },
+    "moodlet_id": "EdictConscription",
+    "moodlet_offset": -6,
+    "moodlet_duration": 200,
+    "preconditions": {"min_warfare_threat": true},
+    "priority_score_base": 5
+  },
+  {
+    "id": "rationing",
+    "defType": "EdictDef",
+    "name": "Rationing",
+    "description": "Food is carefully portioned. Hunger is held at bay but nobody is satisfied.",
+    "doctrine_affinity": "growth",
+    "personality_weights": {"diligence": 0.5, "curiosity": -0.1, "sociability": -0.1},
+    "duration": 240,
+    "cooldown": 300,
+    "effects": {
+      "food_consumption_mult": 0.6,
+      "cohesion_per_tick": -0.15
+    },
+    "moodlet_id": "EdictRationing",
+    "moodlet_offset": -5,
+    "moodlet_duration": 260,
+    "preconditions": {"max_food_security": 0.3},
+    "priority_score_base": 6
+  },
+  {
+    "id": "open_borders",
+    "defType": "EdictDef",
+    "name": "Open Borders",
+    "description": "Outsiders are welcomed freely. Trade and cultural exchange flourish, but cohesion weakens.",
+    "doctrine_affinity": "harmony",
+    "personality_weights": {"sociability": 0.5, "curiosity": 0.3, "bravery": -0.2},
+    "duration": 300,
+    "cooldown": 240,
+    "effects": {
+      "migration_pull_mult": 1.5,
+      "trade_bonus": 0.3,
+      "cohesion_per_tick": -0.2
+    },
+    "moodlet_id": "EdictOpenBorders",
+    "moodlet_offset": 3,
+    "moodlet_duration": 320,
+    "preconditions": {"min_cohesion": 40},
+    "priority_score_base": 4
+  },
+  {
+    "id": "closed_borders",
+    "defType": "EdictDef",
+    "name": "Closed Borders",
+    "description": "The faction seals itself off. Cohesion strengthens but trade and diplomacy stagnate.",
+    "doctrine_affinity": "security",
+    "personality_weights": {"bravery": 0.3, "diligence": 0.2, "sociability": -0.4},
+    "duration": 300,
+    "cooldown": 240,
+    "effects": {
+      "migration_pull_mult": 0.2,
+      "migration_push_mult": 0.5,
+      "trade_bonus": -0.3,
+      "cohesion_per_tick": 0.3
+    },
+    "moodlet_id": "EdictClosedBorders",
+    "moodlet_offset": -3,
+    "moodlet_duration": 320,
+    "preconditions": {"max_cohesion": 50},
+    "priority_score_base": 4
+  },
+  {
+    "id": "research_mandate",
+    "defType": "EdictDef",
+    "name": "Research Mandate",
+    "description": "Intellectual pursuits are prioritised. Knowledge grows but daily tasks suffer.",
+    "doctrine_affinity": "exploration",
+    "personality_weights": {"curiosity": 0.6, "diligence": 0.2, "bravery": -0.1},
+    "duration": 240,
+    "cooldown": 300,
+    "effects": {
+      "research_point_mult": 1.5,
+      "work_speed_mult": 0.85
+    },
+    "moodlet_id": "EdictResearchMandate",
+    "moodlet_offset": 2,
+    "moodlet_duration": 260,
+    "preconditions": {},
+    "priority_score_base": 3
+  },
+  {
+    "id": "festival_decree",
+    "defType": "EdictDef",
+    "name": "Festival Decree",
+    "description": "A grand celebration is declared. Morale soars and bonds strengthen, at the cost of productivity.",
+    "doctrine_affinity": "harmony",
+    "personality_weights": {"sociability": 0.6, "curiosity": 0.1, "diligence": -0.3},
+    "duration": 120,
+    "cooldown": 360,
+    "effects": {
+      "cohesion_per_tick": 0.5,
+      "work_speed_mult": 0.7,
+      "bond_growth_mult": 1.4
+    },
+    "moodlet_id": "EdictFestival",
+    "moodlet_offset": 10,
+    "moodlet_duration": 150,
+    "preconditions": {"min_cohesion": 25},
+    "priority_score_base": 5
+  },
+  {
+    "id": "martial_law",
+    "defType": "EdictDef",
+    "name": "Martial Law",
+    "description": "The faction is under military rule. Security is absolute but freedom is crushed.",
+    "doctrine_affinity": "security",
+    "personality_weights": {"bravery": 0.5, "diligence": 0.3, "sociability": -0.5},
+    "duration": 150,
+    "cooldown": 360,
+    "effects": {
+      "combat_power_mult": 1.4,
+      "cohesion_per_tick": -0.5,
+      "social_interaction_block": true,
+      "migration_push_mult": 1.5
+    },
+    "moodlet_id": "EdictMartialLaw",
+    "moodlet_offset": -10,
+    "moodlet_duration": 180,
+    "preconditions": {"min_warfare_threat": true, "max_cohesion": 60},
+    "priority_score_base": 3
+  },
+  {
+    "id": "construction_drive",
+    "defType": "EdictDef",
+    "name": "Construction Drive",
+    "description": "All hands turn to building. Structures rise quickly but other work slows.",
+    "doctrine_affinity": "industry",
+    "personality_weights": {"diligence": 0.6, "curiosity": -0.1, "sociability": 0.1},
+    "duration": 200,
+    "cooldown": 300,
+    "effects": {
+      "build_speed_mult": 1.5,
+      "gathering_speed_mult": 0.8
+    },
+    "moodlet_id": "EdictConstructionDrive",
+    "moodlet_offset": 1,
+    "moodlet_duration": 220,
+    "preconditions": {},
+    "priority_score_base": 4
+  },
+  {
+    "id": "healing_initiative",
+    "defType": "EdictDef",
+    "name": "Healing Initiative",
+    "description": "Medical care is the top priority. The sick recover faster, but other duties are neglected.",
+    "doctrine_affinity": "growth",
+    "personality_weights": {"sociability": 0.4, "diligence": 0.3, "bravery": -0.1},
+    "duration": 200,
+    "cooldown": 240,
+    "effects": {
+      "disease_recovery_mult": 1.6,
+      "disease_transmission_mult": 0.7,
+      "work_speed_mult": 0.9
+    },
+    "moodlet_id": "EdictHealingInitiative",
+    "moodlet_offset": 4,
+    "moodlet_duration": 220,
+    "preconditions": {"min_disease_count": 2},
+    "priority_score_base": 6
+  },
+  {
+    "id": "foraging_mandate",
+    "defType": "EdictDef",
+    "name": "Foraging Mandate",
+    "description": "Everyone is ordered to gather. Stockpiles grow but crafting and building stall.",
+    "doctrine_affinity": "growth",
+    "personality_weights": {"diligence": 0.4, "curiosity": 0.2, "sociability": -0.1},
+    "duration": 180,
+    "cooldown": 240,
+    "effects": {
+      "gathering_speed_mult": 1.4,
+      "build_speed_mult": 0.8,
+      "craft_speed_mult": 0.8
+    },
+    "moodlet_id": "EdictForagingMandate",
+    "moodlet_offset": -2,
+    "moodlet_duration": 200,
+    "preconditions": {"max_food_security": 0.5},
+    "priority_score_base": 5
+  }
+  ]
+}

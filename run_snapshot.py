@@ -503,6 +503,7 @@ def build_run_snapshot(
     mentorship_manager=None,
     personality_evolution_manager=None,
     heirloom_manager=None,
+    governance_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -544,6 +545,7 @@ def build_run_snapshot(
         "mentorship": mentorship_manager.serialize(current_time=current_time) if mentorship_manager is not None else {},
         "personality_evolution": personality_evolution_manager.serialize() if personality_evolution_manager is not None else {},
         "heirlooms": heirloom_manager.serialize() if heirloom_manager is not None else {},
+        "governance": governance_manager.serialize(current_time=current_time) if governance_manager is not None else {},
         "praxans": [
             {
                 "id": praxan.id,

@@ -434,6 +434,56 @@
             "id": "HeirloomLooted",
             "mood_offset": -12,
             "duration": 360
+        },
+        {
+            "id": "EdictConscription",
+            "mood_offset": -6,
+            "duration": 200
+        },
+        {
+            "id": "EdictRationing",
+            "mood_offset": -5,
+            "duration": 260
+        },
+        {
+            "id": "EdictOpenBorders",
+            "mood_offset": 3,
+            "duration": 320
+        },
+        {
+            "id": "EdictClosedBorders",
+            "mood_offset": -3,
+            "duration": 320
+        },
+        {
+            "id": "EdictResearchMandate",
+            "mood_offset": 2,
+            "duration": 260
+        },
+        {
+            "id": "EdictFestival",
+            "mood_offset": 10,
+            "duration": 150
+        },
+        {
+            "id": "EdictMartialLaw",
+            "mood_offset": -10,
+            "duration": 180
+        },
+        {
+            "id": "EdictConstructionDrive",
+            "mood_offset": 1,
+            "duration": 220
+        },
+        {
+            "id": "EdictHealingInitiative",
+            "mood_offset": 4,
+            "duration": 220
+        },
+        {
+            "id": "EdictForagingMandate",
+            "mood_offset": -2,
+            "duration": 200
         }
     ]
 }
