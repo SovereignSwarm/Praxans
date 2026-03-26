@@ -329,13 +329,17 @@ class HeirloomManager:
         event_bus.subscribe(CATEGORY_DISASTER, self._on_disaster)
 
     def _on_death(self, event: GameEvent) -> None:
-        self._pending_deaths.append(dict(event.data))
+        # Merge GameEvent direct fields + metadata so _process_deaths can find praxan_id
+        entry = dict(event.metadata or {})
+        if event.praxan_id is not None and "praxan_id" not in entry:
+            entry["praxan_id"] = event.praxan_id
+        self._pending_deaths.append(entry)
 
     def _on_warfare(self, event: GameEvent) -> None:
-        self._pending_warfare.append(dict(event.data))
+        self._pending_warfare.append(dict(event.metadata or {}))
 
     def _on_disaster(self, event: GameEvent) -> None:
-        self._pending_disasters.append(dict(event.data))
+        self._pending_disasters.append(dict(event.metadata or {}))
 
     # ---- Public API ---------------------------------------------------------
 
@@ -502,33 +506,32 @@ class HeirloomManager:
                     )
 
     def _find_heir(self, dead_id, heirloom, praxan_map, faction_manager) -> Optional[int]:
-        """Find the best heir for an heirloom following type priority."""
+        """Find the best heir for an heirloom following type priority.
+
+        Real praxan relationships are stored as {other_id: rel_type_str}, e.g.
+        {7: "partner", 3: "child"}.  We scan living praxans to find who was
+        connected to the deceased.
+        """
         type_def = get_heirloom_type_def(heirloom.type_id)
         if not type_def:
             return None
 
         priority = type_def.get("inheritance_priority", ["child", "partner", "faction_leader"])
 
-        # Get dead praxan relationships (might still be in a broader list)
-        dead_praxan = None
-        # Check all praxans including dead ones for relationship data
-        for p in praxan_map.values():
-            pass  # We need the dead one's data
-        # Try to find dead praxan in the praxan_map or via relationships
-        relationships = {}
+        # Build a candidate dict from living praxans' relationship fields.
+        # Relationship format: praxan.relationships[other_id] = rel_type_str
+        #   rel == "partner"  → p is dead's partner
+        #   rel == "parent"   → dead_id is p's parent, so p is a child of the dead
+        #   rel == "child"    → dead_id is p's child (p is the parent — not an heir)
+        relationships: dict[str, list] = {}
         for p in praxan_map.values():
             rels = getattr(p, "relationships", {})
-            for rel_type, rel_ids in rels.items():
-                if isinstance(rel_ids, list):
-                    if dead_id in rel_ids:
-                        if rel_type == "child":
-                            # This praxan is a child of the dead one, so dead one is parent
-                            relationships.setdefault("child", []).append(p.id)
-                        elif rel_type == "parent":
-                            # This praxan is a parent of the dead one
-                            relationships.setdefault("parent", []).append(p.id)
-                        elif rel_type == "partner":
-                            relationships.setdefault("partner", []).append(p.id)
+            rel_with_dead = rels.get(dead_id)
+            if rel_with_dead == "partner":
+                relationships.setdefault("partner", []).append(p.id)
+            elif rel_with_dead == "parent":
+                # dead_id was p's parent → p is a child of the deceased
+                relationships.setdefault("child", []).append(p.id)
 
         for heir_type in priority:
             if heir_type == "partner":
@@ -560,8 +563,9 @@ class HeirloomManager:
             if outcome != "attacker_victory":
                 continue
 
-            defender_faction = war_data.get("defender_faction_id")
-            attacker_faction = war_data.get("attacker_faction_id")
+            # Warfare events use "attacker_faction" / "defender_faction" (no _id suffix)
+            defender_faction = war_data.get("defender_faction") or war_data.get("defender_faction_id")
+            attacker_faction = war_data.get("attacker_faction") or war_data.get("attacker_faction_id")
             if defender_faction is None or attacker_faction is None:
                 continue
 
@@ -688,14 +692,14 @@ class HeirloomManager:
                 if self._event_bus:
                     self._event_bus.publish(GameEvent(
                         category=CATEGORY_CULTURAL_SHIFT,
-                        data={
+                        summary=f"{heirloom.name} has become a faction relic!",
+                        metadata={
                             "type": "heirloom_relic_ascension",
                             "heirloom_name": heirloom.name,
                             "heirloom_id": heirloom.heirloom_id,
                             "faction_id": heirloom.faction_id,
                             "legend_score": heirloom.legend_score,
                         },
-                        drama_weight=7,
                     ))
 
                 if narrative_panel:

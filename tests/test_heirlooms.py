@@ -402,15 +402,17 @@ class TestInheritance(unittest.TestCase):
         h = self.mgr.create_heirloom("named_weapon", 1, "Kara", 0, 100.0)
         hid = h.heirloom_id
 
-        # Set up praxans with partner relationship
+        # Set up praxans with partner relationship.
+        # Real praxan format: {other_id: rel_type_str}
         p1 = MockPraxan(pid=1, faction_id=0)
         p2 = MockPraxan(pid=2, faction_id=0)
-        p2.relationships = {"partner": [1]}  # p2 is partner of p1
+        p2.relationships = {1: "partner"}  # p2's partner is praxan #1
 
         # Publish death event
         self.bus.publish(GameEvent(
             category=CATEGORY_DEATH,
-            data={"praxan_id": 1, "name": "Kara", "cause": "old_age"},
+            summary="Kara died",
+            metadata={"praxan_id": 1, "name": "Kara", "cause": "old_age"},
         ))
 
         # Run update to process
@@ -426,55 +428,14 @@ class TestInheritance(unittest.TestCase):
         h = self.mgr.create_heirloom("named_weapon", 1, "Kara", 0, 100.0)
 
         child = MockPraxan(pid=3, faction_id=0)
-        child.relationships = {"parent": [1]}  # p3's parent is dead p1
-
-        # Death → child in relationships as reverse lookup
-        # Our find_heir checks: for p in alive praxans, if dead_id in their child rels = dead is parent
-        # Actually: if p has "child" rel containing dead_id → p is parent of dead
-        #           if p has "parent" rel containing dead_id → p is child of dead
-        # Wait — let me re-check the _find_heir logic
-        # The code checks: if rel_type == "child" and dead_id in rel_ids → dead one is parent, so p is child
-        # Actually the code has it inverted. Let me re-read.
-        # In find_heir: for each alive p: rels = p.relationships
-        #   if rel_type == "child" and dead_id in rel_ids → "This praxan is a child of the dead one"
-        # That means p.relationships["child"] = [dead_id] means p is a child of dead one
-        # But in praxan entity: REL_CHILD = 'child', relationships['child'] = list of p's children
-        # So if p.relationships["child"] contains dead_id, then dead_id is p's child, not vice versa.
-        # The comment in the code says "This praxan is a child of the dead one" — that's wrong.
-        # Let me fix: if p.relationships["parent"] contains dead_id → p is child of dead one
-
-        # Actually, let me just set up the relationship correctly for the test.
-        # p3 has "parent": [1] means p3's parent is p1.
-        # In _find_heir: if rel_type == "parent" and dead_id in rel_ids →
-        #   "This praxan is a parent of the dead one"
-        # That's also confusing. Let me just work with what the code does.
-
-        # The find_heir code:
-        #   if rel_type == "child" and dead_id in rel_ids:
-        #       relationships["child"].append(p.id)
-        # So if p.relationships["child"] contains dead_id, it adds p to "child" category.
-        # This means when looking for heirs with priority "child":
-        #   partner_ids = relationships.get("child", [])
-        # Wait, it does: `for heir_type in priority: if heir_type == "child": child_ids = relationships.get("child", [])`
-        # And the "child" relationships dict was populated by alive praxans whose
-        # relationships["child"] list contains the dead_id.
-        # That means those praxans have dead_id as their child → they're the dead one's parents, not children.
-
-        # There's a bug in find_heir. But for the test, let me work around it.
-        # If dead_id=1, and p3.relationships["child"] = [1], that means p3 has child=1.
-        # The code will put p3.id into relationships["child"].
-        # Then when looking for "child" heirs, it finds p3.
-        # This is actually wrong (p3 is a parent, not a child), but let's test with what the code does.
-
-        # For correctness, the inheritance to "child" should be when an alive praxan
-        # lists dead_id in their "parent" relationships. Let me just test both paths.
-
-        # For now, just test with the existing code's behavior.
-        child.relationships = {"child": [1]}  # p3 lists dead_id as their child → code treats p3 as "child"
+        # Real praxan format: {other_id: rel_type_str}.
+        # child.relationships[1] = "parent" means "praxan #1 is my parent" — so child is a child of #1.
+        child.relationships = {1: "parent"}
 
         self.bus.publish(GameEvent(
             category=CATEGORY_DEATH,
-            data={"praxan_id": 1, "name": "Kara", "cause": "old_age"},
+            summary="Kara died",
+            metadata={"praxan_id": 1, "name": "Kara", "cause": "old_age"},
         ))
 
         self.mgr.update(
@@ -494,7 +455,8 @@ class TestInheritance(unittest.TestCase):
 
         self.bus.publish(GameEvent(
             category=CATEGORY_DEATH,
-            data={"praxan_id": 1, "name": "Kara", "cause": "old_age"},
+            summary="Kara died",
+            metadata={"praxan_id": 1, "name": "Kara", "cause": "old_age"},
         ))
 
         self.mgr.update(
@@ -510,7 +472,8 @@ class TestInheritance(unittest.TestCase):
 
         self.bus.publish(GameEvent(
             category=CATEGORY_DEATH,
-            data={"praxan_id": 1, "name": "Kara", "cause": "old_age"},
+            summary="Kara died",
+            metadata={"praxan_id": 1, "name": "Kara", "cause": "old_age"},
         ))
 
         # No alive praxans to inherit
@@ -528,7 +491,8 @@ class TestInheritance(unittest.TestCase):
 
         self.bus.publish(GameEvent(
             category=CATEGORY_DEATH,
-            data={"praxan_id": 1, "name": "Kara", "cause": "combat"},
+            summary="Kara died in combat",
+            metadata={"praxan_id": 1, "name": "Kara", "cause": "combat"},
         ))
 
         self.mgr.update(
@@ -592,7 +556,7 @@ class TestRelicAscension(unittest.TestCase):
         )
 
         self.assertEqual(len(events_received), 1)
-        self.assertEqual(events_received[0].data["type"], "heirloom_relic_ascension")
+        self.assertEqual(events_received[0].metadata["type"], "heirloom_relic_ascension")
 
 
 class TestBattleLegend(unittest.TestCase):
@@ -663,7 +627,8 @@ class TestWarfareLooting(unittest.TestCase):
             h.owner_id = 1
             self.bus.publish(GameEvent(
                 category=CATEGORY_WARFARE,
-                data={
+                summary="Raid resolved",
+                metadata={
                     "outcome": "attacker_victory",
                     "defender_faction_id": 0,
                     "attacker_faction_id": 1,
@@ -690,7 +655,8 @@ class TestWarfareLooting(unittest.TestCase):
         for attempt in range(10):
             self.bus.publish(GameEvent(
                 category=CATEGORY_WARFARE,
-                data={
+                summary="Raid resolved",
+                metadata={
                     "outcome": "attacker_victory",
                     "defender_faction_id": 0,
                     "attacker_faction_id": 1,
@@ -711,7 +677,8 @@ class TestWarfareLooting(unittest.TestCase):
 
         self.bus.publish(GameEvent(
             category=CATEGORY_WARFARE,
-            data={
+            summary="Raid resolved",
+            metadata={
                 "outcome": "defender_victory",
                 "defender_faction_id": 0,
                 "attacker_faction_id": 1,
@@ -789,7 +756,8 @@ class TestDisasterLegend(unittest.TestCase):
         owner = MockPraxan(pid=1, faction_id=0)
         self.bus.publish(GameEvent(
             category=CATEGORY_DISASTER,
-            data={"type": "storm"},
+            summary="Storm struck",
+            metadata={"type": "storm"},
         ))
 
         self.mgr.update(
