@@ -76,13 +76,30 @@ class MockFactionManager:
         self.factions = {f.id: f for f in (factions or [])}
 
 
-class MockDiplomacyManager:
-    def __init__(self, standings=None):
-        self._standings = standings or {}
+class _MockRelation:
+    """Minimal stand-in for DiplomaticRelation."""
+    def __init__(self, standing: float) -> None:
+        self.standing = standing
 
-    def get_standing(self, fid1, fid2):
-        pair = frozenset((fid1, fid2))
-        return self._standings.get(pair, 0)
+
+class MockDiplomacyManager:
+    """Mirrors the real DiplomacyManager API used by GovernanceManager.
+
+    ``relations`` is ``{(fid_a, fid_b): _MockRelation}`` with sorted-tuple keys,
+    matching the real DiplomacyManager._key() convention.
+    """
+
+    def __init__(self, standings=None) -> None:
+        self.relations: dict = {}
+        for pair, standing in (standings or {}).items():
+            fids = tuple(sorted(pair))
+            self.relations[fids] = _MockRelation(standing)
+
+    def get_relation(self, fid1: int, fid2: int) -> _MockRelation:
+        key = (min(fid1, fid2), max(fid1, fid2))
+        if key not in self.relations:
+            self.relations[key] = _MockRelation(0)
+        return self.relations[key]
 
 
 # ---------------------------------------------------------------------------

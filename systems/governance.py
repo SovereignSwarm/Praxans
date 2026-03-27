@@ -542,14 +542,19 @@ class GovernanceManager:
 
     @staticmethod
     def _has_hostile_neighbour(faction_id: int, diplomacy_manager) -> bool:
-        """Check if any faction is hostile (standing < -40) toward *faction_id*."""
-        if not hasattr(diplomacy_manager, "get_standing"):
+        """Check if any faction is hostile (standing < -40) toward *faction_id*.
+
+        Uses the real DiplomacyManager API: ``relations`` is a dict of
+        ``{(fid_a, fid_b): DiplomaticRelation}`` where each relation has a
+        ``.standing`` float attribute.
+        """
+        relations = getattr(diplomacy_manager, "relations", None)
+        if not relations:
             return False
-        # Try to iterate all faction pairs
-        standings = getattr(diplomacy_manager, "_standings", {})
-        for pair, standing in standings.items():
-            if faction_id in pair and standing < -40:
-                return True
+        for (fid_a, fid_b), rel in relations.items():
+            if faction_id in (fid_a, fid_b):
+                if getattr(rel, "standing", 0) < -40:
+                    return True
         return False
 
     # ---- Serialization -----------------------------------------------------
