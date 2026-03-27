@@ -5585,6 +5585,11 @@ def main(runtime_config=RUNTIME_CONFIG):
     governance_manager = GovernanceManager()
     governance_manager.attach_event_bus(event_bus)
 
+    # Initialize feuds & grudges system
+    from systems.feuds import FeudsManager
+    feuds_manager = FeudsManager()
+    feuds_manager.attach_event_bus(event_bus)
+
     # Initialize season and weather systems
     from systems.climate import Season, WeatherSystem, TemperatureGrid, GlobalClimate
     global_climate = GlobalClimate()
@@ -5716,6 +5721,10 @@ def main(runtime_config=RUNTIME_CONFIG):
             governance_data = snapshot_payload.get("governance", {})
             if governance_data:
                 governance_manager.restore(governance_data, current_time=now)
+            # Restore feuds & grudges state
+            feuds_data = snapshot_payload.get("feuds", {})
+            if feuds_data:
+                feuds_manager.restore(feuds_data, current_time=now)
             # Restore ecology state (fertility grid, harvest pressure, degradation/recovery events)
             ecology_data = snapshot_payload.get("ecology", {})
             if ecology_data:
@@ -6659,6 +6668,18 @@ def main(runtime_config=RUNTIME_CONFIG):
             try:
                 personality_evolution_manager.update(
                     praxans=praxans,
+                    current_time=current_time,
+                )
+            except Exception:
+                pass
+
+            # Feuds & grudges — decay, stage transitions, moodlets, confrontations
+            try:
+                feuds_manager.update(
+                    praxans=praxans,
+                    faction_manager=faction_manager,
+                    diplomacy_manager=diplomacy_manager,
+                    event_bus=event_bus,
                     current_time=current_time,
                 )
             except Exception:
@@ -8065,6 +8086,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                     personality_evolution_manager=personality_evolution_manager if "personality_evolution_manager" in local_names else None,
                     heirloom_manager=heirloom_manager if "heirloom_manager" in local_names else None,
                     governance_manager=governance_manager if "governance_manager" in local_names else None,
+                    feuds_manager=feuds_manager if "feuds_manager" in local_names else None,
                 )
                 snapshot_file = write_run_snapshot(game_logger.log_dir, game_logger.session_id, snapshot)
             game_state = {

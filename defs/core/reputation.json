@@ -237,6 +237,20 @@
             "delta": 3,
             "category": "leadership",
             "description": "Respect for bearing a treasured artifact of the faction"
+        },
+        {
+            "id": "feud_confrontation_won",
+            "label": "Won a Blood Feud Confrontation",
+            "delta": 2,
+            "category": "combat",
+            "description": "Stood ground in a personal feud confrontation"
+        },
+        {
+            "id": "feud_confrontation_lost",
+            "label": "Lost a Blood Feud Confrontation",
+            "delta": -3,
+            "category": "combat",
+            "description": "Defeated in a personal feud confrontation"
         }
     ],
     "ReputationTierDef": [

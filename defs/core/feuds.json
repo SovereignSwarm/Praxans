@@ -1,0 +1,164 @@
+{
+    "GrudgeDef": [
+        {
+            "id": "insult_grudge",
+            "label": "Insulted",
+            "description": "Grudge from being insulted during social interaction",
+            "weight": 15,
+            "trigger_event": "personal",
+            "trigger_filter": {"interaction_type": "insult"},
+            "decay_rate": 0.3,
+            "personality_weights": {
+                "sociability": 1.2,
+                "diligence": 0.8
+            }
+        },
+        {
+            "id": "argument_grudge",
+            "label": "Had a Heated Argument",
+            "description": "Grudge from a heated argument",
+            "weight": 10,
+            "trigger_event": "personal",
+            "trigger_filter": {"interaction_type": "argument"},
+            "decay_rate": 0.5,
+            "personality_weights": {
+                "sociability": 0.9,
+                "diligence": 1.0
+            }
+        },
+        {
+            "id": "heirloom_theft_grudge",
+            "label": "Heirloom Stolen",
+            "description": "Deep grudge from having a personal heirloom looted in warfare",
+            "weight": 30,
+            "trigger_event": "warfare",
+            "trigger_filter": {"sub_type": "heirloom_looted"},
+            "decay_rate": 0.1,
+            "personality_weights": {
+                "sociability": 0.5,
+                "diligence": 1.3
+            }
+        },
+        {
+            "id": "betrayal_grudge",
+            "label": "Betrayed by Ally",
+            "description": "Grudge from a friend or family member defecting to another faction",
+            "weight": 25,
+            "trigger_event": "migration",
+            "trigger_filter": {"relationship": "friend_or_family"},
+            "decay_rate": 0.2,
+            "personality_weights": {
+                "sociability": 1.5,
+                "diligence": 0.6
+            }
+        },
+        {
+            "id": "rival_grudge",
+            "label": "Persistent Rival",
+            "description": "Grudge from ongoing low opinion and repeated negative interactions",
+            "weight": 8,
+            "trigger_event": "personal",
+            "trigger_filter": {"sub_type": "rivalry_deepened"},
+            "decay_rate": 0.4,
+            "personality_weights": {
+                "sociability": 1.0,
+                "diligence": 1.0
+            }
+        },
+        {
+            "id": "leadership_grudge",
+            "label": "Lost Leadership",
+            "description": "Grudge against the praxan who took the leadership position",
+            "weight": 12,
+            "trigger_event": "doctrine_change",
+            "trigger_filter": {"sub_type": "leadership_change"},
+            "decay_rate": 0.3,
+            "personality_weights": {
+                "sociability": 0.7,
+                "diligence": 1.4
+            }
+        },
+        {
+            "id": "kin_slayer_grudge",
+            "label": "Killed Kin",
+            "description": "Grudge from a family member being killed by a specific combatant",
+            "weight": 40,
+            "trigger_event": "warfare",
+            "trigger_filter": {"sub_type": "kin_killed"},
+            "decay_rate": 0.05,
+            "personality_weights": {
+                "sociability": 1.3,
+                "diligence": 0.8
+            }
+        }
+    ],
+    "FeudStageDef": [
+        {
+            "id": "simmering",
+            "label": "Simmering Resentment",
+            "severity": 1,
+            "min_grudge_weight": 15,
+            "description": "Cold shoulder — avoids socializing with the other",
+            "moodlet_id": "FeudSimmering",
+            "moodlet_offset": -3,
+            "moodlet_duration": 120,
+            "effects": {
+                "social_avoidance": true,
+                "opinion_drift": -2
+            }
+        },
+        {
+            "id": "hostile",
+            "label": "Open Hostility",
+            "severity": 2,
+            "min_grudge_weight": 35,
+            "description": "Active hostility — insults when near, recruits sympathizers",
+            "moodlet_id": "FeudHostile",
+            "moodlet_offset": -6,
+            "moodlet_duration": 150,
+            "effects": {
+                "social_avoidance": true,
+                "opinion_drift": -5,
+                "ally_recruitment": true,
+                "insult_chance": 0.3
+            }
+        },
+        {
+            "id": "vendetta",
+            "label": "Vendetta",
+            "severity": 3,
+            "min_grudge_weight": 60,
+            "description": "Vendetta — faction tension if cross-faction, allies take sides",
+            "moodlet_id": "FeudVendetta",
+            "moodlet_offset": -10,
+            "moodlet_duration": 180,
+            "effects": {
+                "social_avoidance": true,
+                "opinion_drift": -8,
+                "ally_recruitment": true,
+                "insult_chance": 0.5,
+                "diplomacy_penalty": -3,
+                "cohesion_penalty": -2
+            }
+        },
+        {
+            "id": "blood_feud",
+            "label": "Blood Feud",
+            "severity": 4,
+            "min_grudge_weight": 90,
+            "description": "Blood feud — physical confrontation, potential exile of loser",
+            "moodlet_id": "FeudBloodFeud",
+            "moodlet_offset": -15,
+            "moodlet_duration": 240,
+            "effects": {
+                "social_avoidance": true,
+                "opinion_drift": -12,
+                "ally_recruitment": true,
+                "insult_chance": 0.7,
+                "diplomacy_penalty": -8,
+                "cohesion_penalty": -5,
+                "violence_chance": 0.15
+            }
+        }
+    ]
+}
