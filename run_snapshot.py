@@ -505,6 +505,7 @@ def build_run_snapshot(
     heirloom_manager=None,
     governance_manager=None,
     feuds_manager=None,
+    chronicle_manager=None,
 ):
     return {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -548,6 +549,7 @@ def build_run_snapshot(
         "heirlooms": heirloom_manager.serialize() if heirloom_manager is not None else {},
         "governance": governance_manager.serialize(current_time=current_time) if governance_manager is not None else {},
         "feuds": feuds_manager.serialize(current_time=current_time) if feuds_manager is not None else {},
+        "chronicle": chronicle_manager.serialize(current_time=current_time) if chronicle_manager is not None else {},
         "praxans": [
             {
                 "id": praxan.id,

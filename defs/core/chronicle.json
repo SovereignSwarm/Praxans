@@ -1,0 +1,216 @@
+{
+    "EraDef": [
+        {
+            "id": "age_of_founding",
+            "label": "Age of Founding",
+            "description": "A time of new beginnings and settlement building",
+            "dominant_categories": ["building", "birth", "milestone"],
+            "threshold": 5,
+            "priority": 1,
+            "moodlet": "EraOfProsperity",
+            "mood_offset": 3,
+            "mood_duration": 120
+        },
+        {
+            "id": "golden_age",
+            "label": "Golden Age",
+            "description": "A prosperous era of cultural flourishing and growth",
+            "dominant_categories": ["trade", "cultural_shift", "milestone"],
+            "threshold": 6,
+            "priority": 3,
+            "moodlet": "EraOfProsperity",
+            "mood_offset": 5,
+            "mood_duration": 120
+        },
+        {
+            "id": "age_of_war",
+            "label": "Age of War",
+            "description": "An era defined by conflict and military struggle",
+            "dominant_categories": ["warfare"],
+            "threshold": 4,
+            "priority": 5,
+            "moodlet": "EraOfConflict",
+            "mood_offset": -4,
+            "mood_duration": 120
+        },
+        {
+            "id": "age_of_plague",
+            "label": "Age of Plague",
+            "description": "A dark period of rampant disease and suffering",
+            "dominant_categories": ["disaster"],
+            "threshold": 4,
+            "priority": 4,
+            "moodlet": "EraOfHardship",
+            "mood_offset": -3,
+            "mood_duration": 120
+        },
+        {
+            "id": "age_of_schism",
+            "label": "Age of Schism",
+            "description": "A fractured era of ideological division and migration",
+            "dominant_categories": ["schism", "migration", "doctrine_change"],
+            "threshold": 4,
+            "priority": 4,
+            "moodlet": "EraOfUncertainty",
+            "mood_offset": -2,
+            "mood_duration": 120
+        },
+        {
+            "id": "age_of_exploration",
+            "label": "Age of Exploration",
+            "description": "A time of bold discovery and expanding horizons",
+            "dominant_categories": ["diplomacy", "trade"],
+            "threshold": 5,
+            "priority": 2,
+            "moodlet": "EraOfProsperity",
+            "mood_offset": 3,
+            "mood_duration": 120
+        },
+        {
+            "id": "age_of_rebirth",
+            "label": "Age of Rebirth",
+            "description": "An era of recovery and renewal after hardship",
+            "dominant_categories": ["birth", "building", "cultural_shift"],
+            "threshold": 6,
+            "priority": 3,
+            "moodlet": "EraOfProsperity",
+            "mood_offset": 4,
+            "mood_duration": 120
+        },
+        {
+            "id": "age_of_legends",
+            "label": "Age of Legends",
+            "description": "An extraordinary era when legendary figures walk the land",
+            "dominant_categories": ["personal", "milestone"],
+            "threshold": 8,
+            "priority": 6,
+            "moodlet": "EraOfLegends",
+            "mood_offset": 6,
+            "mood_duration": 120
+        }
+    ],
+    "LegendaryDeedDef": [
+        {
+            "id": "great_builder",
+            "label": "Great Builder",
+            "description": "Built many structures for the colony",
+            "event_category": "building",
+            "required_count": 5,
+            "legend_points": 3,
+            "reputation_bonus": 5
+        },
+        {
+            "id": "war_hero",
+            "label": "War Hero",
+            "description": "Distinguished themselves in multiple battles",
+            "event_category": "warfare",
+            "event_types": ["raid_defended", "combat_victory", "raid_kill"],
+            "required_count": 3,
+            "legend_points": 5,
+            "reputation_bonus": 8
+        },
+        {
+            "id": "plague_survivor",
+            "label": "Plague Survivor",
+            "description": "Survived multiple diseases and epidemics",
+            "event_category": "personal",
+            "event_types": ["disease_recovered", "survived_epidemic"],
+            "required_count": 3,
+            "legend_points": 4,
+            "reputation_bonus": 5
+        },
+        {
+            "id": "master_artisan",
+            "label": "Master Artisan",
+            "description": "Created exceptional works of craft",
+            "event_category": "personal",
+            "event_types": ["crafted_masterwork", "heirloom_created"],
+            "required_count": 3,
+            "legend_points": 4,
+            "reputation_bonus": 6
+        },
+        {
+            "id": "great_healer",
+            "label": "Great Healer",
+            "description": "Saved many lives through medical skill",
+            "event_category": "personal",
+            "event_types": ["healed_other", "disease_recovered"],
+            "required_count": 4,
+            "legend_points": 4,
+            "reputation_bonus": 6
+        },
+        {
+            "id": "peacemaker",
+            "label": "Peacemaker",
+            "description": "Brokered peace and forged alliances",
+            "event_category": "diplomacy",
+            "required_count": 4,
+            "legend_points": 3,
+            "reputation_bonus": 5
+        },
+        {
+            "id": "great_mentor",
+            "label": "Great Mentor",
+            "description": "Trained many apprentices to mastery",
+            "event_category": "personal",
+            "event_types": ["mentored_graduate", "taught_skill"],
+            "required_count": 4,
+            "legend_points": 3,
+            "reputation_bonus": 5
+        },
+        {
+            "id": "disaster_survivor",
+            "label": "Disaster Survivor",
+            "description": "Endured catastrophes that broke lesser souls",
+            "event_category": "disaster",
+            "required_count": 3,
+            "legend_points": 4,
+            "reputation_bonus": 5
+        },
+        {
+            "id": "colony_founder",
+            "label": "Colony Founder",
+            "description": "Led the founding of a new faction",
+            "event_category": "schism",
+            "required_count": 1,
+            "legend_points": 5,
+            "reputation_bonus": 8
+        },
+        {
+            "id": "beloved_leader",
+            "label": "Beloved Leader",
+            "description": "Led their people through prosperity and hardship",
+            "event_category": "milestone",
+            "event_types": ["became_leader", "led_ritual", "edict_issued"],
+            "required_count": 3,
+            "legend_points": 5,
+            "reputation_bonus": 8
+        }
+    ],
+    "LegendTierDef": [
+        {
+            "id": "notable",
+            "label": "Notable",
+            "min_legend_points": 5,
+            "moodlet": "NotableFigure",
+            "mood_offset": 3,
+            "mood_duration": 300
+        },
+        {
+            "id": "renowned",
+            "label": "Renowned",
+            "min_legend_points": 12,
+            "moodlet": "RenownedFigure",
+            "mood_offset": 6,
+            "mood_duration": 300
+        },
+        {
+            "id": "legendary",
+            "label": "Legendary",
+            "min_legend_points": 20,
+            "moodlet": "LegendaryFigure",
+            "mood_offset": 10,
+            "mood_duration": 300
+        }
+    ]
+}

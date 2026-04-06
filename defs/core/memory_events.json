@@ -287,6 +287,18 @@
             "base_weight": 7,
             "personality_factor": "bravery",
             "label": "Endured Martial Law"
+        },
+        {
+            "id": "legendary_deed",
+            "base_weight": 8,
+            "personality_factor": "diligence",
+            "label": "Achieved a Legendary Deed"
+        },
+        {
+            "id": "legend_status",
+            "base_weight": 9,
+            "personality_factor": "sociability",
+            "label": "Became a Living Legend"
         }
     ]
 }

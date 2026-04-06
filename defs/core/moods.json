@@ -519,6 +519,46 @@
             "id": "FeudResolved",
             "mood_offset": 4,
             "duration": 180
+        },
+        {
+            "id": "EraOfProsperity",
+            "mood_offset": 4,
+            "duration": 120
+        },
+        {
+            "id": "EraOfConflict",
+            "mood_offset": -4,
+            "duration": 120
+        },
+        {
+            "id": "EraOfHardship",
+            "mood_offset": -3,
+            "duration": 120
+        },
+        {
+            "id": "EraOfUncertainty",
+            "mood_offset": -2,
+            "duration": 120
+        },
+        {
+            "id": "EraOfLegends",
+            "mood_offset": 6,
+            "duration": 120
+        },
+        {
+            "id": "NotableFigure",
+            "mood_offset": 3,
+            "duration": 300
+        },
+        {
+            "id": "RenownedFigure",
+            "mood_offset": 6,
+            "duration": 300
+        },
+        {
+            "id": "LegendaryFigure",
+            "mood_offset": 10,
+            "duration": 300
         }
     ]
 }

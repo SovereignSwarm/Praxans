@@ -251,6 +251,13 @@
             "delta": -3,
             "category": "combat",
             "description": "Defeated in a personal feud confrontation"
+        },
+        {
+            "id": "became_legend",
+            "label": "Became a Legend",
+            "delta": 10,
+            "category": "personal",
+            "description": "Massive respect for achieving legendary status through extraordinary deeds"
         }
     ],
     "ReputationTierDef": [
