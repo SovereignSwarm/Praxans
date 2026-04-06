@@ -7025,6 +7025,8 @@ def main(runtime_config=RUNTIME_CONFIG):
                             ritual_manager.signal_death(praxan.faction_id, current_time)
                         # Remove dead praxan from personality evolution zone tracking
                         personality_evolution_manager.cleanup_praxan(praxan.id)
+                        # Stop active deed tracking for dead praxan (legend data preserved)
+                        chronicle_manager.remove_praxan(praxan.id)
             
             # Update factions outside the loop for efficiency
             faction_manager.update_factions(praxans, advisor,
@@ -7815,6 +7817,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 weather_label=weather_system.current_weather.title(),
                 ecology_label=_ecology_label,
                 climate_epoch=getattr(global_climate, 'epoch', ''),
+                current_era=chronicle_manager.get_current_era_label() if chronicle_manager else '',
             )
             field_notes = build_field_notes(advisor.session_stats.get("timeline_events", []), current_time, limit=6)
             minimap_context = {
@@ -7868,6 +7871,7 @@ def main(runtime_config=RUNTIME_CONFIG):
                 active_tab=ui_state.inspect_tab,
                 praxans=praxans,
                 diplomacy_manager=diplomacy_manager,
+                chronicle_manager=chronicle_manager,
             )
             draw_inspect_drawer(
                 screen,

@@ -173,7 +173,7 @@ def _build_generic_model(selected_entity, selected_type: str) -> InspectViewMode
         sections=sections,
     )
 
-def _build_praxan_model(praxan, active_tab: str, current_time: float, praxans, faction_manager, diplomacy_manager) -> InspectViewModel:
+def _build_praxan_model(praxan, active_tab: str, current_time: float, praxans, faction_manager, diplomacy_manager, chronicle_manager=None) -> InspectViewModel:
     praxan = selected_entity
     tabs = [("overview", "Overview"), ("needs", "Needs"), ("health", "Health"), ("traits", "Traits"), ("social", "Social"), ("memory", "Memory")]
     active_tab = active_tab if active_tab in {tab_id for tab_id, _ in tabs} else "overview"
@@ -426,6 +426,20 @@ def _build_praxan_model(praxan, active_tab: str, current_time: float, praxans, f
                 f"Age  {int(max(0.0, current_time - float(getattr(praxan, 'birth_time', current_time) or current_time)))}s",
             ),
         ]
+        # Legend status from chronicle system
+        if chronicle_manager is not None:
+            pid = getattr(praxan, 'id', None)
+            if pid is not None:
+                legend_tier_label = chronicle_manager.get_legend_tier_label(pid)
+                legend_pts = chronicle_manager.get_legend_points(pid)
+                completed_deeds = chronicle_manager.get_completed_deeds(pid)
+                if legend_pts > 0 or completed_deeds:
+                    legend_lines = [f"Legend Points  {legend_pts}"]
+                    if legend_tier_label:
+                        legend_lines.insert(0, f"Status  {legend_tier_label}")
+                    for deed_id in completed_deeds[:5]:
+                        legend_lines.append(f"  {deed_id.replace('_', ' ').title()}")
+                    sections.append(_section("Legend", *legend_lines))
         return InspectViewModel(
             title="Praxan", subtitle=subtitle, entity_type="praxan",
             accent=(187, 147, 88), tabs=tabs, active_tab=active_tab,
@@ -444,6 +458,7 @@ def build_inspect_view_model(
     active_tab: str = "overview",
     praxans=None,
     diplomacy_manager=None,
+    chronicle_manager=None,
 ) -> InspectViewModel:
     if not selected_entity or not selected_type:
         return _build_settlement_model(settlement_state, advisor, active_tab)
@@ -455,7 +470,7 @@ def build_inspect_view_model(
         return _build_resource_model(selected_entity)
 
     if selected_type == "praxan":
-        return _build_praxan_model(selected_entity, active_tab, current_time, praxans, faction_manager, diplomacy_manager)
+        return _build_praxan_model(selected_entity, active_tab, current_time, praxans, faction_manager, diplomacy_manager, chronicle_manager)
 
     return _build_generic_model(selected_entity, selected_type)
 def _draw_need_bar(surface: pygame.Surface, theme, x: int, y: int, width: int, bar: NeedBar) -> int:

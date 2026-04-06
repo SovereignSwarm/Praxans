@@ -141,6 +141,7 @@ class RunHudModel:
     weather_label: str = ""
     ecology_label: str = ""
     climate_epoch: str = ""
+    current_era: str = ""
 
 
 @dataclass(frozen=True)

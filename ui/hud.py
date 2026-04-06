@@ -59,6 +59,8 @@ def _draw_top_ribbon(surface: pygame.Surface, theme: UITheme, layout, registry, 
         _subtitle_parts.append(model.season_label)
     if model.climate_epoch:
         _subtitle_parts.append(model.climate_epoch)
+    if model.current_era:
+        _subtitle_parts.append(model.current_era)
     subtitle = theme.fonts.caption.render(
         "  |  ".join(_subtitle_parts),
         True,
